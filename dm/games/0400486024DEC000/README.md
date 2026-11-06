@@ -107,6 +107,7 @@ The source-built translator and chain header must accompany this host. Full shad
 
 - [An upscaler's colour read from its code](../../../docs/reference/rendering.md#an-upscalers-colour-read-from-its-code): `agl_ndsr_vr.pck` variants with no curve or power can use the opt-in `DM_UPSCALER=metalfx` replacement. Current local validation covers synthetic GPU fixtures; gameplay image acceptance remains open.
 
+- [Stage memory byte stores through a compare-and-swap loop](../../../docs/reference/shaders.md#stage-memory-byte-stores-through-a-compare-and-swap-loop): the foliage mesh shaders, 8.5 ms a frame on an M3 Pro.
 - [The GPU idles with the next command buffer already committed](../../../docs/reference/frame-rate.md#the-gpu-idles-with-the-next-command-buffer-already-committed): the 25-40 ms frames.
 - [Pool tables and readback buffers made anew each frame](../../../docs/reference/memory.md#pool-tables-and-readback-buffers-made-anew-each-frame): about 1,500 residency changes per 300 frames.
 - [Pool tables patched instead of built whole](../../../docs/reference/nvn-objects.md#pool-tables-patched-instead-of-built-whole): the game registers something between most of its draws, its streamed textures map and unmap virtual pool runs dozens of times a second, finalized descriptors stay registered and textures take over each other's storage; each of these walked the 33,025-entry texture table again, about 53 s of a seven-minute walk.
