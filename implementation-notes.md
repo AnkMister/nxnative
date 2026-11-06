@@ -54,3 +54,7 @@ All experiments remain default-off except inherited/profile defaults; the play
 recipe explicitly enables reviewed correctness/stability and srgb. Complete
 pipeline coverage and image/gameplay acceptance remain parent gates. No game,
 full shader build, push or PR ran. Final results and cleanup are in docs/oot-notes.
+
+## Brent round 2: misc1
+
+Scoped to #1320, #1355, #1377 and #1379. Neither integrated base a14fb78c nor upstream c83c48f2 has these implementations. Ported #1320 (46975a20) behind DM_NVN_GW_INTERVALS=1, retaining the baseline threshold and range capacity by default. Skipped #1377 (d234d4f6): software AV1 throughput on older Macs, whereas M4 normally uses VideoToolbox; no demonstrated benefit for this target. Skipped #1379 (7ee81e91 plus 3b588ca6): deliberately discards movie pictures, contrary to the quality-first instruction. No existing stable GPU, presentation or shader behavior was replaced.

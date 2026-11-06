@@ -1073,6 +1073,14 @@ The replay on Metal (`dm/gfx/nvn/nvn_mtl.m`) and the Vulkan and OpenGL layers. E
 - **Found on:** [Splatoon Raiders](../../dm/games/0400380020056000/README.md): its ink query block is updated at 0x00..0x14 and 0x18..0x70 while the shader reads 0x00..0x70, so one unused word leaves it partly covered, before each of about 150 queries a frame; `7866f36373e7` writes a 56 MB buffer each frame. 90,000 refusals every 300 frames became none. `DM_NVN_UBP_CHECK=1` on the first level: 592,000 shadows equal to the GPU's memory, 0 different.
 - **Check:** `make -C dm/gfx/tests GAME=<id> check_t_ubp_running` and `check_t_sbw` (fails with `DM_NVN_UBP_RUNNING=0`).
 
+### Optional wide-write intervals across submissions
+
+- **Symptom:** unrelated uniform pages are refused after large GPU writes collide in the running-write page table, ending extra render passes.
+- **Cause:** the submission ledger expands writes below 16 MB into hashed page entries, even when the current submission already tracks them as wide ranges.
+- **Fix:** `DM_NVN_GW_INTERVALS=1` opts into PR #1320's page-aligned intervals for writes spanning more than 64 pages, with up to 128 live ranges and the conservative write-anywhere fallback. Default off; the original threshold and 32-range capacity remain when disabled.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md), reported by the source PR; this port still needs Mac validation.
+- **Check:** run `check_t_sbw` with the flag unset and set to `1`; compare gameplay and uniform-shadow refusals on the Mac.
+
 ### An unbound uniform slot reads the zero bank
 
 - **Symptom:** `stage 0 cb5 has no uniform buffer bound` (or another stage and slot, such as `stage 0 cb0`), once per run.

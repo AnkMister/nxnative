@@ -446,3 +446,7 @@ brightness in gameplay remain unverified.
 Found on this game: the [raw lookup grouping extension](../../../docs/reference/shaders.md#adjacent-raw-global-memory-reads)
 accepts the heavy mesh programs' read-only pool table under `DMSH_WIDE_GROUP=1`.
 Keep this off until matching host/shader builds pass image comparison.
+
+### Open: optional running GPU-write intervals
+
+PR #1320's [wide-write interval ledger](../../../docs/reference/rendering.md#optional-wide-write-intervals-across-submissions) is ported behind `DM_NVN_GW_INTERVALS=1` (default off). Mac rendering, stability and efficiency validation remain open; no local gameplay measurement is claimed.
