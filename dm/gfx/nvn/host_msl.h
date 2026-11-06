@@ -5,3 +5,12 @@
 #import <Metal/Metal.h>
 
 id<MTLLibrary> host_msl_lib(id<MTLDevice> dev, id<MTL4Compiler> comp, const char *name, NSError **e);
+
+// Pipeline API entries, not a claim about work inside Apple's driver. Archive loads
+// are counted separately. First game present ends startup (a conservative boundary).
+void dm_aot_event(const char *kind, NSString *identity, const char *reason, int compiler);
+void dm_aot_gameplay(void);
+void dm_aot_summary(void);
+int dm_aot_on(void);
+uint64_t dm_aot_compiler_count(int gameplay);
+id<MTLComputePipelineState> host_msl_compute(id<MTLDevice> dev, id<MTLLibrary> lib, NSString *entry, NSError **e);

@@ -11,7 +11,7 @@
 // Keep the host's cache observations/deletions in a directory owned by this test.
 // Metal itself still uses its real compiler cache; only this translation unit's
 // confstr calls see the fixture parent, including when testing the former cleanup.
-static char archive_cache_root[] = "/tmp/t_pso_archive_cache.XXXXXX";
+static char archive_cache_root[4096];
 static size_t archive_confstr(int name, char *buffer, size_t length) {
     if (name != _CS_DARWIN_USER_CACHE_DIR) return confstr(name, buffer, length);
     size_t size = strlen(archive_cache_root) + 1;
@@ -254,11 +254,12 @@ static void capture_preserves_foreign_folder(void) {
         EXPECT("foreign capture: test-owned fixture removed", 1, [NSFileManager.defaultManager removeItemAtPath:proxy->fixture error:nil]);
 }
 int main(int argc, char **argv) { @autoreleasepool {
+    if (snprintf(archive_cache_root, sizeof archive_cache_root, "%s/t_pso_archive_cache.XXXXXX", getenv("TMPDIR") ?: ".") >= sizeof archive_cache_root) abort();
     if (!mkdtemp(archive_cache_root)) abort();
     atexit(archive_cache_cleanup);
     if (![NSFileManager.defaultManager createDirectoryAtPath:[@(archive_cache_root) stringByAppendingPathComponent:@"com.apple.gpuarchiver"]
                                withIntermediateDirectories:NO attributes:nil error:nil]) abort();
-    char dir[] = "/tmp/t_pso_archive.XXXXXX"; if (!mkdtemp(dir)) abort();
+    char dir[4096]; if (snprintf(dir, sizeof dir, "%s/archive.XXXXXX", archive_cache_root) >= sizeof dir || !mkdtemp(dir)) abort();
     setenv("DM_PSO_ARCHIVE", argc == 3 ? argv[2] : dir, 1);
     mtl_init(); g_q = [g_dev newCommandQueue]; NSError *err = nil;
     NSString *src = @"#include <metal_stdlib>\nusing namespace metal;\nstruct V { float4 p [[position]]; };\nstruct I { float4 a [[attribute(0)]]; };\n"
@@ -326,6 +327,12 @@ int main(int argc, char **argv) { @autoreleasepool {
     EXPECT("other colour states: the same base", 1, g_pb_built);
     EXPECT("other colour states: base reused", 2, g_pb_reused);
     EXPECT("one specialization per pipeline", 3, g_pb_spec);
+    // A learned base must not make an archive-only worker-mode probe compile.
+    setenv("DM_PSO_WORKERS", "1", 1);
+    uint64_t probe_specs = g_pb_spec;
+    EXPECT("worker probe returns before specialization", 1, pso_build_ex(desc(MTLPixelFormatRGBA8Unorm, 0, MTLPixelFormatRGBA16Float, MTLColorWriteMaskRed, 1), nil, 0) == nil);
+    EXPECT("worker probe has no specialization", probe_specs, g_pb_spec);
+    unsetenv("DM_PSO_WORKERS");
     // the archive: flushed to a file, a later start takes the base from it without compiling
     EXPECT("one base waits for the archive", 1, g_arch_new);
     ArchEpoch *ep0 = g_ep;
@@ -359,7 +366,7 @@ int main(int argc, char **argv) { @autoreleasepool {
     EXPECT("layout base: one waits for a plain file", 1, g_arch_new_vd);
     // compaction: with more than PSO_ARCH_COMPACT files, the bases the prewarm takes from them are captured again; after the flush that follows, one file holds them and the old ones are gone
     {
-        char cdir[] = "/tmp/t_pso_compact.XXXXXX"; if (!mkdtemp(cdir)) abort();
+        char cdir[4096]; if (snprintf(cdir, sizeof cdir, "%s/compact.XXXXXX", archive_cache_root) >= sizeof cdir || !mkdtemp(cdir)) abort();
         NSString *saved = g_arch_dir; g_arch_dir = @(cdir); nvn_hm_clear(&g_pbase, hm_rel); g_arch4 = @[]; g_arch4p = @[];
         NSMutableArray<MTLRenderPipelineDescriptor *> *descs = [NSMutableArray array];
         for (int i = 0; i <= PSO_ARCH_COMPACT; i++) {   // one base per file: the stride of the layout tells them apart
