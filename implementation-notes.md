@@ -54,3 +54,7 @@ All experiments remain default-off except inherited/profile defaults; the play
 recipe explicitly enables reviewed correctness/stability and srgb. Complete
 pipeline coverage and image/gameplay acceptance remain parent gates. No game,
 full shader build, push or PR ran. Final results and cleanup are in docs/oot-notes.
+
+## Brent round 2, #1430, 5cb7d718
+
+Keep depth-writing pool draws in a pass with DM_NVN_FB_DSELF=1. Preserve attachment profiling and the original default.
