@@ -172,7 +172,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Optimizations
                 // nxnative: of this phi alone, not of a phi that merges it with something else: phi(phi(undefined, texture word), texture word | sampler word), a handle built under a
                 // guard in a register with no earlier value, gave the texture word alone, with no sampler. The other sources' phis are seen through instead
 
-                if ((recurse || System.Environment.GetEnvironmentVariable("DMSH_OOT_VISUAL") != "1") && undefCount == phiNode.SourcesCount - 1)
+                if (recurse && undefCount == phiNode.SourcesCount - 1)
                 {
                     for (int i = phiNode.SourcesCount - 1; i >= 0; i--)
                     {
@@ -180,7 +180,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Optimizations
 
                         if (phiSource.Type != OperandType.Undefined)
                         {
-                            return System.Environment.GetEnvironmentVariable("DMSH_OOT_VISUAL") == "1" ? FindLastOperation(phiSource, block) : phiSource;
+                            return FindLastOperation(phiSource, block);
                         }
                     }
                 }

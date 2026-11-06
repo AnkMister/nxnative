@@ -219,27 +219,28 @@ def ndsr_shaders(d, label):
     a vertex program is followed by its pixel program. The others hold constant data: 4 bytes of it (type 9) between two programs of the variable-ratio packs put the next program
     on an odd entry, which a walk of two entries at a time stepped over (Ocarina of Time's d17eefaff4f0bc23, 1fdc85178b60f6ce, 92918e9b7e2f89a4: the first is the SMAA blending weights of the
     upscaler). The control section's stage byte (+0x56) and its code length (+0x44) decide the stage and the code area, as for BNSH.
-    The entries start at +0x14 in Splatoon Raiders' pack, whose header has another word and other values (+4 0x40100, against 0x300 in Bananza's), so the start is the one whose first
+    The entries start at +0x14 in Splatoon Raiders' and Ocarina of Time's packs, whose header has another word and other values (+4 0x40100, against 0x300 in Bananza's), so the start is the one whose first
     entries point at control sections. Read from +0x10 the same pack gave no shader, the upscaler's draws were skipped and every 3D frame reached the window black"""
     if d[:4] != b'NDSR' or len(d) < 0x20: return []
-    word_walk = os.environ.get('DMSH_OOT_VISUAL') == '1'
-    step = 16
+    word_walk = os.environ.get('DMSH_OOT_VISUAL') == '1'   # PR #1444: walk whole 8-byte descriptors, selecting either header
+    step = 8 if word_walk else 16
     def entries_from(o):   # inspect complete entries, including a short/truncated pack
         return sum(1 for at in range(o, min(len(d) - 7, o + 16 * 16), step)
                    if (c := struct.unpack_from('<I', d, at)[0]) + 0x48 <= len(d) and nvn2_ctl(d[c:c + 0x48]))
-    out = []; o = 0x10 if word_walk else max((0x10, 0x14), key=entries_from); prog = None
+    out = []; o = max((0x10, 0x14), key=entries_from); prog = None
     while o + 16 <= len(d):
         c, cl, k, _ = struct.unpack_from('<4I', d, o)
-        if not c and not cl and (not word_walk or not k): break
+        if not c and not cl: break
         valid = c + 0x48 <= len(d) and nvn2_ctl(d[c:c + 0x48])
         if word_walk and not (valid and cl & 15 in (0, 3, 6) and cl >> 4 >= 0x48):
-            o += 4; continue
+            o += 8; continue
         o += step
         if not valid: continue
         ctl = d[c:c + max(cl >> 4, 0x48)]
         code = d[k:k + struct.unpack_from('<I', ctl, 0x44)[0]]
         st = nvn2_stage(ctl, code)
         if st is None or check(label, st, ctl, code): continue
+        if word_walk: o += 8   # the shader's code descriptor; data descriptors consume just one slot
         where = f'{label}#NDSR@{c:#x}'
         out.append((where, st, ctl, code))
         if st == 'vs': prog = where
@@ -2729,13 +2730,14 @@ def ue_shaders(d, label):
     return out
 
 def var_pairs(found):
-    """(vertex key, pixel key) within the same BNSH variation; (vertex key, pixel key, 'prog') within the same BAHS program variation (bahs_variations).
+    """(vertex or mesh key, pixel key) within the same BNSH variation; (vertex key, pixel key, 'prog') within the same BAHS program variation (bahs_variations).
     The tables stay separate; dmsh_build.py pads against both, as the pipeline prebuild uses both."""
     var = collections.defaultdict(dict)
     for where, st, ctl, code in found:
         g = where if '#var' in where else BAHS_VAR.get(where)
         if g: var[g][st] = skey(ctl, code)
-    return {(v['vs'], v['ps']) + (('prog',) if '#BAHS#prog' in g else ()) for g, v in var.items() if 'vs' in v and 'ps' in v}
+    stages = ('vs', 'ms') if os.environ.get('DMSH_OOT_VISUAL') == '1' else ('vs',)
+    return {(v[st], v['ps']) + (('prog',) if '#BAHS#prog' in g else ()) for g, v in var.items() for st in stages if st in v and 'ps' in v}
 
 def scan_file(args):
     """→ (relative path, {key: …}, pairs, extra); extra = this file's Unity type trees, 'defer' (no type tree, scanned again in the second pass), or ('unreadable', why).

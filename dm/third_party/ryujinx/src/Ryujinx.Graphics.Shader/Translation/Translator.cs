@@ -191,7 +191,16 @@ namespace Ryujinx.Graphics.Shader.Translation
                     }
                 }
 
-                functions[index] = new(context.GetOperations());
+                Operation[] operations = context.GetOperations();
+
+                // BarrierExits reserves a Maxwell flag register that only the Ampere frontend leaves free.
+                if (ampere && index == 0 && translatorContext.Stage == ShaderStage.Compute &&
+                    System.Environment.GetEnvironmentVariable("DMSH_OOT_VISUAL") == "1")
+                {
+                    operations = BarrierExits.Apply(operations);
+                }
+
+                functions[index] = new(operations);
             }
 
             return functions;

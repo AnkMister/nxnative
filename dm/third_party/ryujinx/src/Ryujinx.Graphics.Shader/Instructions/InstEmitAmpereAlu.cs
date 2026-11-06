@@ -1500,7 +1500,7 @@ namespace Ryujinx.Graphics.Shader.Instructions
 
             if (vote != null)
             {
-                ASetPred(context, x.Bits(81, 84), vote, toUniform && Environment.GetEnvironmentVariable("DMSH_OOT_VISUAL") == "1");
+                ASetPred(context, x.Bits(81, 84), vote, toUniform);
             }
 
             int rd = ARd(x, toUniform);

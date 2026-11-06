@@ -115,6 +115,16 @@ class Plan(unittest.TestCase):
         self.assertFalse((extracted / 'host:helper.metallib').exists())
         po.clear_real_libraries(work)
 
+    def test_mesh_pairs_stay_out_of_vertex_descriptors_when_enabled(self):
+        self.shader('mesh', {'stage': 'ms', 'mesh_stage': {'kind': 'ms'}}, {'_b': [('main0', False)]})
+        self.shader('fs', {}, {'_b': [('main0', False)]})
+        for flag in ('0', '1'):
+            with self.subTest(flag=flag), mock.patch.dict(os.environ, DMSH_OOT_VISUAL=flag):
+                bases, rest, left = po.plan(self.d, CHAIN, [('mesh', 'fs')], False)
+                self.assertEqual(len(bases), 0 if flag == '1' else 1)
+                self.assertEqual(rest, [])
+                self.assertEqual(left['reflection'], 1 if flag == '1' else 0)
+
     def test_bases_rest_and_left_out(self):
         vz = [('main0', False), ('main0_z', False)]
         self.shader('pull', {'entry_z': 'main0_z', 'pull': {'entry': 'main0'}, 'vertex_inputs': [{'location': 0}]}, {'_b': vz, '_bp': vz})

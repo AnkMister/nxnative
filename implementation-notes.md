@@ -54,3 +54,18 @@ All experiments remain default-off except inherited/profile defaults; the play
 recipe explicitly enables reviewed correctness/stability and srgb. Complete
 pipeline coverage and image/gameplay acceptance remain parent gates. No game,
 full shader build, push or PR ran. Final results and cleanup are in docs/oot-notes.
+
+## PR #1444 shader port lane
+
+Ported shader sources and exact upstream profile tables on p1444-xlate from
+64a163ba. The final integration base is pinned separately to oot-play e8c3bc22.
+Preserved strict F2IP/CAS, FTZ float atomics, LDSM barriers, dynamic map and wide
+loads, packed/AOT archive support and stage caches. VOTEU and guarded handles
+are default-on; new correctness paths use DMSH_OOT_VISUAL=1. The overlap
+rationale, source-only checks and omissions are in docs/oot-notes/p1444-xlate.md.
+
+Lead steering moved the single translator rebuild, lock/header generation,
+translation tests and full suites to the integration owner. This lane does not
+build or copy DLLs, regenerate lock/header, run a native build or run the game.
+Source helpers passed 141 checks with one GPU test skipped. No generated roots
+were created in the checkout; external logs are retained for review.
