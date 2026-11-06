@@ -211,6 +211,22 @@ kernel void main0(constant spvDescriptorSetBuffer0& spvDescriptorSet0 [[buffer(0
 
 
 class RawLoadQuads(unittest.TestCase):
+    def test_default_does_not_read_quad_reflection(self):
+        import ast
+        tree = ast.parse((Path(__file__).resolve().parents[1] / 'tools' / 'dmsh_build.py').read_text())
+        fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'finish')
+        start = next(i for i, n in enumerate(fn.body) if isinstance(n, ast.Assign) and
+                     isinstance(n.value, ast.Call) and getattr(n.value.func, 'attr', '') == 'wide_loads') + 1
+        stop = next(i for i in range(start, len(fn.body)) if isinstance(fn.body[i], ast.Assign) and
+                    isinstance(fn.body[i].value, ast.Call) and getattr(fn.body[i].value.func, 'id', '') == 'border_emu')
+        code = compile(ast.Module(body=fn.body[start:stop], type_ignores=[]), 'quad-build-path', 'exec')
+        for flag in (None, '0', 'invalid'):
+            with patch.dict(os.environ, {}, clear=True), patch('builtins.open', side_effect=AssertionError('default entered quad asset path')):
+                if flag is not None: os.environ['DMSH_RAW_LOAD_QUADS'] = flag
+                scope = dict(src='original shader', dmsh_chain=dmsh_chain, json=__import__('json'), os=os, w='unused', key='unused')
+                exec(code, scope)
+                self.assertEqual(scope['src'], 'original shader')
+
     def test_opt_in_changes_chain(self):
         with patch.dict(os.environ, {}, clear=True):
             self.assertFalse(dmsh_chain.raw_load_quads())

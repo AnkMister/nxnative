@@ -324,3 +324,48 @@ c1/extent table warning. Compare matched scene/dispatch windows, whole-frame
 GPU work, frame intervals, drops, enqueue-to-display latency and energy per
 frame at the 30 fps cap. A lower GPU duration alone is not acceptance if latency
 or game speed regresses. No M4 Max gameplay, latency or energy claim is made here.
+
+## Review finding 5: explicit correctness baseline and opt-in experiments
+
+Branch oot-stack-fix deliberately does NOT claim byte-identical defaults to
+ee9b7765. #1360 is an accepted correctness prerequisite, always enabled:
+
+- Host pool tables grow from a 4096-entry minimum to a power of two covering
+  live disjoint pool ranges, up to 1048576 entries. Entry 0 stores capacity.
+  Rebuilds use a temporary CPU range array; tables and residency allocations
+  can grow. Old tables retire through the existing deferred-release mechanism.
+- Shader raw-address lookup reads that capacity and uses a count-driven search
+  rather than the fixed 4096-entry loop. Tagged hints retain their representable
+  index limit; ranges beyond it remain reachable by binary search.
+- Bitmap write-log allocation, clearing and readback follow the bound table's
+  capacity. At the ceiling the host reports omitted ranges. This remains a limit.
+- The source-built translator assemblies, ABI comment, lock and chain differ
+  from the original baseline. Matching host and shader assets are mandatory.
+
+These changes prevent omission of Ocarina's pools beyond entry 4095. Compare
+performance experiments against this corrected baseline, not unchanged
+ ee9b7765. The unchanged-base artifact remains a separate historical control.
+
+Everything else is opt-in:
+- #1405 requires DMSH_RAW_LOAD_QUADS=1 at build/header generation time; default
+  MSL retains scalar lookups. Even its extra reflection read is now inside the
+  flag. The flag changes the chain, so do not mix variant assets and hosts.
+- #1161's numeric feedback memo now requires DM_NVN_FEEDBACK_MEMO=1 at runtime.
+  Off/unset goes straight to the original string-key function before hashing or
+  touching the numeric memo. Restart to change it.
+- DM_PRESENT_ABSOLUTE=1 remains opt-in with the original off path.
+
+Regressions: the default build-path test fails on the old unconditional read;
+the native feedback test seeds a numeric entry and proves off bypasses it while
+on uses it. Before the fix: 12 Python tests, 1 failure; 134 native checks,
+1 failure. After: wide/chain 29 tests passed; feedback 168 checks in each mode;
+translator 61 tests passed; pool/bitmap 95; raw GPU load 61; pacer 250;
+present allocators 13 off / 19 on. Host build passed. Logs in review-fixes.md.
+
+No translator source changed for this review fix. The existing audited,
+source-built assemblies and lock were retained; no NuGet restore, dependency
+install or translator rebuild was necessary. The Python tool change regenerates
+DMSH_CHAIN to 79c6653b35b9. No game or full shader build was run, as instructed;
+visual acceptance and cross-game regression remain open.
+Front-ends: new DM_NVN_FEEDBACK_MEMO=1; corrected growing-table baseline is
+always active. Rebuild matching shaders for the changed chain before running.

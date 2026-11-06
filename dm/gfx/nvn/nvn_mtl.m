@@ -9818,6 +9818,9 @@ static uint64_t bf_hash(NvShader *fs, const int *fx, int nfc, uint8_t fbmask, co
 }
 static id<MTLFunction> bf_fn_slow(NvShader *fs, const int *fx, uint8_t fbmask, const uint8_t *lmap);
 static id<MTLFunction> bf_fn(NvShader *fs, const int *fx, uint8_t fbmask, const uint8_t *lmap) {
+    static int enabled; static dispatch_once_t once;
+    dispatch_once(&once, ^{ const char *e = getenv("DM_NVN_FEEDBACK_MEMO"); enabled = e && !strcmp(e, "1"); });
+    if (!enabled) return bf_fn_slow(fs, fx, fbmask, lmap);
     int nfc = fs->rf.nfc < 32 ? fs->rf.nfc : 32; uint64_t h = bf_hash(fs, fx, nfc, fbmask, lmap);
     bf_memo *m = &g_bf_memo[h & 1023];
     os_unfair_lock_lock(&g_fz_fn_lock);
