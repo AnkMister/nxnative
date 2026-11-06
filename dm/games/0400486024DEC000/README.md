@@ -30,6 +30,8 @@ For a run past the opening, copy the committed save folder to the new run's `DM_
 
 - Open experiment: [absolute direct-present cadence](../../../docs/reference/frame-rate.md#absolute-cadence-experiment-for-direct-presentation) is available with `DM_PRESENT_ABSOLUTE=1` on the Mac. It is off by default and has no gameplay latency result yet.
 
+- [Experimental constant-word reuse and storage runs between grid points](../../../docs/reference/shaders.md#experimental-constant-word-reuse-and-storage-runs-between-grid-points), currently default off; see the experiment below.
+
 - The online library's [eventfd for its poller](../../../docs/reference/services.md#eventfds-served-offline) and the [virtual audio input list](../../../docs/reference/audio.md#no-virtual-audio-input-devices-sdk-22) blocked startup.
 - The SDK's [NDVE pack](../../../docs/reference/shaders.md#the-movie-librarys-ndve-shader-pack) contains 22 compute programs. The title route uses 11.
 - The [raw write log and pool lookup](../../../docs/reference/frame-rate.md#a-full-frame-shader-overflows-the-raw-write-log) took the windowed title movie from a 47.6 ms median to 16.67 ms on an Apple M5, at 1920×1080 decode. A steady 300-frame window averaged 60.0 fps and its GPU median was 15.94 ms. A simultaneous ten-worker shader build caused additional stalls. The same run returned to 60.0 fps when the build paused.
@@ -38,6 +40,10 @@ For a run past the opening, copy the committed save folder to the new run's `DM_
 - Mesh-shaded models were missing, among them the door of Link's house: the split read six stage slots of each BNSH program, and NVN2 keeps [task and mesh shaders in slots 7 and 8](../../../docs/reference/shaders.md#task-and-mesh-shaders-in-nvn2-bnsh-program-slots-7-and-8) (resolved). The new split adds 491 mesh and 17 task shaders to the map, 53 of the 54 keys the Kokiri Forest scene had asked for. 511 of their 520 build; the door renders.
 - Kokiri Forest ran at about 20 fps with the GPU two-thirds idle: the [bindless pool table was rebuilt for every registration](../../../docs/reference/frame-rate.md#a-bindless-pool-table-rebuilt-for-every-registration), and about 12,000 descriptors of finalized texture objects churned the ghost ring (resolved). The frame is now 16–21 ms at the median on an Apple M5, submit 5–8 ms, and the GPU (14–21 ms) is the limit.
 - The first 3D scene exhausted Metal memory when [bindless pool walks churned finalized textures](../../../docs/reference/nvn-objects.md#a-bindless-pool-churns-finalized-textures-within-a-submission). On the Apple M5, the failing run reached 18,930 MiB of residency. With submission-local backing, residency was 7,946 MiB about ten seconds after the movie and 7,871 MiB at 35 seconds. The opening 3D scene and its subtitles presented, and the test host exited normally.
+
+## MSL mining experiment (open)
+
+A stage-stratified sample of the in-progress Mac build is recorded in [implementation-notes.md](../../../implementation-notes.md), with source hashes, stage coverage, the pattern table, four compiler comparisons, and the parent's A/B recipe. The [experimental passes](../../../docs/reference/shaders.md#experimental-constant-word-reuse-and-storage-runs-between-grid-points) default off. Compute constant-word reuse is the first GPU A/B candidate; the pixel compiler example has no instruction reduction. Storage grouping adds wrap-fallback branches and needs a separate test. No M4 Max frame-time, energy or image-equivalence result is claimed.
 
 ## Open
 

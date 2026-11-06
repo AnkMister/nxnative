@@ -38,32 +38,65 @@ def _root(v, adds):   # (value, byte offset) the sums lead back to
     return v, off
 
 
-def wide_loads(msl):
+def wide_loads(msl, *, offset_runs=False):
+    """offset_runs also accepts runs starting between the original 16-byte grid points.
+
+    The experimental path keeps address definitions inside each pure straight-line
+    region. Unknown calls close it. A 32-bit byte-address wrap takes scalar reads.
+    """
     if ' >> uint(2)' not in msl: return msl
     ro = set(_RO.findall(msl))
     if not ro: return msl
+    if offset_runs and '_dmr' in msl: return msl   # a second application does not reuse local names
+    if offset_runs and '/*' in re.sub(r'/\*[^\n]*?\*/', '', msl): return msl
     lines = msl.split('\n')
     adds, idx = {}, {}
     for ln in lines:
         m = _ADD.match(ln)
-        if m: adds[m.group(1)] = (m.group(2), int(m.group(3))); continue
+        if m and not offset_runs: adds[m.group(1)] = (m.group(2), int(m.group(3))); continue
         m = _IDX.match(ln)
-        if m: idx[m.group(1)] = m.group(2)
+        if m and not offset_runs: idx[m.group(1)] = m.group(2)
     words, block = {}, 0   # (block, buffer, value) → {byte offset: (line, match)}
+    pure_call = re.compile(r'\b(?:as_type<(?:float|int|uint)>|int|uint|float|fma|abs|min|max|precise::(?:min|max|clamp))\(')
+    call = re.compile(r'\b\w+\s*(?:<[^;]+>)?\(')
+    local_decl = re.compile(r'^\s*(?:int|uint|float|bool) ' + _IDENT + r' = ([^;]+);$')
     for i, ln in enumerate(lines):
-        if '{' in ln or '}' in ln or _WRITE.search(ln): block += 1; continue
+        barrier = '{' in ln or '}' in ln or _WRITE.search(ln)
+        if offset_runs:
+            declaration = local_decl.fullmatch(ln)
+            barrier = barrier or (bool(ln.strip()) and not declaration) or '++' in ln or '--' in ln
+            barrier = barrier or call.search(pure_call.sub('(', ln)) or '//' in ln or '/*' in ln or ln.lstrip().startswith('#')
+            if declaration and re.search(r'(?<![=<>!])=(?!=)', declaration[1]): barrier = True
+        if barrier:
+            block += 1
+            if offset_runs: adds.clear(); idx.clear()
+            continue
+        if offset_runs:
+            m = _ADD.match(ln)
+            if m: adds[m[1]] = (m[2], int(m[3]))
+            m = _IDX.match(ln)
+            if m: idx[m[1]] = m[2]
         ms = list(_LOAD.finditer(ln))
         if len(ms) != 1 or ms[0].group(1) not in ro or ms[0].group(2) not in idx: continue
         v, off = _root(idx[ms[0].group(2)], adds)
         if off % 4 == 0: words.setdefault((block, ms[0].group(1), v), {}).setdefault(off, (i, ms[0]))
     edits, n = {}, 0
     for (_, buf, _), by_off in words.items():
-        for base in sorted({off - off % 16 for off in by_off}):
+        remaining = set(by_off)
+        for base in sorted(by_off if offset_runs else {off - off % 16 for off in by_off}):
+            if offset_runs and base not in remaining: continue
             run = []
-            while len(run) < 4 and base + 4 * len(run) in by_off: run.append(by_off[base + 4 * len(run)])
+            while len(run) < 4 and base + 4 * len(run) in remaining: run.append(by_off[base + 4 * len(run)])
             if len(run) < 2 or any(i < run[0][0] for i, _ in run): continue
-            name, vec = f'_dmw{n}', _VEC[len(run)]; n += 1
+            remaining.difference_update(base + 4 * w for w in range(len(run)))
+            name, vec = f'_dmr{n}' if offset_runs else f'_dmw{n}', _VEC[len(run)]; n += 1
             decl = f'{vec} {name} = *(const device {vec}*)&(*spvDescriptorSet0.{buf})._m0[int({run[0][1].group(2)})];'
+            if offset_runs:
+                # The byte sums wrap at 32 bits; a vector must not cross that wrap.
+                first = run[0][1].group(2)
+                words_at_wrap = ', '.join(f'(*spvDescriptorSet0.{buf})._m0[int((uint({first}) + {w}u) & 0x3fffffffu)]' for w in range(len(run)))
+                read = decl.split(' = ', 1)[1][:-1]
+                decl = f'{vec} {name} = uint({first}) <= {0x3fffffff - len(run) + 1}u ? {read} : {vec}({words_at_wrap});'
             for w, (i, m) in enumerate(run): edits.setdefault(i, []).append((m.start(), m.end(), f'{name}.{"xyzw"[w]}', decl if w == 0 else None))
     for i, es in edits.items():
         ln, pre = lines[i], []
