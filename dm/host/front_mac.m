@@ -11,6 +11,7 @@
 // DM_PAD_MERGE=1 merges every controller into player 1 instead, DM_KBD_PLAYER=own makes the keyboard player 1 on its own, with the controllers from player 2 on.
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/CAMetalLayer.h>
+#include <stdatomic.h>
 #import <Metal/Metal.h>
 #import <GameController/GameController.h>
 #include "dm.h"
@@ -30,6 +31,31 @@
 #include <sys/stat.h>
 
 static CAMetalLayer *g_layer;
+// Whether the window's screen can show EDR at all (its potential headroom is above 1; hle_vi.c answers HDR only then): -1 until the first read, taken as yes.
+// Read four times a second on the main thread while the HDR layer is on, so it follows the window to another screen (an external SDR monitor beside the built-in XDR screen)
+static _Atomic int g_hdr_screen = -1;
+int front_hdr_screen(void) { return atomic_load(&g_hdr_screen) != 0; }
+static void front_hdr_screen_read(NSScreen *s) {
+    double pot = s.maximumPotentialExtendedDynamicRangeColorComponentValue;
+    int can = pot > 1.0;
+    if (atomic_exchange(&g_hdr_screen, can) != can) LOG("front end: the window's screen %s EDR (%s, potential headroom %.2f)", can ? "can show" : "cannot show", s.localizedName.UTF8String, pot);
+}
+// The HDR layer's HDR10 metadata (CAEDRMetadata): Core Animation maps the layer's extended range into the screen's current headroom by it. 1.0 in the layer is the paper white
+// (opticalOutputScale), the range is the one the game declares (0 to 1000 nits until it says, hle_vi.c front_hdr_content_range). Chosen over a roll-off of the host's own: on
+// Mario Kart World the two looked alike, reached the screen in the same time, and the system's follows brightness and the screen's modes as the rest of macOS does
+static int g_hdr_meta;   // the layer has the metadata (DM_HDR, and CAEDRMetadata is available)
+static _Atomic uint32_t g_hdr_range = 1000u << 16;   // the declared range: low nits in bits 0-15, high in 16-31
+static void front_hdr_metadata(void) {   // main thread
+    uint32_t r = atomic_load(&g_hdr_range);
+    g_layer.EDRMetadata = [CAEDRMetadata HDR10MetadataWithMinLuminance:(float)(r & 0xffff) maxLuminance:(float)(r >> 16) opticalOutputScale:dm_hdr_paper_white()];
+}
+void front_hdr_content_range(unsigned lo, unsigned hi) {
+    if (!g_hdr_meta || hi <= lo || hi > 65535) return;
+    uint32_t r = lo | hi << 16;
+    if (atomic_exchange(&g_hdr_range, r) == r) return;
+    LOG("front end: HDR10 metadata: the game's range %u..%u nits", lo, hi);
+    dispatch_async(dispatch_get_main_queue(), ^{ front_hdr_metadata(); });
+}
 static uint64_t g_btn;
 static int g_w, g_a, g_s, g_d;
 static int g_rl, g_ru, g_rr, g_rd;   // arrow keys pressed with Shift held: the right stick (each goes back up as it went down, whatever Shift does meanwhile)
@@ -52,6 +78,10 @@ static void screen_refresh(NSScreen *screen) {   // main thread: refresh capabil
     g_screen_fps = (int)screen.maximumFramesPerSecond;
     g_screen_id = [screen.deviceDescription[@"NSScreenNumber"] unsignedIntValue];
     g_screen_variable_refresh = screen.minimumRefreshInterval > 0 && screen.maximumRefreshInterval > screen.minimumRefreshInterval;
+    const char *vqa = getenv("DM_NVN_VQA");
+    if (getenv("DM_PRESENT_COLORSPACE") || (vqa && atoi(vqa)))
+        LOG("[vqa] display colour: %s; EDR headroom %.3f, potential %.3f", screen.colorSpace.localizedName.UTF8String,
+            screen.maximumExtendedDynamicRangeColorComponentValue, screen.maximumPotentialExtendedDynamicRangeColorComponentValue);
 }
 static _Atomic int g_fullscreen;   // the window is in fullscreen (set when it has entered and when it has left)
 // The software keyboard input box is up (front_text_input). The game window is not key then, which is not a focus change the game should see: on hardware the inline keyboard is drawn inside
@@ -1334,6 +1364,35 @@ void front_run(void (*guest)(void)) {
         g_layer = [CAMetalLayer layer];
         g_layer.device = MTLCreateSystemDefaultDevice();
         g_layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+        // Opt-in source colour contract. Auto means the SDR game's sRGB gamut,
+        // independent of the display's gamut; ColorSync handles the display.
+        const char *cs = getenv("DM_PRESENT_COLORSPACE");
+        if (cs && (!strcmp(cs, "srgb") || !strcmp(cs, "p3") || !strcmp(cs, "auto"))) {
+            CGColorSpaceRef space = CGColorSpaceCreateWithName(!strcmp(cs, "p3") ? kCGColorSpaceDisplayP3 : kCGColorSpaceSRGB);
+            g_layer.colorspace = space; CGColorSpaceRelease(space);
+            g_layer.wantsExtendedDynamicRangeContent = NO;
+            LOG("present colour: %s, BGRA8Unorm, SDR full range; %s", cs,
+                !strcmp(cs, "p3") ? "sRGB to Display P3 in present shader" : "sRGB source tagged for ColorSync");
+        } else if (cs) LOG("[RED] DM_PRESENT_COLORSPACE=%s: expected srgb, p3 or auto; legacy output kept", cs);
+        // HDR overrides the SDR layer tag. The PQ layer takes HDR10 code values; the float alternative uses linear BT.2020 with 1.0 at paper white.
+        if (getenv("DM_HDR") && atoi(getenv("DM_HDR"))) {
+            // The layer takes the game's HDR10 window as it is: RGB10A2 in BT.2100 PQ (present_mode: an SDR source is encoded as HDR10). An RGBA16Float extended linear BT.2020 layer
+            // (DM_HDR_LAYER=float) showed black blocks with coloured squares in them over flat areas (Mario Kart World's water on the course map), now and then and after the window came back
+            // to the front, on a MacBook Air M5 (macOS 27.0.1, potential headroom 2): the frames the game drew and the host's own copies of them were clean, so the blocks appear after the present
+            int pq = !(getenv("DM_HDR_LAYER") && !strcmp(getenv("DM_HDR_LAYER"), "float"));
+            g_layer.pixelFormat = pq ? MTLPixelFormatRGB10A2Unorm : MTLPixelFormatRGBA16Float;
+            CGColorSpaceRef ecs = CGColorSpaceCreateWithName(pq ? kCGColorSpaceITUR_2100_PQ : kCGColorSpaceExtendedLinearITUR_2020);
+
+            g_layer.colorspace = ecs; CGColorSpaceRelease(ecs);
+            g_layer.wantsExtendedDynamicRangeContent = YES;
+            if (CAEDRMetadata.available) { g_hdr_meta = 1; front_hdr_metadata(); }
+            else LOG("[RED] front end: no EDR metadata on this Mac (CAEDRMetadata): values above the screen's headroom clip");
+            if (atoi(getenv("DM_HDR")) == 2) win.title = [win.title stringByAppendingString:@" (DM_HDR=2: HDR on any screen)"];   // told apart from the setting's DM_HDR=1
+            LOG("front end: HDR output on (DM_HDR): the window's layer is %s%s; the screen's headroom %.2f now, at most %.2f", pq ? "RGB10A2 in BT.2100 PQ" : "RGBA16Float in extended linear BT.2020 (DM_HDR_LAYER=float)", g_hdr_meta ? ", with HDR10 metadata" : "",
+                (win.screen ?: NSScreen.mainScreen).maximumExtendedDynamicRangeColorComponentValue, (win.screen ?: NSScreen.mainScreen).maximumPotentialExtendedDynamicRangeColorComponentValue);
+            front_hdr_screen_read(win.screen ?: NSScreen.mainScreen);
+            [NSTimer scheduledTimerWithTimeInterval:0.25 repeats:YES block:^(NSTimer *t) { (void)t; front_hdr_screen_read(win.screen ?: NSScreen.mainScreen); }];
+        }
         g_layer.contentsScale = win.backingScaleFactor;
         // Apple's HUD over the game (frame rate, frame and GPU time, memory): front_hud_env turns it on before the first device. The layer's developerHUDProperties
         // stay unset: mode=default forces this layer's HUD on, so the Metal HUD menu's Hide HUD left it on screen
@@ -1507,4 +1566,48 @@ int front_text_input(const char *title, const char *sub, const char *guide, cons
     (void)max_chars;                              // Truncation is done uniformly in hle_swkbd.c in UTF-16 units
     snprintf(out, out_cap, "%s", text.UTF8String);
     return 1;
+}
+
+// The game stops over a GPU problem. A stopped game in full screen holds the whole screen (GitHub issue #1326: WindowServer froze for 40 s and its watchdog killed it), so the window leaves
+// full screen first and the alert comes once it has, or after 3 s if it has not. Then the app quits as ⌘Q does. Any thread
+static void front_stop_alert(NSString *title, NSString *text) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        __block int told = 0;
+        void (^tell)(void) = ^{
+            if (told++) return;
+            NSAlert *a = [NSAlert new];
+            a.alertStyle = NSAlertStyleCritical;
+            a.messageText = title;
+            a.informativeText = text;
+            [a addButtonWithTitle:@"Quit"];
+            // An app opened in the background would leave the alert behind other apps' windows, and DM_WINDOW_TOP's floating game window would cover it
+            [NSApp activateIgnoringOtherApps:YES];
+            [a layout]; NSWindow *game = g_win; if (game && a.window.level <= game.level) a.window.level = game.level + 1;
+            [a runModal];
+            [NSApp terminate:nil];   // as ⌘Q
+        };
+        NSWindow *win = g_win;
+        if (!(win.styleMask & NSWindowStyleMaskFullScreen)) { tell(); return; }
+        [NSNotificationCenter.defaultCenter addObserverForName:NSWindowDidExitFullScreenNotification object:win queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *n) { (void)n; tell(); }];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), tell);
+        [win toggleFullScreen:nil];
+    });
+}
+// GPU memory nearly full (front.h). The gate first, off the calling thread: dm_gfx_suspend waits for the submission in progress, which may be the caller, and no more GPU work may grow what is held
+void front_gpu_memory_stop(unsigned long long used_mb, unsigned long long limit_mb) {
+    if (!g_layer) { kill(getpid(), SIGTERM); return; }
+    LOG("front end: GPU memory is nearly full; telling the player and quitting");
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{ dm_audio_suspend(1); dm_gfx_suspend(1); });
+    front_stop_alert([@(DM_GAME_NAME) stringByAppendingString:@" stopped: GPU memory is nearly full"],   // @(): the name is UTF-8, which %s would not read as such
+                     [NSString stringWithFormat:@"The game reached %llu MB of the %llu MB macOS can keep in GPU memory. Going on could freeze this Mac, so the game stops here; progress since your last save is lost. The log has the details. "
+                                                 "Please report it on GitHub with python3 scripts/bug_report.py %@, which collects the log.", used_mb, limit_mb, @(DM_GAME_ID)]);
+}
+
+// PR #1332: use the same full-screen exit and alert as the memory guard.
+void front_gpu_lost(void) {
+    if (!g_layer) { kill(getpid(), SIGTERM); return; }
+    LOG("front end: macOS revoked GPU access; telling the player and quitting");
+    front_stop_alert([@"The GPU stopped running " stringByAppendingString:@(DM_GAME_NAME)],
+                     [NSString stringWithFormat:@"After a GPU error, macOS stopped running the game's GPU work, so the game quits. The log has the details. "
+                                                 "Please report it on GitHub with python3 scripts/bug_report.py %@, which collects the log.", @(DM_GAME_ID)]);
 }

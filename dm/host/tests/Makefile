@@ -370,3 +370,9 @@ coverage:
 	rm -rf $(B)/cov/prof
 	LLVM_PROFILE_FILE="$(call cov_profile,$(B)/cov)" $(MAKE) -i B=$(B)/cov SAN="$(COV_FLAGS)" run
 	@$(call cov_export,$(B)/cov)
+
+$(B)/t_gpu_stop: t_gpu_stop.c ../hle_lifecycle.c ../hle.h ../dm.h $(GAME_H) | $(B)
+	$(CLANG) -O1 -g -Wall -fblocks $(GINC) -o $@ t_gpu_stop.c
+.PHONY: check_gpu_stop
+check_gpu_stop: $(B)/t_gpu_stop
+	$(B)/t_gpu_stop
