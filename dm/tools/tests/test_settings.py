@@ -34,9 +34,17 @@ class UpscalerSetting(unittest.TestCase):
     def test_only_for_games_naming_their_upscaler(self):
         with tempfile.TemporaryDirectory() as tmp,patch.object(settings.nacp,'languages',return_value=['en-US']):
             (Path(tmp)/'main.fixups.tsv').write_text('')
-            for gid,shown in [('040074A01BF12000',True),('010056B015FE8000',False)]:   # Donkey Kong Bananza (its NDSR network), NieR:Automata (none)
+            for gid,shown in [('040074A01BF12000',True),('0400380020056000',True),('0400486024DEC000',True),('010056B015FE8000',False)]:
                 up=[s for s in settings.build(gid,tmp,'unused')['settings'] if s['env']=='DM_UPSCALER']
                 self.assertEqual(bool(up),shown,gid)
                 if up:self.assertEqual((up[0]['default'],up[0]['options']),('game',[['game',"Game's own"],['metalfx','MetalFX']]))
+
+    def test_ocarina_has_no_resolution_control_without_a_rewrite(self):
+        with tempfile.TemporaryDirectory() as tmp,patch.object(settings.nacp,'languages',return_value=['en-US']):
+            (Path(tmp)/'main.fixups.tsv').write_text('# BUILD_ID\te0f3ccfaf50065ae4ea01eb5aeb13b1a\n')
+            rows={s['env']:s for s in settings.build('0400486024DEC000',tmp,'unused')['settings']}
+            self.assertEqual(rows['DM_UPSCALER']['default'],'game')
+            self.assertNotIn('DM_RENDER_SCALE',rows)
+            self.assertNotIn('DM_DYNAMIC_RESOLUTION',rows)
 
 if __name__=='__main__':unittest.main()
