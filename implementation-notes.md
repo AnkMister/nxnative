@@ -439,3 +439,17 @@ the new iOS test was omitted. The fixture compiles 300 nested parentheses and
 checks unchanged byte output within the old limit. Expected improvement is
 restoring compute work from 1f78730053feb036 and e172bd7ec218ab8e. No semantics
 change is intended. Full generated expressions will be compiled when extractable.
+
+## #1368: adapted
+
+Head `9c53d9ae5c10e53b69ee3408bb01ace333730207`, including `7cd6750b`.
+Imported native mesh prewarm/key code and PSO key/warm tests. Preserved #1312's
+indirect state and write tracking in the overlapping mesh draw.
+`DM_NVN_VISUAL=1` selects required synchronous compilation and M-row prewarm;
+off keeps the old asynchronous pipeline path in a separate cache.
+The serialized key includes mesh, fragment and optional task function identity,
+and warm results are installed only for the live functions they were built for.
+Expected improvement is first-use foliage that previously vanished while its
+pipeline compiled. No source bug found in the reviewed key/publication paths.
+A required first-use compile can stall submission; prewarm benefits need a
+matching captured M row. Gameplay and prepare-screen behavior remain untested.
