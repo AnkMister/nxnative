@@ -16,6 +16,7 @@
 #include "dm.h"
 #include "dm_input.h"
 #include "front.h"
+#include "front_screen.h"
 #include "hle.h"
 #include "pad_slots.h"
 #include "haptics_apple.h"
@@ -1325,6 +1326,19 @@ void front_run(void (*guest)(void)) {
         NSWindow *win = [[NSWindow alloc] initWithContentRect:r
                                                     styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
                                                       backing:NSBackingStoreBuffered defer:NO];
+        // DM_SCREEN=<part of a screen's name> (as in System Settings › Displays): open on that screen instead of the main one, so fullscreen fills it
+        BOOL named_screen = NO;
+        const char *sn = getenv("DM_SCREEN");
+        if (sn && *sn) {
+            NSArray<NSScreen *> *screens = NSScreen.screens;
+            NSUInteger i = front_screen_index([screens valueForKey:@"localizedName"], sn);
+            if (i != NSNotFound) {
+                named_screen = YES;
+                NSScreen *s = screens[i]; NSRect f = s.visibleFrame;
+                [win setFrameOrigin:NSMakePoint(NSMidX(f) - win.frame.size.width / 2, NSMidY(f) - win.frame.size.height / 2)];
+                LOG("front end: window on screen %s (DM_SCREEN)", s.localizedName.UTF8String);
+            }
+        }
         win.title = @(DM_GAME_NAME);   // the game profile's name (game name label)
         // Fullscreen: without FullScreenPrimary the green button only zooms the window. The present path already scales
         // the game picture to fit the drawable with black bars around it, so fullscreen keeps the game's aspect ratio.
@@ -1339,7 +1353,7 @@ void front_run(void (*guest)(void)) {
         // stay unset: mode=default forces this layer's HUD on, so the Metal HUD menu's Hide HUD left it on screen
         if (getenv("DM_METAL_HUD") && atoi(getenv("DM_METAL_HUD"))) LOG("front end: Metal performance HUD on (DM_METAL_HUD)");
         v.layer = g_layer; [(DmGameView *)v fitDrawable];
-        [win center];
+        if (!named_screen) [win center];
         [win makeKeyAndOrderFront:nil];
         screen_refresh(win.screen ?: NSScreen.mainScreen);
         g_win = win;

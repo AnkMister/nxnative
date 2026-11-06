@@ -370,3 +370,10 @@ coverage:
 	rm -rf $(B)/cov/prof
 	LLVM_PROFILE_FILE="$(call cov_profile,$(B)/cov)" $(MAKE) -i B=$(B)/cov SAN="$(COV_FLAGS)" run
 	@$(call cov_export,$(B)/cov)
+
+$(B)/t_front_screen: t_front_screen.m ../front_screen.h | $(B)
+	$(CLANG) -O1 -g -fobjc-arc -Wall -Werror -I.. -o $@ t_front_screen.m -framework Foundation
+.PHONY: front-screen
+front-screen: $(B)/t_front_screen
+	$(B)/t_front_screen
+run: front-screen
