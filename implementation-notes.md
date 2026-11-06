@@ -324,3 +324,27 @@ c1/extent table warning. Compare matched scene/dispatch windows, whole-frame
 GPU work, frame intervals, drops, enqueue-to-display latency and energy per
 frame at the 30 fps cap. A lower GPU duration alone is not acceptance if latency
 or game speed regresses. No M4 Max gameplay, latency or energy claim is made here.
+
+## X2. Ocarina TBDR port
+
+The X2 branch is `oot-tbdr`, based on `oot-stack` at `8284776d`. The worktree was clean before `git switch -c oot-tbdr oot-stack`. The task context was read first. The protected baseline checkout and game build were inspected read-only. No game, shader rebuild, NSP build, regress run, package install, iOS build, push, PR or GitHub comment was performed.
+
+The source of #1340 (`9e141cc8dcb88145208f8f7240433996f62284df`) and #1367 (`c82a370ff724b5f857660051bbc9dc2f261b4ea7`) was fetched and applied with three-way patches. Both applied cleanly against oot-stack. Only Objective-C source, tests and docs were ported. No PR artifact was executed. The MacNativeGames `ce1099c6` source around `nvn_mtl.m:10924` was read through the GitHub API. Its `sd_finish` uses the same indexed store decision and optional history ledger, so it supplies no additional proof for pooled readers.
+
+The reader proof, reflection counts, byte estimate, upstream issue #1385 / PRs #1396 and #901, visual risks and A/B/VQA commands are recorded once in [Ocarina's tile-memory experiment](dm/games/0400486024DEC000/README.md#tile-memory-experiment). The audit is rerunnable with `dm/tools/tbdr_shader_audit.py`. Its inventory was captured at 2026-11-06 01:12:40 UTC while another process was adding shader files. The tool fixes its filename inventory before reading, so newly created files wait until the next run; later runs can have different coverage. Its allow-list does not control runtime behavior. The cache audit SHA-256 is `87a42c853ec07d054c93c1806260237d6879f5f43e8434297f4983ceaa38a1a3`.
+
+The port needed three safety additions. Conditional and scissored clears did not prove a full overwrite in the original index. The index now retains stores for those clears, including Ocarina's conditional depth clear. Cross-submission history prediction is separately opt-in with `DM_NVN_XV=1`; the normal TBDR experiment no longer assumes that past clears predict future readers. Memoryless depth and pooled depth-reader exclusions were not added because the available evidence does not justify them. The split instrumentation takes #1396's cause categories while preserving all of the original pool-reader decisions. PR #901 was inspected but not ported because it redirects named depth bindings, not pooled reads.
+
+`DM_NVN_ATTPROF=1` adds per-frame attachment-subresource bytes and split causes to the existing nominal bandwidth ledger. It is off by default. The documentation lists the ledger's limits, including helper passes and physical compression. The `t_xv` test now explicitly enables its experimental heuristic and uses the approved `TMPDIR` instead of its previous `/tmp` path.
+
+Validation artifacts are under `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch/`:
+
+- `oot-tbdr-port-tests.log` records the unextended upstream tests: lookahead 22 checks and deferred uniforms 21 checks, all passing.
+- `oot-tbdr-safety-tests.log` records the extended lookahead (65), uniform/pixel/profile (29), feedback (167), and explicitly enabled history-ledger (21) checks, all passing.
+- `oot-tbdr-final-tests.log` also records the unchanged unwritten-store GPU tests (66 checks), all passing.
+- `oot-tbdr-host-final.log` records `make -C dm/host -j4 GAME=0400486024DEC000 dmhost`, exit 0. This is a Mac-only host build. No game was launched.
+- `oot-tbdr-shader-audit.json` records the slot-resolvable, unresolved and missing key lists. The summary is `oot-tbdr-shader-audit-summary.json`. These describe the supplied older reflection cache, not a new shader build.
+- `oot-tbdr-profile-tests.log` additionally checks discarded-byte accounting, grouping and frame reset across depth/stencil/mips (38 checks, all passing).
+- `oot-tbdr-docs-tests.log` records 13 passing docs, env-switch and audit-tool tests. Regenerating the env table also exposed the existing missing `DM_PRESENT_ABSOLUTE` row from oot-stack; its meaning was filled in without changing that feature.
+
+Game regressions and an independent review remain the parent's gates. The task explicitly assigns this session the implementation sub-agent role, so no further agents or cross-family review process were started. The pstack playbook's live baseline, post-change trace and PR steps were skipped under the task's no-run/no-PR rules. The Explain the Number principle prevented attributing the historical 330 MB or the upstream Link's-house measurements to this local host. The Prove It Works principle keeps the synthetic GPU readbacks separate from unperformed gameplay and energy validation.

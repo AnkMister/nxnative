@@ -47,3 +47,77 @@ For a run past the opening, copy the committed save folder to the new run's `DM_
 - The opening scene calls `nvnCommandBufferDrawMeshTasksIndirect`, which the host does not implement. On `v0` the probe caught the return at `main+0x2be2dc0`; the branch builds the command buffer pointer in `x0` and the indirect argument address in `x1`. It does not set `x2` on that path. A separate sample of the first 64 bytes at the indirect address returned zeros after the call; the populated record's layout is still unverified. The title-only run logged 11 keys missing from the map. The expanded run captured seven of them before the memory failure. A byte-for-byte comparison found none of those seven code areas in the extracted shader package.
 - The 3D scene's CPU cost (37–59 ms a frame, with pool walks of about 33,000 descriptors) is [resolved](../../../docs/reference/frame-rate.md#a-bindless-pool-table-rebuilt-for-every-registration). Open: the GPU's 14–21 ms a frame in Kokiri Forest, which still drops frames below 60 fps; TBDR optimizations are off for this bindless game (`DM_NVN_TBDR=1` turns them on), and attachments load and store about 330 MB a frame.
 - The Nov. 4 Lichii branches offer two shader leads. Its [packed conversion lowering](https://github.com/zortos293/Lichii/commit/35c043b3efaa147d1c1afe8a52cdf19fa92b77bf) handles opcode `0x243` with source A set to `RZ` and mode `0x0000c4ff`; both of this game's failed foliage programs use two registers and mode `0x000004ff`, which needs independent verification. Its [floating-point global reduction](https://github.com/zortos293/Lichii/commit/3aa89d1cdbe58a2bd5ded06b9c615c78da2ade70) matches a separate `F32FtzRn` diagnostic in the Mac shader build, where the translator drops that operation. Neither of the two shaders in the sky lookup and draw uses those instructions or the gather opcodes from Lichii's [fog work](https://github.com/zortos293/Lichii/commit/375c4a472bd95fdfaae0de6e3f192499cd14f806).
+
+## Tile-memory experiment
+
+The `oot-tbdr` experiment ports the source and tests of [#1340](https://github.com/seedds/nxnative/pull/1340) (`9e141cc8`) and [#1367](https://github.com/seedds/nxnative/pull/1367) (`c82a370f`) onto `oot-stack` (`8284776d`). It changes no shader tool or shader-chain stamp. `DM_NVN_TBDR=1` enables it. The normal setting stays off. No game was run for this port.
+
+### What may be discarded
+
+The [store lookahead](../../../docs/reference/rendering.md#store-lookahead-and-bindless-readers) keeps every candidate texture stored when a later draw or dispatch has a pooled, uniform-buffer, array or dynamic texture handle, or an unknown program. Candidates include the current attachments and textures carried by the validity ledger. This includes every mip, layer and depth/stencil plane of those candidates. A known slot read also retains its target. An attachment whose later use is undecided at submission end is stored.
+
+A store can be discarded when the same subresource is unconditionally cleared in full before any possible read or attachment load in the same submission. The clear must cover the whole subresource's scissor and the whole colour/depth/stencil write mask. The local proof for an unchanged, loaded attachment also remains valid because its bytes already exist in memory. The required image-only attachment rule remains unchanged. A conditional clear is never used as an overwrite proof. This is necessary here because agl conditionally skips depth clears after copying the prepass depth. The original lookahead did not track conditional rendering or the scissor; this experiment adds those guards.
+
+`DM_NVN_XV=1` now separately opts into prediction from previous submissions. Leave it unset or `0` for this experiment. A history of three clears cannot prove that a later loading screen will not sample the target. This is a deliberate deviation from the two ports. No attachment or depth surface is made memoryless. A memoryless surface cannot serve a later reader or a pass that reloads its contents.
+
+### Shader evidence and allow-list
+
+`dm/tools/tbdr_shader_audit.py` reads the profile and one generated reflection directory. It produces an allow-list of shader stages whose texture reads can be resolved from slots, plus separate unresolved and missing lists. It does not declare an attachment dead and the host does not trust the file. The host applies the conservative rule directly to each loaded reflection, so a stale allow-list cannot weaken it.
+
+The read-only audit of the supplied `b-d1f10abd26a7` cache found 42,851 profile keys and 40,801 reflection files. There are 35,981 slot-resolvable keys, 4,820 unresolved keys and 2,050 missing keys. The inventory was captured at 2026-11-06 01:12:40 UTC; another process was still adding shaders, so later audits can differ. The profile's 4,123 facts rows contain only `local` and `shared`; they say nothing about attachment lifetimes. The cache is from an older chain than the integrated stack. These counts describe its coverage, not the shaders drawn by a complete new build.
+
+| Stage | Slot-resolvable | Unresolved |
+| --- | ---: | ---: |
+| Pixel | 17,598 | 4,758 |
+| Vertex | 13,780 | 50 |
+| Compute | 4,103 | 1 |
+| Mesh | 481 | 11 |
+| Task | 19 | 0 |
+
+4,815 shaders have `tex_pool` and `samp_pool`, and five have uniform-buffer texture handles. The material pixel shader `dbda7678a92ef6e5` has both pool and fixed-slot textures. The fog composite `888c1068ac8f7043` and sky shader `943d8c0ece545cc8` have fixed-slot textures. Their slots must still be checked against the actual attachments at replay. The fullscreen vertex key `fb1ed54be1baced1` has no reflection in this cache. Missing coverage therefore cannot justify an optimization or a visual pass.
+
+Reflection alone cannot identify which attachment a GPU-selected handle will name. Every registered target reachable through the bound pool must be treated as readable, including aliases. There is no safe static allow-list of discardable Ocarina attachment IDs in these inputs. The executable allow-list is the runtime proof above: an unconditional full overwrite before a reader, or an unchanged loaded attachment. The generated slot list is an inspection aid only.
+
+### Same-pass depth readers
+
+[#1385](https://github.com/seedds/nxnative/issues/1385) reports about 74 feedback splits out of 178 passes per frame in Link's house. [#1396](https://github.com/seedds/nxnative/pull/1396) separates the causes. Its docked M4 run reports 71.7 depth splits after pooled shaders per frame, zero colour or named-depth splits, and 74.7 pool draws whose tables could contain depth. Its narrower pool test saves zero passes. In that run a registered view of the 1920×1080 depth target is itself in the table, and about 8,000 of 16,600 IDs overlap its storage. These are upstream measurements from another host and scene, not local results.
+
+This experiment adopts #1396's split-cause categories only. It preserves the original conservative pool/dynamic reader rule. A precise future exclusion must inspect the tables bound for that draw and prove that no entry can reach the depth storage, including views, aliases, sparse mappings and unknown storage. Shader names, material classification and previous frames do not prove that.
+
+[#901](https://github.com/seedds/nxnative/pull/901) copies a named same-pass depth texture and redirects that binding. Its final source defaults this on only for Tropical Freeze, with an explicit override in that PR. It does not redirect `tex_pool` entries. Porting that slot path would not remove Ocarina's pooled depth splits. Redirecting every overlapping pool entry to a snapshot would need immutable table variants with the right type and view, generation invalidation, retained resources, and snapshots scoped by barrier, submission and depth subresource. That is separate work. This branch does not suppress a possible depth reader or claim the unsound 175-to-103-pass experiment as a safe gain.
+
+### Bytes, counters and risks
+
+The earlier Open entry's roughly 330 MB per Kokiri Forest frame is a historical nominal attachment estimate. The host already exposes `mtl_bw`, the residency log, `DM_NVN_TSV` metrics `@rt_load_mb` / `@rt_store_mb`, and `DM_NVN_GPUPROF` per-pass load/store estimates. Their `MB` labels use 1,048,576 bytes. They are not physical DRAM counters. No matching saved pass trace was available here to divide that total into safe-to-drop stores and mandatory stores.
+
+The conservative planning estimate is therefore still roughly 330 nominal MB per frame, with zero demonstrated saving. This is a reference budget, not a bound on what TBDR will do. Reordering, clear handling and tile-read eligibility can change other passes and may increase traffic. For a measured future reduction, subtract the proven discarded stores and avoided loads/stores from the same scene's baseline. A 1920×1080 Depth32Float plane is 8,294,400 bytes. Avoiding one full store/load cycle would save 16,588,800 nominal bytes, provided that no replacement copy or reader needs them. #1396's separate Link's-house run reports 444 MB loaded plus 460 MB stored per frame in both arms. Do not combine that with the 330 MB Kokiri figure.
+
+`DM_NVN_ATTPROF=1` adds `[attprof]` rows per frame, serial, mip, slice and plane, with integer `load_bytes`, `store_bytes`, `dontcare_bytes` and attachment uses. A total row gives passes, pass ends, `blit_splits`, `uniform_conflicts`, `fb_color_splits`, `fb_depth_named_splits` and `fb_depth_pool_splits`. A pass can meet several split categories, so do not sum them as independent savings. `pass_ends` includes ordinary target changes and submission ends. The `end_op` rows identify the ending replay opcode; 0 also means outside replay. Rows flush at the next present, so the last partial frame is absent.
+
+The new rows reuse the draw-pass ledger's size estimates. They exclude helper encoders, standalone clears, compressed-target shadow attachments, sampling traffic and physical compression/cache effects. Layered passes, restricted render areas and uncommon pixel formats retain that ledger's approximations. Use the same settings and scene for both arms. Capture detailed telemetry separately from energy runs because logging adds work.
+
+A wrong `DontCare` can produce black or garbage rectangles, old pixels, missing geometry, depth-test holes, broken fog/shadows, or flicker at barriers and scene transitions. An unsound reader exclusion can let an earlier draw see a later depth write. A clean log cannot establish visual equivalence. Check the fixed camera and loading transitions as well as moving through the scene. Gameplay, energy and GPU benefit remain unverified on this branch.
+
+### A/B recipe for the parent
+
+First integrate the `oot-bench` and `oot-vqa` tools, and use a complete stamped shader build matching the stack's chain. They are separate branches and are not copied into this port. Prepare a writable candidate build outside the protected baseline folders. The same candidate host can serve both arms, with identical modules, shaders, save, camera and handheld/docked mode. Keep the game at its own 30 fps cap. Leave `DM_NVN_XV=0` in both env files. Set only `DM_NVN_TBDR=0` in `off.env` and `=1` in `on.env`. Other stack switches must match.
+
+With `PY` set to the approved uv interpreter and `OUT` to a new durable work directory, run this only when the parent authorizes gameplay:
+
+```sh
+"$PY" scripts/oot_ab.py --a "$CANDIDATE_BUILD" --b "$CANDIDATE_BUILD" \
+  --a-host "$CANDIDATE_HOST" --b-host "$CANDIDATE_HOST" \
+  --a-env "$OFF_ENV" --b-env "$ON_ENV" --save "$FIXED_SAVE" \
+  --route "$SMOKE_ROUTE" --runs 3 --out "$OUT"
+```
+
+Use one route and its steady measurement window in both arms. Compare bytes per presented frame from `@rt_load_mb` and `@rt_store_mb`, passes and GPU span, CPU work, wakeups and kernel energy counters. `oot_ab.py` reports billed energy in opaque counter units, not GPU joules. The existing task-energy log is CPU energy only. Neither proves whole-device GPU power savings. Check each run's 30 fps cap and workload before comparing energy. Repeat with `DM_NVN_ATTPROF=1` in both env files for a diagnostic run, and inspect the same frame range. Confirm that store savings do not come from skipped draws or missing libraries.
+
+Run the VQA log check on every run folder, using the same window as the A/B measurement:
+
+```sh
+"$PY" scripts/oot_vqa.py "$OUT/A-1" --window "$MEASUREMENT_WINDOW" --out "$OUT/A-1-vqa.md"
+"$PY" scripts/oot_vqa.py "$OUT/B-1" --window "$MEASUREMENT_WINDOW" --out "$OUT/B-1-vqa.md"
+```
+
+Repeat for the other run folders. Reject new skipped pipelines, missing or untranslated shader keys, nonfinite pixels, ledger violations, or new `[RED]` types. Existing failures must be reconciled, not hidden by a smaller byte count. Pair that check with screenshots and a visual comparison allowing only the scene's normal animation. Include Link's house, Kokiri Forest, the fog horizon, menus and a loading transition. No such VQA or game comparison has been performed for this port.
