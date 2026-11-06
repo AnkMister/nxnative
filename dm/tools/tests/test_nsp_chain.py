@@ -40,6 +40,12 @@ class Temporaries(unittest.TestCase):
                 spec.loader.exec_module(module)
                 self.assertEqual(module.TMP, expected)
         self.assertNotIn("WORK=str(work / 'tmp')", SCRIPT.read_text())
+    def test_spotlight_folder_requires_opt_in(self):
+        for value, expected in ((None, 'tmp'), ('0', 'tmp'), ('1', 'tmp.noindex')):
+            with mock.patch.dict(os.environ, {}, clear=True):
+                if value is not None: os.environ['DM_BUILD_NOINDEX'] = value
+                self.assertEqual(nsp.build_folder('tmp'), expected)
+        self.assertNotIn("work / 'tmp/", SCRIPT.read_text())
 
 
 class Header(Base):
