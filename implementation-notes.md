@@ -504,3 +504,20 @@ encoding mode; 70 packaged/CPU texture checks; and 32 CPU-storage checks. All
 `make -j2 -C dm/host GAME=0400486024DEC000 dmhost` build. Compiler warnings remain;
 there is no game/runtime acceptance claim. Earlier `final-guard.log` retains
 the original fixture race failure; `final-acceptance.log` supersedes it.
+
+## Review Astra 2, finding 2
+
+A short CPU mutex protects pending work, progress updates and the watchdog
+predicate as one snapshot. It covers both start and feedback writers. No Metal
+call or error handoff runs under that lock. The timer skips a busy lock and
+tries again on its next tick. The existing ten-second threshold is unchanged.
+
+The review's injected start immediately after the progress read is retained in
+three new tools tests. A second thread starts work at that exact point. The
+old source deterministically reports stalled=1 with progress already current;
+the fixed source defers the writer until the idle snapshot finishes. Other
+cases cover 20,000 simultaneous feedback completions, concurrent start/feedback
+and watchdog reads, idle restart, the true-stall boundary and a busy CPU lock.
+All three tests and the eight existing fake GPU safety modes pass. Logs are in
+the requested review-astra-2-fixes-evidence folder outside this checkout.
+No game, full shader build, GPU fault, install, push or PR ran.
