@@ -265,3 +265,17 @@ cover chain/migration, work-dir, benchmark and bug-report paths. mac-app tests
 need BSD cp -cRX; regress tests import libproc.dylib at module load on Linux.
 Review fixed the formatted shader-capture scratch path and made benchmark /
 regress prefer the selected folder when both shader layouts exist.
+
+Ported PR #1392 from 8cf26912, gated by DM_NVN_IDLE_RETIRE=1. The existing
+#1391 guard, safe GPU caps, linear deferred partition and #1393 retired-ID
+policy remain intact. Pending additions count before commit. Small and large
+pool buffers can retire without an unsubmitted future fence. DM_CTL focus
+is an explicitly invoked diagnostic, as in the source.
+
+Independent Codex review found two source-port concurrency risks. The final
+port reserves a persistent retirement fence under g_mu at submission begin,
+rather than reading g_cb beside g_fence. A single async worker performs idle
+draining, so a stuck residency lock cannot block the watchdog timer. Review
+also found old large-pool chunks needed the same fence; that path and a test
+fixture are included. Claude review could not run because its provider is
+not authenticated. Metal tests remain unrun on Linux.

@@ -463,3 +463,7 @@ The NDVE direct bilinear scale (#1331, b6367705, 76c20edb and 943b0bea) was deli
 ### Open: optional running GPU-write intervals
 
 PR #1320's [wide-write interval ledger](../../../docs/reference/rendering.md#optional-wide-write-intervals-across-submissions) is ported behind `DM_NVN_GW_INTERVALS=1` (default off). Mac rendering, stability and efficiency validation remain open; no local gameplay measurement is claimed.
+Found on this game (current, experimental): [pool buffers retained while no
+submission follows](../../../docs/reference/memory.md#pool-buffers-retained-while-no-submission-follows).
+`DM_NVN_IDLE_RETIRE=1` enables the PR #1392 port; Mac focus-loss and resume
+validation remains open. It preserves the existing GPU safety policy.

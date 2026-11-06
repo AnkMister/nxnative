@@ -18,7 +18,7 @@ DM_AUDREN_TRACE	diagnostic	When set, the CPU audio renderer logs every update wi
 DM_AV1_DAV1D	switch	`=1` decodes AV1 movies with dav1d even where VideoToolbox decodes AV1 (Apple M3 and A17 Pro on), to compare the two or to check the path older chips take (`hle_movie_av1.c`)
 DM_AV1_PARALLEL	switch	`=1` opts AV1 into timestamped burst delivery outside the decoder lock and dav1d 8-thread/8-frame decoding; default off (2 threads, one frame). Sampled when each decoder is created.
 DM_BOOTPROF	diagnostic	When set, logs boot timing: the loader's breakdown (mapping, relocation, probes), Metal library loading, pipeline creation, texture uploads and the first present
-DM_BUILD_NOINDEX	switch	`=1` names the NSP build temporary folder tmp.noindex so Spotlight excludes it (default off; PR #1355)
+DM_BUILD_NOINDEX	switch	`1` opts build scripts, benchmark and regression readers into tmp.noindex/ and shader.noindex/; default off, with shader/ renamed only on opt in.
 DM_BUNDLE_ID	switch	Overrides the iOS app's bundle ID in `build_ipa.sh` (default `org.nxnative.<title ID in lowercase>`)
 DM_CHEATS	path	Folder of Atmosphère cheat files: `<folder>/<build ID>.txt` or an SD-card layout (`atmosphere/contents/<title ID>/cheats/`) under it (default `<DM_ROOT>/cheats`); the Mac menu lists and toggles them
 DM_CHEATS_ANY_BUILD	switch	`1` loads a cheat file written for another build of the game when it is the only one (its addresses may not fit: for `cheat_anchor.py` checks)
@@ -176,6 +176,7 @@ DM_NVN_GPU_TS	switch	`segment` or `submission`: what timestamp reports record (G
 DM_NVN_GW_INTERVALS	switch	`=1` keeps GPU writes spanning more than 64 pages as intervals across submissions, reducing false uniform-shadow conflicts (default off; PR #1320)
 DM_NVN_HILITE	diagnostic	`=<fragment shader key>,…`: those draws use a solid colour instead (magenta, green, cyan, yellow, blue, white in order), to tell wrong geometry from wrong shading
 DM_NVN_HMMA_TENSOR	switch	`1` selects a built HMMA tensor library on Apple10 only; off by default and falls back to the base matrix library.
+DM_NVN_IDLE_RETIRE	switch	Default 0. =1 retires deleted pool buffers against the last committed fence between submissions, drains them on the 100 ms guard timer even with the ordinary guard off, and counts pending residency additions before commits. Preserves DM_SAFE_GPU checks.
 DM_NVN_INDLOG	diagnostic	`=<n>`: the first n indirect draws (and those of pass-dumped frames) log their arguments at encode and as the GPU left them once the submission completed, with the first indices
 DM_NVN_IXCLOG	diagnostic	`=<n>` logs the first n indirect draw and dispatch conversions (record to arguments) once the GPU has run them
 DM_NVN_KEYDUMP	diagnostic	`=<fs key>[:n[:every]]`: for up to n draws of that fragment shader (default 6), logs the pass dump binding lines plus vertex formats, vertex streams and uniform values; meant for devices

@@ -514,3 +514,12 @@ without a second gated copy.
   - reclaiming a shared texture another texture took over once no alias lookup found it for 16 submissions: 34,875 reclaims in six minutes and 7.7 GB of textures, as a texture object's later resolutions do not go through the alias lookup, so active targets looked idle.
 - **Found on:** [The Legend of Zelda: Ocarina of Time](https://github.com/seedds/nxnative/pull/1299) v131072 (main 056e41fe with #1299 and #1300, guest memory in files), an M4 Pro Mac and an iPad17,3 on iOS 27.
 - **Check:** `DM_CTL` lines `poolstat` and `texstat` (`hle_hid.c`) log the pool and texture breakdowns above at any point of a Mac run; `restop` gives the residency set by kind.
+### Pool buffers retained while no submission follows
+
+- **Symptom:** Ocarina of Time stops submitting out of focus while streaming threads keep replacing virtual-pool runs. GPU allocation and swap grow despite a flat residency set.
+
+- **Cause:** Each retired buffer waits for the next submission fence; no submission arrives to pass that fence or drain the deferred queue. Upstream observed about 770 MB/s retained during this state.
+
+- **Fix:** Opt-in `DM_NVN_IDLE_RETIRE=1` retires a pool buffer against the last committed fence when no submission is open. The existing 100 ms guard timer schedules a separate worker to drain completed retirements even with the ordinary guard disabled. The timer never waits on the residency lock. A submission reserves its retirement fence under the pool lock before encoding and keeps that reservation through commit. An open submission still pins its retired buffers through its own fence. Pending residency additions are counted before committing; existing safe GPU checks and retired texture-ID policy stay in force. The default keeps the previous behavior for A/B testing. Ported from upstream `8cf26912`; Mac gameplay validation remains open.
+
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md).
