@@ -3162,6 +3162,16 @@ static void rb_swap_rows(uint8_t *p, size_t wb, size_t rows, size_t nz, size_t r
         else for (size_t i = 0; i < wb / 2; i++) q[i] = (uint16_t)((q[i] & ~m) | (q[i] & 31u) << shift | (q[i] >> shift & 31u));
     }
 }
+// Caller holds g_mu. Registration follows the source actually encoded, even
+// when its pool no longer qualifies for a new upload-only wrapper after rollover.
+static void up_source_hold(id<MTLBuffer> buf) {
+    if (!g_up_sources) g_up_sources = [NSMutableSet set];
+    if (![g_up_sources containsObject:buf]) {
+        if (!g_up_src_users) g_up_src_users = [NSCountedSet set];
+        if (![g_up_src_users countForObject:buf]) res_add(buf);
+        [g_up_src_users addObject:buf]; [g_up_sources addObject:buf];
+    }
+}
 // A zero-copy buffer over [addr, addr + len) for the open upload batch, which retires it with its staging, for a large pool, or a pool no address was given out in and that is not resident: a
 // one-time read must not leave that memory wired. In Ocarina of Time's first scene, pools that hold only textures took 4.6 GB of the working set against 1.6 GB for the textures made from them.
 // nil elsewhere (or if it is refused: the caller looks the address up as usual)
@@ -3177,14 +3187,7 @@ static id<MTLBuffer> up_big_src(uint64_t addr, uint64_t len, uint64_t *off) {
     pthread_mutex_lock(&g_mu); id<MTLBuffer> buf = cache ? g_up_big_src[key] : nil;
     if (!buf) { buf = [g_dev newBufferWithBytesNoCopy:(void *)a length:b - a options:MTLResourceStorageModeShared deallocator:nil];
         if (buf && cache) { if (!g_up_big_src) g_up_big_src = [NSMutableDictionary dictionary]; g_up_big_src[key] = buf; } }
-    if (buf && cache) {
-        if (!g_up_sources) g_up_sources = [NSMutableSet set];
-        if (![g_up_sources containsObject:buf]) {
-            if (!g_up_src_users) g_up_src_users = [NSCountedSet set];
-            if (![g_up_src_users countForObject:buf]) res_add(buf);
-            [g_up_src_users addObject:buf]; [g_up_sources addObject:buf];
-        }
-    } else if (buf) { res_add(buf); [g_up_keep addObject:buf]; }
+    if (buf) up_source_hold(buf);
     pthread_mutex_unlock(&g_mu);
     if (!buf) return nil;
     *off = (uint64_t)addr - a;
@@ -3257,7 +3260,11 @@ static id<MTLTexture> pkg_upload_(const tex_t *t, uint64_t *stamp, id<MTLTexture
             if (!upsrc) MDIE("sparse upload source allocation failed");
             nvn_sparse_copy(t->pool, upsrc.contents, (uint64_t)(uintptr_t)t->mem, t->L.size);
             res_add(upsrc); [g_up_keep addObject:upsrc]; mb = (__bridge void *)upsrc; mo = 0;
-        } else if (upsrc) { uint64_t mo2; id<MTLBuffer> u2 = up_big_src((uint64_t)t->mem, t->L.size, &mo2); if (u2) { upsrc = u2; mb = (__bridge void *)u2; mo = mo2; } }   // up_alloc may have flushed the batch that held the first one
+        } else if (upsrc) {   // up_alloc may have flushed the batch that held the first one
+            uint64_t mo2; id<MTLBuffer> u2 = up_big_src((uint64_t)t->mem, t->L.size, &mo2);
+            if (u2) { upsrc = u2; mb = (__bridge void *)u2; mo = mo2; }
+            pthread_mutex_lock(&g_mu); up_source_hold(upsrc); pthread_mutex_unlock(&g_mu);
+        }
         size_t off = 0; int enc_ok = g_up_ce != nil, nb0 = g_nup_blits;
         for (unsigned l = 0; enc_ok && l < d.mipmapLevelCount; l++) {
             uint32_t w = MAX(t->d.width >> l, 1u), h = MAX(t->d.height >> l, 1u), z = t->d.target == 2 ? MAX(t->d.depth >> l, 1u) : 1;
