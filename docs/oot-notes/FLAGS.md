@@ -2,15 +2,17 @@
 
 The tables cover controls added, changed or used for experiments by `oot-stack`,
 `oot-cpu`, `oot-mem`, `oot-1203`, `oot-idle`, `oot-upscale`, `oot-bench` and
-`oot-msl`, `oot-tbdr`, `oot-stagecache`, `oot-vqa` and `oot-quality`. Defaults describe an unset environment on the Ocarina profile.
+`oot-msl`, `oot-tbdr`, `oot-stagecache`, `oot-vqa`, `oot-quality`,
+`oot-clock`, `oot-stable` and `oot-visual`. Defaults describe an unset environment on the Ocarina profile.
 Expected gains are hypotheses or upstream reports, not measured gameplay results
 on this integrated branch. Check pictures before accepting any efficiency gain.
 The complete repository inventory remains [env_switches.tsv](../env_switches.tsv).
 
 ## Review exclusions
 
-The independent review blocks `oot-mem` and `oot-1203`. Their merge commits were
-reverted with `git revert -m 1`; the historical rows below describe unavailable
+The independent review blocks `oot-mem` and `oot-1203`. Their original merge commits were
+reverted with `git revert -m 1` on the recovery branch; the final ordered history
+omits both merges entirely. The historical rows below describe unavailable
 controls, not runnable experiments. `DM_ECO_HIDDEN=pause` is **do not use: audio/clock
 mismatch, fix pending**. `oot-mem-fix`, `oot-1203-fix` and `oot-idle-fix` remain pending.
 The original growing-pool correction and readable-tile memo from oot-stack remain
@@ -38,7 +40,7 @@ unconditional prerequisites. Flag-off is therefore not an unchanged oot-base.
 | `DMSH_CBUF_REUSE=1` (shader build) | Off; only exact `1` enables | Constant reuse changes register lifetime/scheduling; check images and occupancy | One sampled compute AIR decreased; sampled pixel AIR did not; no frame result | oot-msl |
 | `DMSH_STORAGE_RUNS=1` (shader build) | Off; only exact `1` enables | Wrap fallback and four-byte alignment need GPU checks; can add branches/loads | Shares addresses in off-grid read-only storage runs; may regress GPU cost | oot-msl |
 
-All three `DMSH_*` experiment switches compose in `dmsh_chain.options()`.
+The raw-load, storage-run and constant-reuse switches compose in `dmsh_chain.options()`.
 Their tools enter `FILES` and `CODE_FP`. Each combination requires its own
 regenerated header, matching shader libraries and rebuilt host. Runtime switches
 cannot enable a build pass. No full shader build was run for this integration.
@@ -96,14 +98,14 @@ The blocked border split is absent from active stage keys and library routing.
 | `DMSH_TEST_METAL`, `DMSH_TEST_GPU`, `DM_TEST_BORDER` | Off/unset | Test-only | Enable synthetic compiler/GPU/border checks | oot-stack, oot-1203 |
 | `TMPDIR` | OS default; explicitly overridden in all integration commands | Wrong path violates workspace storage rules | Use `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch` | All |
 | `DOTNET_ROOT`, `PATH` | Shell settings | Wrong .NET architecture/runtime prevents translation | Stack rebuild uses `~/.dotnet`; Python uses supplied uv venv | oot-stack |
-| `DOTNET_PROCESSOR_COUNT`, `DOTNET_CLI_TELEMETRY_OPTOUT`, `DOTNET_SKIP_FIRST_TIME_EXPERIENCE`, `NUGET_PACKAGES` | Rebuild recipe uses `4`, `1`, `1`, isolated audited cache | Build provenance only | Cooled exact-version feed; no restore/install needed in this integration | oot-stack |
+| `DOTNET_PROCESSOR_COUNT`, `DOTNET_CLI_TELEMETRY_OPTOUT`, `DOTNET_SKIP_FIRST_TIME_EXPERIENCE`, `NUGET_PACKAGES` | Rebuild recipe uses `4`, `1`, `1`, isolated audited cache | Build provenance only | Cooled exact-version feed; restore uses only the audited local feed in this integration | oot-stack |
 | `DM_GAME_UPSCALER_KEYS`, `DM_GAME_UPSCALER_N` (generated macros) | 22 standard NDSR compute keys | VR/NDVE must remain excluded | Existing profile derivation; not user-settable env switches | oot-upscale |
 | `DMSH_CHAIN`, `DMSH_GMEM_MAP_ENTRIES`, `DMSH_GMEM_MAP_ENTRY` (compiled ABI) | Generated chain; 4096 minimum entries; 32 bytes per entry | Host/translator ABI mismatch can hang GPU | Growing power-of-two table through 2^20 preserves existing low-entry hints | oot-stack |
 
 No branch adds a user-facing C compiler optimization flag. #1360's growing
 pool table and #1161's readable-tile function lookup are unconditional source
-fixes inherited from `oot-stack`. The #1203 library splitting and memory experiments have been reverted. Idle submission accounting also
-runs with experiments off. No feature default was changed during integration.
+fixes inherited from `oot-stack`. The #1203 library splitting and memory experiments are excluded. Idle submission accounting also
+runs with experiments off. No feature default was changed during integration; the incoming safety branch already defaults DM_SAFE_GPU on for Ocarina Mac.
 `DM_NVN_CUT_FIRST` and `DM_NVN_HANGLOG` appear in historical notes but are removed
 names, not supported controls. Shell recipe path variables such as `AB`, `SOURCE`,
 `PUBLISH` and `OOT_BENCH_ROUTE` are placeholders, not build feature switches.
@@ -149,3 +151,35 @@ The Metal 4 spatial scaler output barrier is set for its next consumer. Presenta
 uses fragment stages; the game-upscaler route uses all stages. The installed SDK
 omits its setter, so the compatibility path guards the runtime ivar and refuses
 unknown implementations. Crop, colour and all quality cases run with validation.
+
+## Correctness, safety and clock controls
+
+| Env var or build flag | Default | Visual risk | Expected gain | Source branch |
+| --- | --- | --- | --- | --- |
+| `DMSH_OOT_VISUAL=1` (split and shader build) | Off in source; **ON for the user's build (correctness)** after oot-visual-fix | Known mixed integer/Float16 attachment corruption pending fix; correctness ports change numeric lowering, atomics, handles and Float16 outputs; game/console picture acceptance remains open | Restores missing effects/foliage and supported shader translations; no frame gain claimed | oot-visual |
+| `DM_NVN_VISUAL=1` | Off; ON in recommended play build | Changes image aliases, texture write ranges, mesh prewarm and output-limit PSOs; gameplay still needs checking | Host half of visual correctness ports | oot-visual |
+| `DM_NVN_MESH_INDIRECT=1` | Off; separately enabled in recommended play build | HIGH: provisional NVN2 `{count, first}` record layout; logs first eight records for acceptance | Enables otherwise missing indirect mesh draws; console layout remains unverified | oot-visual |
+| `DM_SAFE_GPU` | **On for Ocarina Mac**, off elsewhere; **do not ship watchdog default-on until oot-stable-fix** | Known watchdog false-stop and auxiliary residency cleanup races (review 2); stops the process on GPU errors, stalled feedback or memory pressure; cannot guarantee driver recovery | GPU memory capped at 70% of recommendedMaxWorkingSetSize, conservative system wired-memory cap, no submission after refusal | oot-stable |
+| `DM_NVN_RES_LIMIT_MB` | Existing working-set guard; safe mode enforces its stricter cap | Lower limit can stop early; higher values or `0` cannot bypass safe mode | Optional lower cap for prevention; no FPS gain | oot-stable, #1391 |
+| `DM_NVN_GMEM_ALL=1` | Off | Exposes all raw pools and increases residency pressure; leave off | Diagnostic comparison against address-mark filtering | oot-stable, #1394 |
+| `DM_TEST_GPU_HANG` | Off | Fault injection stops safe-mode process; never set for play | Synthetic callback/diagnostic test only, no real GPU hang required | oot-stable, #1382 |
+| `DM_FAST_CLOCK=1` (module rewrite) | Off; exact `1` enables | Counter frequency/epoch, pause, capture and fallback semantics need gameplay acceptance | Branch microbenchmark 22.6 to 8.8 ns per read, 45 SDK sites; not integrated gameplay gain | oot-clock |
+| `SEEN_SHADERS`, `--seen-shaders` | Off; require `False` / `--no-seen-shaders` for play | Partial maps omit geometry/effects; not acceptable for the user | No runtime shader compilation: full offline shader corpus required; lazy shaders stay off | Existing packer, user play-build rule |
+| `DM_PRESENT_EDR` | Unavailable; proposed only | No proven guest HDR contract | Future-only note, not an exposed flag | oot-vqa |
+| `DM_CLOCK_STATS=1` | Off | Diagnostic overhead; forces full clock gate and disables fast entry | Counts physical, virtual and frequency reads per thread; no speedup | oot-clock |
+| `DM_REWRITE_J` | Existing rewrite worker policy | Build resource use only | Set `4` at most for a re-rewrite; no visual gain | oot-clock, existing build input |
+
+`DM_FAST_CLOCK` needs a module re-rewrite and host rebuild, with modest rewrite
+work (the branch brief estimates about 30 seconds; this integration did not
+measure it). It needs no shader rebuild. A runtime-only setting cannot patch
+already rewritten modules.
+
+Stable #1394 address marking retains the growing table and low-entry hints used
+by raw-load quads. Scalar and optimized four-word shaders are compared on the GPU
+against the actual host table with 5,001 marked ranges. The stable deferred-release
+partition is unconditional, preserving its safety fix even with visual ports off.
+The recommended choices and build/runtime boundary are in [PLAY-BUILD.md](PLAY-BUILD.md).
+
+The play build requires full ahead-of-time shaders. Lazy shaders and partial
+seen-only builds stay off; source-compiling diagnostics stay unset. See the
+release blockers in [PLAY-BUILD.md](PLAY-BUILD.md).

@@ -235,7 +235,7 @@ Check Link, thin branches, the house door, ground at a shallow angle, fog, shado
 
 ## MSL mining experiment (open)
 
-A stage-stratified sample of the in-progress Mac build is recorded in [implementation-notes.md](../../../implementation-notes.md), with source hashes, stage coverage, the pattern table, four compiler comparisons, and the parent's A/B recipe. The [experimental passes](../../../docs/reference/shaders.md#experimental-constant-word-reuse-and-storage-runs-between-grid-points) default off. Compute constant-word reuse is the first GPU A/B candidate; the pixel compiler example has no instruction reduction. Storage grouping adds wrap-fallback branches and needs a separate test. No M4 Max frame-time, energy or image-equivalence result is claimed.
+A stage-stratified sample of the in-progress Mac build is recorded in [MSL implementation notes](../../../docs/oot-notes/oot-msl.md), with source hashes, stage coverage, the pattern table, four compiler comparisons, and the parent's A/B recipe. The [experimental passes](../../../docs/reference/shaders.md#experimental-constant-word-reuse-and-storage-runs-between-grid-points) default off. Compute constant-word reuse is the first GPU A/B candidate; the pixel compiler example has no instruction reduction. Storage grouping adds wrap-fallback branches and needs a separate test. No M4 Max frame-time, energy or image-equivalence result is claimed.
 
 ## Counter read census, v131072
 

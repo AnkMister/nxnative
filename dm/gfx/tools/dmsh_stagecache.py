@@ -11,6 +11,7 @@ import functools
 import hashlib
 import inspect
 import json
+import os
 from pathlib import Path
 import re
 import sqlite3
@@ -151,6 +152,7 @@ def translation_files():
 
 def translator_code(executable):
     return sha(dump((tool_code(executable, directory=True),
+                     {'oot_visual': os.environ.get('DMSH_OOT_VISUAL') == '1'},
                      [(str(p.relative_to(dmsh_chain.GFX)), sha(p.read_bytes())) for p in translation_files()])))
 
 

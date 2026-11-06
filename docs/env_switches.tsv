@@ -32,6 +32,8 @@ DM_DISPLAY_NAME	switch	Overrides the iOS app's name in `build_ipa.sh` (default t
 DM_DYNAMIC_RESOLUTION	player	`1` lets NieR:Automata 1.0.3's own dynamic resolution scale between 70 and 100 %, `0` (default) keeps full resolution; only on the builds whose patches.py names the DYNAMIC_RESOLUTION capability (`hle_fpslock.c` `k_nier_dr`). The launcher's Dynamic resolution
 DM_ECO_COMPILE_THREADS	switch	Mac per-pool worker ceiling `1..64` for pipeline prepare, prebuild, hybrid and speculative builds; never enlarges a pool, `0` or unset is off; does not cap Metal processes or synchronous draw compiles
 DM_ECO_COPY_WAIT	switch	`1` makes Mac uniform-copy consumers sleep on completion instead of spinning (default off); `DM_NVN_UB_COPY_THREAD=0` bypasses the worker
+DM_ECO_HIDDEN	switch	Mac hidden-window policy: `pause` is do not use: audio/clock mismatch, fix pending; `slow` caps each NVN acquire/vsync caller at 8 Hz; unset, `0` or unknown keeps the existing policy
+DM_ECO_SAME_FRAME	switch	`=1` (default off) skips only a proven identical GPU-only scan-out and suspends an idle display link without active tick demand; guest submissions still execute
 DM_EMBED_TAG	path	Set by the iOS app of a game of several programs: the tag of the running program's embedded sections (`p<N>`, `gen_embed.py --tag`)
 DM_ENTITLEMENTS	path	`=<plist>` gives a prepared Xcode project another entitlements file instead of the Increased Memory Limit one, and the ad-hoc signature of the unsigned IPA's executable carries them; empty means no entitlements
 DM_ENV_FILE	path	`=<file>` makes `build_ipa.sh` bake its `KEY=VALUE` lines into the app as `dm/env.txt`, applied at boot; `Documents/env.txt` overrides them
@@ -165,6 +167,8 @@ DM_NVN_LOADPROBE	diagnostic	`=1`, `2` or `3`: attachments whose load is skipped 
 DM_NVN_LOG	diagnostic	`=1` logs the creation of NVN objects
 DM_NVN_MAGSCAN	diagnostic	`=<fs key>[:every[:phase]]`: device self-check that reads each pass's colour attachments every `every` frames (default 30) and logs `[mag]` lines for solid magenta 16×16 blocks or non-finite pixels
 DM_NVN_MESH_INDIRECT	switch	`1` enables provisional NVN2 indirect mesh draws using {count, first}; logs the first eight records after completion; off by default because the NVN2 layout is unverified
+DM_NVN_NANSCAN	diagnostic	`=1` scans stored float attachments at pass end for NaN/Inf; off by default; diagnostic GPU work and readbacks distort timing
+DM_NVN_NANSCAN_EVERY	diagnostic	With NANSCAN, sample every Nth presented-frame index (default 1; minimum 1)
 DM_NVN_PASSDUMP	diagnostic	`=<f>`, `<f1>-<f2>` or `every:<n>`: logs every render pass of those frames (attachments, clears, shader keys, bindings, draw state, presents) for the `tbdr_*.py` tools
 DM_NVN_PASSDUMP_ALL	diagnostic	`=1` makes `DM_NVN_PASSDUMP` record every draw and binding change, not only the first per pass and stage, including copies and inline uniform updates
 DM_NVN_PASSGPU	diagnostic	`=<file>` writes the GPU time of each render and compute pass from stage-boundary timestamp counters (off under Metal 4); also gives each dispatch its own encoder
@@ -175,7 +179,7 @@ DM_NVN_PREFETCH	switch	`0` turns off loading a program's shader libraries in the
 DM_NVN_PROF	diagnostic	`=1` wraps the implemented NVN functions in a timing wrapper and collects the time each takes during recording
 DM_NVN_PROGTRACE	diagnostic	`=<vertex keys,...>` logs matching ProgramSetShaders calls and their guest backtraces
 DM_NVN_REGLUM	diagnostic	`=x0,y0,x1,y1:<file>` (normalized coordinates): on every present records the present number, time, mean luminance and a grayscale thumbnail of that region, to check animation speed against frame rate
-DM_NVN_RES_LIMIT_MB	switch	`=<MB>` makes the GPU memory guard stop the game at that size instead of about 95% of Metal's working set, with the report of what the residency set holds (a low one tests the stop), and lets go of what it can from 84% of it; `0` turns the guard off
+DM_NVN_RES_LIMIT_MB	switch	`=<MB>` makes the GPU memory guard stop the game at that size instead of about 95% of Metal's working set, with the report of what the residency set holds (a low one tests the stop), and lets go of what it can from 84% of it; `0` turns the guard off only when DM_SAFE_GPU=0
 DM_NVN_RP_AREA	switch	`0` makes passes on targets of 16 M pixels or more cover the whole target, as before; by default a draw pass that loads what it keeps stops at the far corner of its scissor when that is at most half the target
 DM_NVN_RT_CONTINUE	switch	`0` ends the pass whenever the game sets render targets, as before; by default SetRenderTargets naming the open pass's targets continues the pass
 DM_NVN_RT_RANGE	switch	`=1` (experimental, off by default; with `DM_NVN_TBDR=1`) keeps the pass open when the game sets the same colour and depth target again with a view that differs only in its level count
@@ -219,6 +223,7 @@ DM_NVN_VCONV_CPU	switch	`=1` converts integer vertex inputs fed formats of anoth
 DM_NVN_VCONV_RANGE	switch	`0` / `1` overrides the profile's `vconv_range`: CPU vertex conversion only over the vertices each draw reads instead of the whole bound range
 DM_NVN_VISUAL	switch	`1` enables the Ocarina visual source ports: texture write ranges, integer image aliases, native mesh prewarm and Float16 constant-output limits; off by default
 DM_NVN_VLOG	diagnostic	Set: logs each NVN memory pool as it is created (address, memory, size, flags) with a backtrace
+DM_NVN_VQA	diagnostic	`=1` logs skipped pipeline/source-format/HDR-query evidence and compile timing; off by default
 DM_NVN_VSDUMP	path	Output file for post-vertex captures; used with DM_NVN_VSDUMP_KEY and the frame/count bounds
 DM_NVN_VSDUMP_FROM	diagnostic	First presented frame eligible for a post-vertex capture (default 0)
 DM_NVN_VSDUMP_KEY	diagnostic	Vertex key to capture, or `*` for all eligible vertex shaders; storage-writing shaders are excluded
@@ -240,6 +245,7 @@ DM_PICTURE_FIT	player	`fill` scales the 16:9 picture on the iPhone and iPad unti
 DM_PREEMPT	switch	`0` / `1` overrides the profile's `core_preempt`: also check already-runnable higher-priority peers on the caller's core after every thread SVC
 DM_PRELOAD	diagnostic	Set: on the Mac, runs the host's early background loading (`dm_host_preload_start`) as the iOS app does, to exercise that path
 DM_PRESENT_ABSOLUTE	switch	Default 0. On the Mac direct-present path, =1 schedules drawables at the absolute pacer target for the experiment inherited from oot-stack.
+DM_PRESENT_COLORSPACE	diagnostic	Mac SDR source tag: `srgb` or `auto` tags sRGB; `p3` converts primaries then tags Display P3; unset keeps legacy nil/untagged output. `srgb` is recommended for the user
 DM_PRESENT_FIFO	switch	`0` makes the display link take the newest queued frame each tick, as before; by default it shows frames in order, at most one tick behind
 DM_PRESENT_HZ	switch	`=<N>`: the frequency of presentation pacing (default 60); `0` means no frame limit and is for performance profiling only
 DM_PRESENT_INTERVAL	switch	`display` presents one frame per display-link tick whatever interval the game sets; `game` follows the game's present interval (default: the profile's `present_interval`)

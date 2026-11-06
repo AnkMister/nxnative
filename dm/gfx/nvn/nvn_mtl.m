@@ -13678,6 +13678,13 @@ static int present_encode(id<MTLCommandBuffer> cb, id<MTLTexture> src, id<MTLTex
 // Replacing those textures waits for earlier presents; throttle replacement during resizing, and keep standard scaling for refused sizes. Offscreen captures own separate state.
 #define FX_REMAKE_PRESENTS 30
 typedef struct { id<MTL4FXSpatialScaler> sc; id<MTLTexture> in, out; uint64_t made_at; int made; NSUInteger refused[6]; } fx_state;
+static int fx_output_stages(id<MTL4FXSpatialScaler> sc, MTLStages stages) {
+    // macOS 26's MetalFX requires this state but its SDK omits the setter.
+    // Refuse unknown implementations rather than encode with an unset barrier.
+    if (!sc || !class_getInstanceVariable([sc class], "_outputTextureBarrierStages")) return 0;
+    [(NSObject *)sc setValue:@(stages) forKey:@"outputTextureBarrierStages"];
+    return 1;
+}
 static fx_state g_fx_present;   // only the present thread encodes or replaces the scaler
 static id<MTL4Compiler> g_fx_comp;
 static int g_fx_mode = -1;   // 1 = metalfx, 0 = off
@@ -13715,6 +13722,7 @@ static id<MTLTexture> fx_encode(fx_state *fx, id<MTL4CommandBuffer> cb, id<MTLTe
         d.colorTextureFormat = raw.pixelFormat; d.outputTextureFormat = out_pf; d.inputWidth = cw; d.inputHeight = ch; d.outputWidth = ow; d.outputHeight = oh;
         d.colorProcessingMode = MTLFXSpatialScalerColorProcessingModePerceptual;
         id<MTL4FXSpatialScaler> sc = g_fx_comp ? [d newSpatialScalerWithDevice:g_dev compiler:g_fx_comp] : nil;
+        if (!fx_output_stages(sc, MTLStageFragment)) sc = nil;
         fx->made_at = g_present_n; fx->made++;
         if (!sc) { memcpy(fx->refused, key, sizeof key);
             MLOG("present upscaling: MetalFX makes no spatial scaler for %lux%lu format %lu → %lux%lu format %lu%s; this size is scaled bilinearly", (unsigned long)cw, (unsigned long)ch, (unsigned long)raw.pixelFormat,
@@ -13818,6 +13826,7 @@ static up_mfx_scaler *up_mfx_scaler_for(NSUInteger iw, NSUInteger ih, NSUInteger
     d.colorTextureFormat = MTLPixelFormatRGBA16Float; d.outputTextureFormat = of; d.inputWidth = iw; d.inputHeight = ih; d.outputWidth = ow; d.outputHeight = oh;
     d.colorProcessingMode = srgb ? MTLFXSpatialScalerColorProcessingModePerceptual : MTLFXSpatialScalerColorProcessingModeHDR;
     id<MTL4FXSpatialScaler> sc = g_fx_comp ? [d newSpatialScalerWithDevice:g_dev compiler:g_fx_comp] : nil;
+    if (!fx_output_stages(sc, MTLStageAll)) sc = nil;
     id<MTLTexture> in = nil, out = nil, read = nil;
     if (sc) {
         MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA16Float width:iw height:ih mipmapped:NO];

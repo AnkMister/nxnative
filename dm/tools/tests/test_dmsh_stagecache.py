@@ -27,6 +27,7 @@ import dmsh_abi as abi  # noqa: E402
 import dmsh_atomic  # noqa: E402
 import dmsh_chain  # noqa: E402
 import dmsh_cbuf  # noqa: E402
+import dmsh_limit16  # noqa: E402
 import dmsh_geometry  # noqa: E402
 import dmsh_mtlcache  # noqa: E402
 import dmsh_stagecache as cache  # noqa: E402
@@ -38,7 +39,7 @@ BUILD = TOOLS / 'dmsh_build.py'
 def build_functions():
     ns: dict[str, Any] = dict(__name__='dmsh_build', os=os, json=json, re=re, struct=struct,
               subprocess=subprocess, threading=threading, abi=abi, dmsh_atomic=dmsh_atomic, dmsh_geometry=dmsh_geometry,
-              dmsh_wide=dmsh_wide, dmsh_cbuf=dmsh_cbuf, dmsh_chain=dmsh_chain, dmsh_mtlcache=dmsh_mtlcache, shutil=shutil)
+              dmsh_wide=dmsh_wide, dmsh_cbuf=dmsh_cbuf, dmsh_chain=dmsh_chain, dmsh_limit16=dmsh_limit16, dmsh_mtlcache=dmsh_mtlcache, shutil=shutil)
     tree = ast.parse(BUILD.read_text())
     constants = {'HMMA_BODY', 'FIRST_STORE', 'FIRST_STORE_2D', 'TG_DECL', 'TG_BYTES',
                  'BORDER_HELPERS', 'TEX_BASE', 'SSBO', 'POOL_MIN', '_CAST', 'VP_BASE_INSTANCE', 'TF_SLOT'}
@@ -307,6 +308,15 @@ class Dependencies(unittest.TestCase):
         result = c.call(dmsh_cbuf.reuse_words, CBUF)
         self.assertEqual(result.count('._m0[3].x'), 1)
         self.assertEqual(c.call(dmsh_cbuf.reuse_words, CBUF), result)
+
+    def test_visual_translator_option_has_a_distinct_key_from_postpasses(self):
+        with mock.patch.object(cache, 'tool_code', return_value='same translator'):
+            with mock.patch.dict(os.environ, {'DMSH_OOT_VISUAL': '0'}):
+                off = cache.translator_code('unused')
+                with mock.patch.dict(os.environ, {'DMSH_RAW_LOAD_QUADS': '1', 'DMSH_CBUF_REUSE': '1', 'DMSH_STORAGE_RUNS': '1'}):
+                    self.assertEqual(cache.translator_code('unused'), off)
+            with mock.patch.dict(os.environ, {'DMSH_OOT_VISUAL': '1'}):
+                self.assertNotEqual(cache.translator_code('unused'), off)
 
     def test_inline_helper_and_constant_changes_invalidate_only_dependents(self):
         ns = build_functions()

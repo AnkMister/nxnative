@@ -7,7 +7,7 @@ static int safe_gpu_on(void) {
     static int on; static dispatch_once_t once;
     dispatch_once(&once, ^{
         const char *e = getenv("DM_SAFE_GPU");
-        on = e ? strcmp(e, "0") != 0 : !TARGET_OS_IPHONE && !strcmp(DM_GAME_ID, "0400486024DEC000");
+        on = e ? strcmp(e, "0") != 0 : !TARGET_OS_IPHONE && DM_GAME_SAFE_GPU;
     });
     return on;
 }

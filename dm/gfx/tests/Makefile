@@ -158,8 +158,6 @@ t_res_guard: t_res_guard.m $(MTL_T_DEP)
 check_t_res_guard: t_res_guard
 	MTL_DEBUG_LAYER=1 ./t_res_guard
 	MTL_DEBUG_LAYER=1 ./t_res_guard stuck
-t_deferred_release: t_deferred_release.m $(MTL_T_DEP)
-	clang $(CFLAGS) -fobjc-arc -o $@ t_deferred_release.m $(MTL_T_SRC) $(FW)
 t_mesh_indirect: t_mesh_indirect.m $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -o $@ t_mesh_indirect.m $(MTL_T_SRC) $(FW)
 .PHONY: check_t_cpu_tex
@@ -205,7 +203,7 @@ t_gmem_raw: t_gmem_raw.m $(MTL_T_DEP)
 .PHONY: check_t_gmem_raw
 check_t_gmem_raw: t_gmem_raw
 	@set -e; work=$$(mktemp -d); trap 'rm -rf "$$work"' EXIT; rc=0; DMSH_TEST_XLATE=$${DMSH_TEST_XLATE:-$(CURDIR)/../tools/dmsh_xlate_bin/dmsh_xlate} python3 test_dmsh_ampere_mem.py --fixture "$$work" || rc=$$?; \
-	if [ $$rc = 77 ]; then echo "t_gmem_raw: skipped, the translator does not run"; elif [ $$rc != 0 ]; then exit $$rc; else MTL_DEBUG_LAYER=1 ./t_gmem_raw "$$work/raw.metallib"; fi
+	if [ $$rc = 77 ]; then echo "t_gmem_raw: skipped, the translator does not run"; elif [ $$rc != 0 ]; then exit $$rc; else MTL_DEBUG_LAYER=1 ./t_gmem_raw "$$work/raw.metallib"; MTL_DEBUG_LAYER=1 ./t_gmem_raw "$$work/wide.metallib" "$$work/quad.metallib"; fi
 t_sparse_tiles: t_sparse_tiles.m $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -o $@ t_sparse_tiles.m ../../host/crash.c ../../host/hle_bigstack.c t_host_stubs.c $(filter-out ../nvn/nvn_mtl.m,$(GFX)) $(FW)
 t_readback: t_readback.m $(MTL_T_DEP)
@@ -482,15 +480,15 @@ QUALITY_ENV = env -u DM_QUALITY -u DM_ANISO -u DM_TRILINEAR -u DM_SHARPEN -u DM_
 check_t_quality: t_quality
 	$(QUALITY_ENV) MTL_DEBUG_LAYER=1 ./t_quality 0 0 1 0 0
 	$(QUALITY_ENV) MTL_DEBUG_LAYER=1 DM_QUALITY=off ./t_quality 0 0 1 0 0
-	$(QUALITY_ENV) DM_QUALITY=max ./t_quality 16 1 1.5 0.2 1
+	$(QUALITY_ENV) MTL_DEBUG_LAYER=1 DM_QUALITY=max ./t_quality 16 1 1.5 0.2 1
 	$(QUALITY_ENV) MTL_DEBUG_LAYER=1 DM_QUALITY=max DM_ANISO=0 DM_TRILINEAR=0 DM_SHARPEN=0 DM_PRESENT_UPSCALE=off DM_PRESENT_UPSCALE_OUT=1 ./t_quality 0 0 1 0 0
-	$(QUALITY_ENV) DM_ANISO=8 DM_TRILINEAR=1 DM_SHARPEN=0.4 DM_PRESENT_UPSCALE=metalfx DM_PRESENT_UPSCALE_OUT=2 ./t_quality 8 1 2 0.4 1
+	$(QUALITY_ENV) MTL_DEBUG_LAYER=1 DM_ANISO=8 DM_TRILINEAR=1 DM_SHARPEN=0.4 DM_PRESENT_UPSCALE=metalfx DM_PRESENT_UPSCALE_OUT=2 ./t_quality 8 1 2 0.4 1
 	$(QUALITY_ENV) MTL_DEBUG_LAYER=1 DM_QUALITY=wrong DM_ANISO=nan DM_TRILINEAR=0.5 DM_SHARPEN=1junk DM_PRESENT_UPSCALE_OUT=inf ./t_quality 0 0 1 0 0
 .PHONY: check_t_upscaler_mfx
-# (MetalFX's Metal 4 scaler stops under Metal validation on a barrier-stage setting of its own that has no public API, "_outputTextureBarrierStages not set": its run is without it)
+# Spatial MetalFX sets output stages for its next consumer; exercise both encoding modes under validation.
 check_t_upscaler_mfx: t_upscaler_mfx
-	DM_NVN_ENC_THREAD=0 DM_UPSCALER=metalfx ./t_upscaler_mfx
-	DM_NVN_ENC_THREAD=1 DM_UPSCALER=metalfx ./t_upscaler_mfx
+	MTL_DEBUG_LAYER=1 DM_NVN_ENC_THREAD=0 DM_UPSCALER=metalfx ./t_upscaler_mfx
+	MTL_DEBUG_LAYER=1 DM_NVN_ENC_THREAD=1 DM_UPSCALER=metalfx ./t_upscaler_mfx
 	MTL_DEBUG_LAYER=1 ./t_upscaler_mfx
 # NVN2's DLSS on MetalFX's temporal scaler, with and without the encoding thread (MetalFX encodes into the real command buffer; validation stops its Metal 4 scalers, as above)
 t_dlss_mfx: t_dlss_mfx.m $(MTL_T_DEP)

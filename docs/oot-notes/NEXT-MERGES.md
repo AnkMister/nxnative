@@ -1,66 +1,66 @@
 # Next Ocarina merges
 
-Predictions use the integrated code before final validation and read-only GitHub file lists fetched with `gh pr view <n> --repo seedds/nxnative --json number,title,headRefOid,files,url` on 2026-11-05. No pending branch was merged or awaited. PR heads and local branch tips can change; rerun these checks at handoff. File overlap predicts review needs, not a confirmed textual conflict.
+The finished stable, visual, MSL, TBDR, stage-cache, VQA, quality and clock
+branches are integrated. No unfinished branch was awaited. The requested 18
+upstream PR file lists were inspected; the historical forecast is preserved in
+[PR-FILES.md](PR-FILES.md). The following replacement and feature branches remain pending. Each `*-fix`
+branch replaces its parent implementation when it lands; do not treat the buggy
+parent as an independently shippable alternative.
 
-## Local branch snapshots
+The independent review in
+`/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/review-astra.md` blocks
+the original memory and border branches. Both are absent from the final ordered
+history. The recovery branch records their merge reverts. Merge fixed branches
+only after inspecting their complete implementation and fix together.
 
-`git merge-tree --write-tree --name-only HEAD <snapshot-sha>` checks a merge without changing the worktree, index or branch refs. The table records current tip conflicts against the integrated code. Changes made later by those owners are outside the snapshot.
-
-| Pending branch | Inspected head | Textual conflict files | Interpretation |
-| --- | --- | --- | --- |
-| `oot-visual` | `622f5191cc9286a477d2787840ed9f586a452900` | `dm/gfx/nvn/dmsh_chain.h`, `dm/gfx/tools/dmsh_build.py`, `dm/gfx/tools/dmsh_chain.py`, `docs/env_switches.tsv` | Snapshot only; rerun after pending source changes. |
-| `oot-stable` | `3056acf5a5c8decc453c564be349d7bed7c72767` | `dm/gfx/nvn/nvn_mtl.m`, `dm/gfx/tests/Makefile` | Snapshot only; rerun after pending source changes. |
-
-## PR file checks and resolutions
-
-Each row lists every path reported by GitHub, the subset changed by oot-hyper, and the resolution requirement. Shared generated files need regeneration. A source file can merge without markers and still require semantic reconciliation.
-
-| Branch / PR | GitHub head | Files reported by GitHub | Files also changed by oot-hyper | Predicted conflict and required resolution |
-| --- | --- | --- | --- | --- |
-| `oot-visual` / [#1300](https://github.com/seedds/nxnative/pull/1300) | `e3f8ef8c6d982f7d5e07c3c70c0daa6a34db23a0` | `dm/gfx/nvn/dmsh_chain.h`<br>`dm/gfx/tests/test_dmsh_ampere_alu.py`<br>`dm/gfx/tests/test_dmsh_ampere_mem.py`<br>`dm/gfx/tools/dmsh_chain.lock`<br>`dm/gfx/tools/dmsh_xlate_bin/Ryujinx.Common.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/Ryujinx.Graphics.Shader.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/Spv.Generator.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/dmsh_xlate.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/dmsh_xlate.pdb`<br>`dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Instructions/InstEmitAmpereAlu.cs`<br>`dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Instructions/InstEmitAmpereMem.cs`<br>`docs/agents/symptoms.md`<br>`docs/reference/shaders.md` | `dm/gfx/nvn/dmsh_chain.h`<br>`dm/gfx/tests/test_dmsh_ampere_mem.py`<br>`dm/gfx/tools/dmsh_chain.lock`<br>`dm/gfx/tools/dmsh_xlate_bin/Ryujinx.Common.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/Ryujinx.Graphics.Shader.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/Spv.Generator.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/dmsh_xlate.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/dmsh_xlate.pdb`<br>`docs/agents/symptoms.md`<br>`docs/reference/shaders.md` | Retain growing-pool lookup/hint tests when adding F2IP and task payload lowering. Exclude all PR DLL/PDB files and rebuild once after merging all translator sources. |
-| `oot-visual` / [#1359](https://github.com/seedds/nxnative/pull/1359) | `34d04efbe93ba88f5c82f0bcf2ac264218f79e4a` | `dm/gfx/nvn/dmsh_chain.h`<br>`dm/gfx/tests/test_dmsh_ampere_mem.py`<br>`dm/gfx/tools/dmsh_chain.lock`<br>`dm/gfx/tools/dmsh_xlate_bin/Ryujinx.Common.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/Ryujinx.Graphics.Shader.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/Spv.Generator.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/dmsh_xlate.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/dmsh_xlate.pdb`<br>`dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Instructions/InstEmitMemory.cs`<br>`docs/agents/symptoms.md`<br>`docs/reference/shaders.md` | `dm/gfx/nvn/dmsh_chain.h`<br>`dm/gfx/tests/test_dmsh_ampere_mem.py`<br>`dm/gfx/tools/dmsh_chain.lock`<br>`dm/gfx/tools/dmsh_xlate_bin/Ryujinx.Common.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/Ryujinx.Graphics.Shader.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/Spv.Generator.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/dmsh_xlate.dll`<br>`dm/gfx/tools/dmsh_xlate_bin/dmsh_xlate.pdb`<br>`docs/agents/symptoms.md`<br>`docs/reference/shaders.md` | Merge RED.F32.FTZ semantics with existing raw-memory lowering. Keep all synthetic memory fixtures and source-built assemblies. |
-| `oot-visual` / [#1312](https://github.com/seedds/nxnative/pull/1312) | `ac0244286663545b5980509b0133bc2b47295da7` | `dm/gfx/msl/ixc.metal`<br>`dm/gfx/nvn/hle_nvn.c`<br>`dm/gfx/nvn/nvn_geometry.inc`<br>`dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/tests/Makefile`<br>`dm/gfx/tests/t_deferred_release.m`<br>`dm/gfx/tests/t_image_usage.m`<br>`dm/gfx/tests/t_mesh_indirect.m`<br>`dm/tools/lint_c_baseline.tsv`<br>`docs/agents/symptoms.md`<br>`docs/reference/rendering.md` | `dm/gfx/nvn/hle_nvn.c`<br>`dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/tests/Makefile`<br>`docs/agents/symptoms.md`<br>`docs/reference/rendering.md` | Reconcile image atomics, usage and geometry encoders with eco submission epochs, deferred release and memory restoration. Preserve CPU compile ceiling in any new prewarm path. |
-| `oot-visual` / [#1343](https://github.com/seedds/nxnative/pull/1343) | `6941aa847dee2eeec66da4734f192067158a2269` | `dm/gfx/nvn/dmsh_chain.h`<br>`dm/gfx/tests/test_dmsh_ampere_mem.py`<br>`dm/gfx/tools/dmsh_chain.lock`<br>`dm/gfx/tools/dmsh_xlate_bin/Ryujinx.Graphics.Shader.dll`<br>`dm/third_party/ryujinx/src/Ryujinx.Graphics.Shader/Translation/Optimizations/Optimizer.cs`<br>`docs/agents/symptoms.md`<br>`docs/reference/shaders.md` | `dm/gfx/nvn/dmsh_chain.h`<br>`dm/gfx/tests/test_dmsh_ampere_mem.py`<br>`dm/gfx/tools/dmsh_chain.lock`<br>`dm/gfx/tools/dmsh_xlate_bin/Ryujinx.Graphics.Shader.dll`<br>`docs/agents/symptoms.md`<br>`docs/reference/shaders.md` | Keep coordinate initialization and GlobalToStorage optimizer sequencing. Rebuild translator from merged source, never take the PR DLL. |
-| `oot-visual` / [#1390](https://github.com/seedds/nxnative/pull/1390) | `16e86fdc17543e7bc2b247c5763252d573cc89e6` | `dm/games/0400C3F00006E000/README.md`<br>`dm/gfx/nvn/hle_nvn.c`<br>`dm/gfx/nvn/nvn_mtl.h`<br>`dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/nvn/nvn_obj.h`<br>`dm/gfx/tests/t_cpu_storage.m`<br>`dm/gfx/tests/t_cpu_tex.m`<br>`docs/agents/symptoms.md`<br>`docs/reference/nvn-objects.md` | `dm/gfx/nvn/hle_nvn.c`<br>`dm/gfx/nvn/nvn_mtl.m`<br>`docs/agents/symptoms.md` | Resolve CPU storage/texture lookup against dedupe restore and lifetime rules. Coordinate with stable #1420; both touch lookup helpers. |
-| `oot-visual` / [#1353](https://github.com/seedds/nxnative/pull/1353) | `5ec8a62b7114516e8c25fb1d5bb23832767e3778` | `dm/gfx/tools/shader_split.py`<br>`dm/tools/tests/test_split_ndsr_entries.py`<br>`docs/agents/symptoms.md`<br>`docs/reference/shaders.md` | `docs/agents/symptoms.md`<br>`docs/reference/shaders.md` | Mostly separate shader splitter change. Preserve profile/upscaler classification tests and regenerate docs. |
-| `oot-visual` / [#1357](https://github.com/seedds/nxnative/pull/1357) | `072f8674caf07ac45067393004399efc97754b60` | `dm/gfx/nvn/dmsh_chain.h`<br>`dm/gfx/tools/dmsh_build.py`<br>`dm/ios/tools/ios_metal.py`<br>`dm/tools/tests/test_shader_pch.py`<br>`docs/agents/symptoms.md`<br>`docs/reference/shaders.md` | `dm/gfx/nvn/dmsh_chain.h`<br>`dm/gfx/tools/dmsh_build.py`<br>`docs/agents/symptoms.md`<br>`docs/reference/shaders.md` | dmsh_build.py overlaps stage-cache orchestration and MSL pass order. Border splitting is reverted. Preserve alpha/logic sharing, CODE_FP modules and all three chain options. |
-| `oot-visual` / [#1368](https://github.com/seedds/nxnative/pull/1368) | `9c53d9ae5c10e53b69ee3408bb01ace333730207` | `dm/gfx/nvn/nvn_geometry.inc`<br>`dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/nvn/nvn_pso_skey.h`<br>`dm/gfx/tests/t_pso_skey.m`<br>`dm/gfx/tests/t_pso_warm.m`<br>`dm/tools/impact_map.tsv`<br>`docs/development.md`<br>`docs/reference/shaders.md` | `dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/nvn/nvn_pso_skey.h`<br>`dm/tools/impact_map.tsv`<br>`docs/reference/shaders.md` | The blocked border PSO bit is reverted. Preserve NVN2 high attributes and coordinate any future fixed border bit while adding mesh prewarm; cap parallel workers. |
-| `oot-visual` / [#1128](https://github.com/seedds/nxnative/pull/1128) | `6c13132839606c4305fbe8830655a5b82e887c16` | `dm/games/0100000000010000/README.md`<br>`dm/gfx/nvn/dmsh_chain.h`<br>`dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/nvn/nvn_pso_skey.h`<br>`dm/gfx/tests/Makefile`<br>`dm/gfx/tests/t_limit16.m`<br>`dm/gfx/tests/test_dmsh_limit16.py`<br>`dm/gfx/tools/dmsh_build.py`<br>`dm/gfx/tools/dmsh_chain.py`<br>`dm/gfx/tools/dmsh_limit16.py`<br>`docs/agents/symptoms.md`<br>`docs/reference/shaders.md` | `dm/gfx/nvn/dmsh_chain.h`<br>`dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/nvn/nvn_pso_skey.h`<br>`dm/gfx/tests/Makefile`<br>`dm/gfx/tools/dmsh_build.py`<br>`dm/gfx/tools/dmsh_chain.py`<br>`docs/agents/symptoms.md`<br>`docs/reference/shaders.md` | High chain/build/PSO overlap. Compose limit16 with raw quads, cbuf reuse and storage runs. Keep blocked border splitting absent until its fixed replacement is accepted. Preserve exact NaN/infinity semantics rather than masking failures. |
-| `oot-stable` / [#1391](https://github.com/seedds/nxnative/pull/1391) | `5122c24de6ecb24291a5fb0812e6b48ca6cb92fb` | `dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/tests/Makefile`<br>`dm/gfx/tests/t_res_guard.m`<br>`dm/host/front.h`<br>`dm/host/front_mac.m`<br>`docs/agents/symptoms.md`<br>`docs/env_switches.tsv`<br>`docs/reference/memory.md` | `dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/tests/Makefile`<br>`dm/host/front_mac.m`<br>`docs/agents/symptoms.md`<br>`docs/env_switches.tsv`<br>`docs/reference/memory.md` | Residency guard must respect dedupe and staging retirement. Coordinate front_mac alerts with hidden pause/drain/resume and avoid waiting for a paused present queue. |
-| `oot-stable` / [#1382](https://github.com/seedds/nxnative/pull/1382) | `c87cc8cdc9c23aaa6ba40d963078be3eb4f840b4` | `dm/gfx/nvn/nvn_geometry.inc`<br>`dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/tests/Makefile`<br>`dm/gfx/tests/t_gpu_hang_names.m`<br>`docs/agents/symptoms.md`<br>`docs/env_switches.tsv`<br>`docs/reference/rendering.md` | `dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/tests/Makefile`<br>`docs/agents/symptoms.md`<br>`docs/env_switches.tsv`<br>`docs/reference/rendering.md` | Keep shader naming with new command-buffer completion paths and geometry pipelines. Diagnostics must not remove eco submission bookkeeping. |
-| `oot-stable` / [#1409](https://github.com/seedds/nxnative/pull/1409) | `039a39059323af18e74f23c8e68f07e525613186` | `dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/tests/t_perf_order.m`<br>`docs/agents/symptoms.md`<br>`docs/reference/frame-rate.md` | `dm/gfx/nvn/nvn_mtl.m`<br>`docs/agents/symptoms.md`<br>`docs/reference/frame-rate.md` | Rejected command buffers must release fence waits and new eco/present completion dependencies. Exercise absolute presentation and hidden pause failure paths. |
-| `oot-stable` / [#1420](https://github.com/seedds/nxnative/pull/1420) | `58c001d92cf5e5f6b72b0b2c28d52c2facc7d55c` | `dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/tests/t_cpu_tex.m`<br>`docs/agents/symptoms.md`<br>`docs/reference/nvn-objects.md` | `dm/gfx/nvn/nvn_mtl.m`<br>`docs/agents/symptoms.md` | Texture lookup lifetime overlaps #1390 and dedupe restore. Resolve together; preserve serial/resource ownership and restore before exposing guest bytes. |
-| `oot-stable` / [#1404](https://github.com/seedds/nxnative/pull/1404) | `d3effb232b245a8f21ed0481221411ccbd51fdbb` | `dm/gfx/nvn/hle_nvn.c`<br>`dm/gfx/nvn/nvn_mtl.h`<br>`dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/tests/Makefile`<br>`dm/gfx/tests/nvn_replay.m`<br>`dm/gfx/tests/t_raw_residency.m`<br>`docs/agents/symptoms.md`<br>`docs/reference/nvn-objects.md`<br>`docs/reference/shaders.md` | `dm/gfx/nvn/hle_nvn.c`<br>`dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/tests/Makefile`<br>`docs/agents/symptoms.md`<br>`docs/reference/shaders.md` | Raw residency and pool lifetime changes must retain dynamic table capacity, low-4096 hints and retained old-map bitmap length. Restore cold pages before any residency addition. |
-| `oot-stable` / [#1394](https://github.com/seedds/nxnative/pull/1394) | `a885f4be50b42e084571a4f34ed9a9a9b442a45e` | `dm/gfx/nvn/hle_nvn.c`<br>`dm/gfx/nvn/nvn_mtl.h`<br>`dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/tests/Makefile`<br>`dm/gfx/tests/nvn_replay.m`<br>`dm/gfx/tests/t_gmem_marks.m`<br>`dm/gfx/tests/t_pool_chunks.m`<br>`docs/agents/symptoms.md`<br>`docs/env_switches.tsv`<br>`docs/reference/nvn-objects.md`<br>`docs/reference/shaders.md` | `dm/gfx/nvn/hle_nvn.c`<br>`dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/tests/Makefile`<br>`dm/gfx/tests/t_pool_chunks.m`<br>`docs/agents/symptoms.md`<br>`docs/env_switches.tsv`<br>`docs/reference/shaders.md` | Highest pool-table semantic overlap. Marks/filtering must not lose ranges beyond 4095 or revive fixed-count searches. Coordinate with #1404 and dedupe transient upload sources. |
-| `oot-stable` / [#1408](https://github.com/seedds/nxnative/pull/1408) | `e81bfaba860b7ac00074729e290b8250f13b4dc8` | `dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/tests/Makefile`<br>`dm/gfx/tests/t_deferred_release.m`<br>`docs/agents/symptoms.md`<br>`docs/reference/nvn-objects.md` | `dm/gfx/nvn/nvn_mtl.m`<br>`dm/gfx/tests/Makefile`<br>`docs/agents/symptoms.md` | Deferred pin/release changes overlap pool retention and idle staging trim. Keep buffers alive through actual completion; commit residency removals before claiming release. |
-
-## Integration requirements
-
-1. Archive each incoming implementation-notes.md before its merge. Git can follow the oot-stack notes rename and append later branch notes to oot-stack.md; retain each branch snapshot separately. Resolve shared game-note additions by retaining both findings, then repair relative links.
-2. Merge source fixes before rebuilding translator artifacts. If visual changes add more translator sources, repeat the exact-version cooled NuGet procedure in [oot-stack.md](oot-stack.md#nuget-audit-and-build-provenance). Exclude all PR-shipped binaries. Build once from the fully merged source and update dmsh_chain.lock. The current integration needs no extra translator rebuild because only oot-stack changed translator sources.
-3. Preserve dmsh_chain.options() entries for raw_load_quads, storage_runs and cbuf_reuse. Keep all modules in FILES and CODE_FP, plus any new lowering tools. Regenerate dmsh_chain.h from the final source and matching lock; never choose a conflicting generated hash by hand.
-4. Preserve independent flag defaults. Reconcile memory restoration before residency, dynamic pool sizing and old-map completion, compile ceilings, border PSO keys and eco work epochs even where Git merges cleanly. Regenerate the symptom index and environment table after resolving source/docs.
-5. Run tools tests, Python graphics tests, native graphics tests and the Ocarina host build. The parent must separately authorize full shader builds and gameplay validation. Visual fixes take priority over efficiency. Inspect matched pictures, rejected-buffer recovery and hidden pause/resume before measuring energy.
-
-No game, full shader build or regression game run is evidence for this document. Runtime safety and image equivalence remain unverified.
-
-## Review-blocked replacement branches
-
-The memory and border merge commits were reverted following the independent
-review in `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/review-astra.md`.
-They must not be reapplied unchanged. A replacement branch must restore the full
-reverted feature as well as its fix; a fix-only merge atop the blocked branch
-can leave reverted implementation missing because Git already knows its ancestry.
-
-| Pending branch | Required repair | Predicted overlap |
+| Pending branch | Required repair | Predicted conflicts with oot-hyper |
 | --- | --- | --- |
-| `oot-mem-fix` | Enforce restore completion and pin/bounce every kernel-read source through the syscall | Pool/residency, dirty tracking and submission lifetime in nvn_mtl.m; filesystem/socket read-source paths; env table and game note |
-| `oot-1203-fix` | Resolve both split-handle word orders, preserve a correcting default library, fail safely on missing correction assets | Stage-cached ps_libraries/border passes, cache keys, PSO bits, dmsh_chain.h; add every new chain module to stage coverage |
-| `oot-idle-fix` | Pause queued PCM consumption/release events together with the guest clock | front_mac visibility, hle_audio, hle_os freeze reasons, quality/colour present paths; pause remains do not use until fixed |
+| `oot-stack-fix` | Apply the independent stack review repairs from review-fixes.md | Growing-table/quad-load tests, translator/cache fingerprint conventions, host pool lifetime and inherited stack notes |
+| `oot-visual-fix` | Prevent Float16 variants from changing integer attachment bits | `lim_key`, limited library selection, `dmsh_limit16.py`, mixed-output producers/tests and stage fingerprints |
+| `oot-stable-fix` | Synchronize watchdog state and stop-aware auxiliary residency ownership | `nvn_safe_gpu.inc`, presentation/snapshot residency setup and cleanup; concurrent transition tests |
+| `oot-mem-fix` | Complete restores before consumers; pin or bounce every kernel-read source through the syscall | `nvn_mtl.m` pool/residency and visual write ranges; dirty tracking, filesystem/socket paths, submission lifetime, env table and game note |
+| `oot-1203-fix` | Handle both split-handle word orders, retain correcting default library, fail safely when assets are missing | `dmsh_build.py` border/limit16 library selection and cached stages, PSO bits, `dmsh_chain.py` FILES/options, header and new modules' stage coverage |
+| `oot-idle-fix` | Freeze queued PCM consumption and release events with guest clocks | `front_mac.m` visibility, `hle_audio.c`, `hle_os.c` clock epoch/generation, quality/colour presentation; pause remains do not use |
 
-The completed source ports of #1340 and #1367 were inspected through GitHub's
-file API and are integrated. They are no longer pending merges. The completed
-MSL, stage-cache, VQA and quality branches are also integrated. For any replacement
-border chain, preserve all three shader options and stage keys, regenerate the
-header, and repeat tools/graphics validation. No full shader build or game run
-is authorized by this integration task.
+The #1203 replacement will need particular care in `dmsh_build.py`,
+`dmsh_chain.py`, the border PSO keys and stage-cache routing. Preserve visual
+limit16 variants, raw_load_quads, storage_runs and cbuf_reuse. Add every new
+`dmsh_*` module to FILES, CODE_FP and actual stage fingerprints; the coverage
+test must remain green. The current unsplit correcting border path stays active.
+
+Memory fixes must preserve #1394 address marks, dynamic table growth, completion
+lifetimes, visual texture-write ranges and DM_SAFE_GPU refusal behavior. Idle
+fixes must reconcile the fast-clock generation/epoch state with audio consumption,
+visibility and presentation. `DM_ECO_HIDDEN=pause` remains **do not use:
+audio/clock mismatch, fix pending**.
+
+Archive replacement notes, resolve source first, rebuild the translator only if
+its sources change, update the lock and regenerate the header. Repeat tools,
+graphics and host verification. Full shader builds and gameplay remain a separate
+parent acceptance step.
+
+## Review 2 and upcoming work
+
+Review 2 (`review-astra-2.md`) confirms two high-severity defects: Float16
+clamping can corrupt integer attachments, and the watchdog can stop newly started
+healthy work. It also confirms a medium-severity auxiliary residency cleanup race.
+**Do not ship the default-on DM_SAFE_GPU watchdog until oot-stable-fix is merged.**
+The visual set likewise needs oot-visual-fix before enabled play acceptance.
+Source defaults are retained in this integration; green synthetic suites do not
+clear these independently reproduced review findings.
+
+`oot-stack-fix`, `oot-idle-fix`, `oot-1203-fix` and `oot-mem-fix` are reported ready;
+`oot-visual-fix`, `oot-stable-fix` and `review-astra-2-fixes.md` are being produced.
+The referenced `review-fixes.md` was not present at the supplied shared-context
+path when checked. Read both repair reports before accepting replacements.
+
+| Upcoming branch | Predicted integration work |
+| --- | --- |
+| `oot-brent` | Fork-harvest source may overlap translator, host graphics and caches. Read brent-compare.md, reject shipped binaries, preserve all chain options and repeat module-key coverage. |
+| `oot-waste` | Shader-pass ordering, dependency keys and CODE_FP/FILES may overlap MSL passes and stage caching; preserve visual correctness gates and default-off experiments. |
+| `oot-res` | Internal target sizing overlaps game profile, rewrite, viewport/scissor, NDSR, quality and presentation paths. Keep scale changes opt-in and separate from output scaling. |
+
+The play-build rule is hard: **no runtime shader compilation**. Build all shader
+libraries ahead of time; lazy shaders stay off. Do not use partial/seen-only
+libraries or enable source-compiling diagnostics. Incoming branches must preserve
+this rule and prove full offline coverage before play acceptance.

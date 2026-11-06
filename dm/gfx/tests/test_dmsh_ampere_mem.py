@@ -382,10 +382,22 @@ def raw_fixture(out):
     """<out>/raw.metallib: RawGlobal's shader, compiled as the build compiles (dmsh_build.py MAC_METAL), for t_gmem_raw. Exit code 77 when the translator does not run"""
     xlate = os.environ.get('DMSH_TEST_XLATE')
     if not xlate or subprocess.run([xlate, '--source-sha'], capture_output=True).returncode: sys.exit(77)
-    msl = Path(out) / 'raw.metal'; msl.write_text(RawGlobal('test_the_search_takes_the_tables_count').msl())
-    air = Path(out) / 'raw.air'
-    subprocess.run(['xcrun', '-sdk', 'macosx', 'metal', '-c', '-O1', '-fpreserve-invariance', str(msl), '-o', str(air)], check=True)
-    subprocess.run(['xcrun', '-sdk', 'macosx', 'metallib', str(air), '-o', str(Path(out) / 'raw.metallib')], check=True)
+    sys.path.insert(0, str(TOOLS))
+    from dmsh_wide import raw_load_quads, wide_loads
+    from dmsh_cbuf import reuse_words
+    fixture = RawGlobal('test_the_search_takes_the_tables_count')
+    wide = (ctrl(wb=3, wait=4) | 0x1e1d00, 0x0000000004087381)
+    store = (ctrl(wait=8, stall=4) | 0xd00, 0x0000100802007386)
+    code = b''.join(inst(*op) for op in (fixture.ULDC, fixture.ADDR_LO, fixture.ADDR_HI, fixture.LDG_PTR, wide, store)) + inst(*EXIT)
+    source = fixture.translate(code, nvn2_cs=[3, 1, 0, 0x50, 0])
+    quad = reuse_words(wide_loads(raw_load_quads(source, 1, 4096, 32), offset_runs=True))
+    assert quad.count('_words = dm_raw_load4') == 1
+    for name, text in [('raw', fixture.msl()), ('wide', source), ('quad', quad)]:
+        msl = Path(out) / f'{name}.metal'; msl.write_text(text)
+        air = Path(out) / f'{name}.air'
+        subprocess.run(['xcrun', '-sdk', 'macosx', 'metal', '-c', '-O1', '-fpreserve-invariance', str(msl), '-o', str(air)], check=True)
+        subprocess.run(['xcrun', '-sdk', 'macosx', 'metallib', str(air), '-o', str(Path(out) / f'{name}.metallib')], check=True)
+
 
 
 @patch.dict(os.environ, DMSH_OOT_VISUAL="1")

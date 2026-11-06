@@ -4,7 +4,7 @@
 
 Branch `oot-clock` starts at `oot-base`, `ee9b7765`. The supplied agent context and the complete `glass-reports/g3-rewriter-cost.md` were read before implementation. The baseline checkout and Ocarina build were inspected read-only. No game, regression route, shader rebuild, device operation, dependency installation, push or PR was run.
 
-The measured v131072 module identities, site counts and destinations are recorded once in the [game note](dm/games/0400486024DEC000/README.md#counter-read-census-v131072). The shared mechanism, flags and clock semantics are in the [rewriter reference](docs/reference/rewriter.md#counter-reads-save-a-full-simd-context).
+The measured v131072 module identities, site counts and destinations are recorded once in the [game note](../../dm/games/0400486024DEC000/README.md#counter-read-census-v131072). The shared mechanism, flags and clock semantics are in the [rewriter reference](../../docs/reference/rewriter.md#counter-reads-save-a-full-simd-context).
 
 The clock rate follows the existing SDK spec detection. Ocarina is Ounce and uses 31.25 MHz, rather than the task's suggested 19.2 MHz. Switch 1 retains its existing multiply-by-12, divide-by-625 conversion. Both rates keep the existing Mach-to-nanosecond truncation and multiplication wrap behavior.
 
