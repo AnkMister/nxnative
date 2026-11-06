@@ -1,6 +1,6 @@
 """The float16 output limit library (dmsh_limit16.py): colour outputs written straight from a constant buffer are limited in every entry point, computed outputs and shaders
 without such an output are left alone, and the output compiles for the macOS and iOS SDKs. With --fixture <dir>, writes the replay test's shaders (t_limit16.m)"""
-import pathlib, shutil, subprocess, sys, tempfile, unittest
+import ast, collections, pathlib, re, shutil, subprocess, sys, tempfile, unittest
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'tools'))
 import dmsh_limit16
 
@@ -39,6 +39,33 @@ fragment main0_out_u main0_u(float4 gl_FragCoord [[position]], constant spvDescr
 '''
 COMPUTED = BASE.replace('out.m_2.x = (*spvDescriptorSet0.fp_c4)._m0[1].y;', 'out.m_2.x = gl_FragCoord.y;').replace('out.m_0.y = _7;', 'out.m_0.y = _7 * 2.0;')
 
+# The review's mixed-output probe uses the production integer-entry producer.
+MIXED = '''#include <metal_stdlib>
+using namespace metal;
+struct CB { float4 _m0[4]; };
+struct spvDescriptorSetBuffer0 { constant CB* fp_c4 [[id(0)]]; };
+struct main0_out
+{
+    float4 m_0 [[color(0)]];
+    float4 m_1 [[color(1)]];
+};
+fragment main0_out main0(constant spvDescriptorSetBuffer0& spvDescriptorSet0 [[buffer(0)]])
+{
+    main0_out out = {};
+    out.m_0.x = (*spvDescriptorSet0.fp_c4)._m0[0].x;
+    out.m_1.x = (*spvDescriptorSet0.fp_c4)._m0[1].x;
+    out.m_1.y = as_type<float>(123u);
+    return out;
+}
+'''
+
+
+def mixed():
+    tree = ast.parse((pathlib.Path(__file__).resolve().parents[1] / 'tools/dmsh_build.py').read_text())
+    ns = {'re': re, 'collections': collections}
+    exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in ('fs_uint', 'int_outputs', 'in_word')], type_ignores=[]), 'dmsh_build.py', 'exec'), ns)
+    return ns['fs_uint'](MIXED)
+
 
 def compile_lib(src, d, name, sdk='macosx'):
     metal, lib = d / (name + '.metal'), d / (name + '.metallib')
@@ -48,6 +75,14 @@ def compile_lib(src, d, name, sdk='macosx'):
 
 
 class Limit(unittest.TestCase):
+    def test_mixed_integer_entry_is_in_the_limit_mask(self):
+        src, mask = mixed()
+        self.assertEqual(mask, 2)
+        self.assertEqual(dmsh_limit16.colors(src), 3)
+        limited, entries = dmsh_limit16.variant(src)
+        self.assertEqual(entries, ['main0', 'main0_u', 'main0_m'])
+        self.assertIn('out.m_1.x = dm_limit16((*spvDescriptorSet0.fp_c4)._m0[1].x);', limited[limited.index(' main0_m('):])
+
     def test_limits_uniform_outputs_in_every_entry_point(self):
         src, entries = dmsh_limit16.variant(BASE)
         self.assertEqual(entries, ['main0', 'main0_u'])
@@ -74,6 +109,10 @@ def fixture(out):   # t_limit16.m's shaders: base.metal (compiled by the test) a
     out = pathlib.Path(out); out.mkdir(parents=True, exist_ok=True)
     (out / 'base.metal').write_text(BASE)
     compile_lib(dmsh_limit16.variant(BASE)[0], out, 'lim').rename(out / f'{"0" * 16}_bs.metallib')
+    src, _ = mixed()
+    src += '\nvertex float4 triangle(uint v [[vertex_id]]) { return float4(v == 1 ? 3.0 : -1.0, v == 2 ? 3.0 : -1.0, 0.0, 1.0); }\n'
+    compile_lib(src, out, 'mixed')
+    compile_lib(dmsh_limit16.variant(src)[0], out, 'mixed_limited')
 
 
 if __name__ == '__main__':
