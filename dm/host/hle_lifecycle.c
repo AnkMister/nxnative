@@ -42,7 +42,7 @@ void dm_host_gpu_stop(void) {
         mtl_safe_gpu_release();
         hlecount_flush(); dm_rec_finish(); dm_cheats_exit();
         dm_audio_suspend(1);
-        LOG("DM_SAFE_GPU: clean host exit; progress since the last save is lost");
+        LOG("DM_SAFE_GPU: emergency exit; the last committed save is kept; an in-progress save can be lost");
         _exit(0);
     });
 }

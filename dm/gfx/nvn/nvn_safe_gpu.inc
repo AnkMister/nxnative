@@ -2,6 +2,7 @@
 // driver faults. A kernel call already stuck in the driver may outlive exit.
 static _Atomic int g_safe_pending;
 static _Atomic uint64_t g_safe_progress, g_safe_wired;
+static pthread_mutex_t g_safe_mu = PTHREAD_MUTEX_INITIALIZER;   // pending/progress form one CPU snapshot; no Metal calls under this lock
 static uint64_t g_safe_limit, g_safe_wired_limit;
 static int safe_gpu_on(void) {
     static int on; static dispatch_once_t once;
@@ -46,20 +47,26 @@ static int safe_gpu_preflight(void) {
 }
 static void safe_gpu_feedback(NSError *error) {
     if (!safe_gpu_on()) return;
+    pthread_mutex_lock(&g_safe_mu);
     atomic_store(&g_safe_progress, clock_gettime_nsec_np(CLOCK_UPTIME_RAW));
-    int n = atomic_load(&g_safe_pending);
-    while (n > 0 && !atomic_compare_exchange_weak(&g_safe_pending, &n, n - 1)) {}
+    if (atomic_load(&g_safe_pending) > 0) atomic_fetch_sub(&g_safe_pending, 1);
+    pthread_mutex_unlock(&g_safe_mu);
     // Even an innocent victim means the desktop GPU has faulted. Safe mode
     // deliberately gives up recovery rather than trying more game work.
     if (error) safe_gpu_trip(error.description.UTF8String);
 }
 static void safe_gpu_started(void) {
     if (!safe_gpu_on()) return;
+    pthread_mutex_lock(&g_safe_mu);
     if (!atomic_fetch_add(&g_safe_pending, 1)) atomic_store(&g_safe_progress, clock_gettime_nsec_np(CLOCK_UPTIME_RAW));
+    pthread_mutex_unlock(&g_safe_mu);
 }
 static int safe_gpu_stalled(uint64_t now) {
+    if (pthread_mutex_trylock(&g_safe_mu)) return 0;
     uint64_t progress = atomic_load(&g_safe_progress);
-    return atomic_load(&g_safe_pending) > 0 && now > progress && now - progress >= 10ull * NSEC_PER_SEC;
+    int stalled = atomic_load(&g_safe_pending) > 0 && now > progress && now - progress >= 10ull * NSEC_PER_SEC;
+    pthread_mutex_unlock(&g_safe_mu);
+    return stalled;
 }
 static void safe_gpu_tick(void) {
     if (!safe_gpu_on()) return;
@@ -96,6 +103,7 @@ static void safe_gpu_commit3(id<MTLCommandBuffer> cb) {
 static void safe_gpu_wait3(id<MTLCommandBuffer> cb) { if (!atomic_load(&g_safe_stopped)) [cb waitUntilCompleted]; }
 static void safe_gpu_release_extra(void);
 void mtl_safe_gpu_release(void) {
+    atomic_store(&g_safe_stopped, 1);   // Close producers before waiting for the CPU ownership boundary.
     // Never wait for GPU completion after a fault. The host has an independent
     // exit fallback if even removing residency blocks inside Metal.
     int locked = 0;

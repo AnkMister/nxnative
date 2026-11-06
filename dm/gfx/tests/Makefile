@@ -557,6 +557,10 @@ check_t_safe_gpu: t_safe_gpu
 	./t_safe_gpu legacy
 	./t_safe_gpu hook
 	./t_safe_gpu off
+	./t_safe_gpu setup-stop
+	./t_safe_gpu alloc-stop
+	./t_safe_gpu attach-stop
+	./t_safe_gpu lock-stop
 t_nanscan: t_nanscan.m ../nvn/host_msl.m $(MSL_H)
 	clang $(CFLAGS) -fobjc-arc -o $@ t_nanscan.m ../nvn/host_msl.m -framework Metal -framework Foundation
 t_present_color: t_present_color.m ../nvn/host_msl.m $(MSL_H)
@@ -575,4 +579,5 @@ t_upload_trim: t_upload_trim.m $(MTL_T_DEP)
 check_t_upload_trim: t_upload_trim
 	MTL_DEBUG_LAYER=1 DM_NVN_UPLOAD_TRIM=0 ./t_upload_trim
 	MTL_DEBUG_LAYER=1 DM_NVN_UPLOAD_TRIM=1 ./t_upload_trim
+
 
