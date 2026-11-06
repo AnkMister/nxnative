@@ -32,8 +32,8 @@ XLATE_DIR = os.path.dirname(os.environ.get('XLATE', os.path.join(HERE, 'dmsh_xla
 SPIRV_CROSS = os.environ.get('SPIRV_CROSS', os.path.join(HERE, 'spirv_cross_bin/spirv-cross'))
 
 def options():
-    return 'debug=%s reduced=%s raw_load_quads=%s' % (
-        os.environ.get('XLATE_DEBUG', '1') != '0', os.environ.get('XLATE_REDUCED', '1') == '1', raw_load_quads())
+    return 'debug=%s reduced=%s raw_load_quads=%s oot_visual=%s' % (
+        os.environ.get('XLATE_DEBUG', '1') != '0', os.environ.get('XLATE_REDUCED', '1') == '1', raw_load_quads(), os.environ.get('DMSH_OOT_VISUAL') == '1')
 
 
 def raw_load_quads():

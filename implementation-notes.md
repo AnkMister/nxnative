@@ -324,3 +324,36 @@ c1/extent table warning. Compare matched scene/dispatch windows, whole-frame
 GPU work, frame intervals, drops, enqueue-to-display latency and energy per
 frame at the 30 fps cap. A lower GPU duration alone is not acceptance if latency
 or game speed regresses. No M4 Max gameplay, latency or energy claim is made here.
+
+
+# Ocarina visual correctness ports
+
+Branch `oot-visual` starts at `oot-stack` (`e7c50787`). Source ports follow the
+requested PR order. No PR binaries, locks or generated headers are imported.
+The translator will be rebuilt once after all source changes. New translator
+paths require `DMSH_OOT_VISUAL=1`; its value is part of the shader chain stamp.
+Host and splitter gates are described below. No game run or full shader build
+is allowed in this task. Tests on the rebuilt translator follow at the end.
+
+## #1300: adapted
+
+Head `e3f8ef8c6d982f7d5e07c3c70c0daa6a34db23a0`, including `06f47f57`.
+Imported the C# F2IP and ISBERD changes and their ALU and memory fixtures.
+Added the default-off gate and chain option required by agent-context.md.
+F2IP accepts unsigned byte conversion with C=RZ only, rounds by bits 78..79
+(nearest even, floor, ceiling, truncate), clamps to 0..255, maps NaN to zero,
+and packs B low and A high. CuAssembler's sm_86 nvdisasm records independently
+identify `04ff` as U8.F32.NTZ. NVIDIA PTX's cvt rounding and narrow integer
+saturation rules support the numeric model; its cvt.pack uses the same B-low
+order. The game's PRMT/store sequence provides additional packing evidence.
+Neither PTX alone nor Lichii proves undocumented SASS behavior on hardware.
+ISBERD b8 reads the output payload at stage[2], matching the 927 b8 store;
+the PR identifies a write at +0x70 and read at +0x80 in task 5d3a096025e375a1.
+Expected symptom improvement is missing foliage and rejected task draws.
+Risks remain untested console parity, unsupported signed/C-merge forms, and
+visual acceptance. No source bug found in the supported encoding so far.
+
+Semantics sources:
+- https://docs.nvidia.com/cuda/parallel-thread-execution/
+- https://github.com/cloudcores/CuAssembler/blob/master/CuAsm/InsAsmRepos/DefaultInsAsmRepos.sm_86.txt
+- https://github.com/seedds/nxnative/pull/1300
