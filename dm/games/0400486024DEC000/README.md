@@ -75,18 +75,19 @@ PR #301 derives camera motion for static world pixels and requires a build-speci
 
 ### Kokiri Forest comparison recipe
 
-Run this only in the parent's gameplay pass. This task did not run it. The save source must be the parent's **Kokiri Forest Autosave** checkpoint containing `slot_00/progress.sav` and `slot_00/caption.sav`. Do not copy a save while the baseline host is writing it. Supply `SAVE_REF` and `FONT_DIR` from the parent's working baseline launch. The remaining paths match the shared extraction.
+Run this only in the parent's gameplay pass. This task did not run it. The save source must be the parent's **Kokiri Forest Autosave** checkpoint containing `slot_00/progress.sav` and `slot_00/caption.sav`. Do not copy a save while the baseline host is writing it. Supply `SAVE_REF` and `FONT_DIR` from the parent's working baseline launch. Set `BUILD` to the existing extracted game build and `WORK_ROOT` to the external task workspace before continuing.
 
 ```sh
-export REPO=/Users/ankur/.t3/worktrees/nxnative-oot/t3-ff09367e
-export BUILD=/Users/ankur/Documents/Crypt/Gaming-rea/_work/games/oot/0400486024DEC000_build
-export COMPARE=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-quality/compare
-export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
+export REPO="$(git rev-parse --show-toplevel)"
+: "${BUILD:?Set BUILD to the existing extracted game build directory}"
+: "${WORK_ROOT:?Set WORK_ROOT to the external task workspace}"
+export COMPARE="$WORK_ROOT/oot-quality/compare"
+export TMPDIR="$WORK_ROOT/setup/scratch"
 # Set these to the parent's known baseline paths before continuing.
 : "${SAVE_REF:?Set SAVE_REF to the Kokiri Forest checkpoint directory}"
 : "${FONT_DIR:?Set FONT_DIR to the working baseline font directory}"
 test -f "$SAVE_REF/slot_00/progress.sav" && test -f "$SAVE_REF/slot_00/caption.sav"
-mkdir -p "$COMPARE"
+mkdir -p "$COMPARE" "$TMPDIR"
 ```
 
 Define the following shell function. It starts a fresh process with an independent save, temp directory and pipeline cache. It reads the existing rewritten game and shader libraries. It does not change the launcher or the user's `env.txt`. Tags must be new so each run starts from the same checkpoint.

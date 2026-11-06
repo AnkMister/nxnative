@@ -2,7 +2,7 @@
 
 ## Result and scope
 
-Branch `oot-quality` starts at `oot-base` / `ee9b7765` in `/Users/ankur/.t3/worktrees/nxnative-oot/t3-ff09367e`. The checkout was clean before switching from `t3/ocarina-quality-mode`. Read the shared `agent-context.md` first. The user explicitly requested a local commit. No push, PR, dependency install, game run, regression-harness run, iOS work or full game-shader build was performed. The baseline worktree, game build, saves and user `env.txt` were not changed.
+Branch `oot-quality` starts at `oot-base` / `ee9b7765` in an isolated worktree. The checkout was clean before switching from `t3/ocarina-quality-mode`. Read the shared `agent-context.md` first. The user explicitly requested a local commit. No push, PR, dependency install, game run, regression-harness run, iOS work or full game-shader build was performed. The baseline worktree, game build, saves and user `env.txt` were not changed.
 
 The implemented subset is `DM_QUALITY=max`, with independent anisotropy, trilinear, supersampled spatial presentation and sharpening controls. With no settings, or `DM_QUALITY=off` and no individual overrides, the existing rendering choices remain. Scene supersampling, NDSR temporal reconstruction and interpolation are deferred with their missing contracts documented. This does **not** establish better visuals than Switch 2. Gameplay and console-reference comparisons remain with the parent.
 
@@ -30,11 +30,11 @@ Read the bodies and source heads of [PR #354](https://github.com/seedds/nxnative
 | 335 | `b1ea32e7c3e43f53d175990932702f62967e6a1a` | Ported sampler floors and mip blending, with stricter protected-sampler checks and real pool/mip tests. |
 | 301 | `81980b92` | No camera block, scene/UI split or cut/reset contract is established for Ocarina. Do not port static-world camera motion as if it were this game's object motion. |
 
-Read `git show oot-upscale:implementation-notes.md`, then re-ran its read-only `audit_shaders.py` and `audit_resolution.py` against this checkout and the shared build. This verified current package hashes, standard NDSR reflection and RomFS parameters without rewriting or extracting game files. The scripts were supplied by the preceding implementation work. Audit outputs are in `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-quality/`. The game note records the conclusions and limits. No hardcoded game addresses or profile shader inputs were added.
+Read `git show oot-upscale:implementation-notes.md`, then re-ran its read-only `audit_shaders.py` and `audit_resolution.py` against this checkout and the shared build. This verified current package hashes, standard NDSR reflection and RomFS parameters without rewriting or extracting game files. The scripts were supplied by the preceding implementation work. Audit outputs are in `oot-quality/` under the external task workspace. The game note records the conclusions and limits. No hardcoded game addresses or profile shader inputs were added.
 
 ## Validation
 
-Commands used `TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch`. Python tests used `/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python`, the existing uv venv. Builds used at most four jobs. No packages were installed.
+Commands used the external task workspace's `setup/scratch` directory as `TMPDIR`. Python tests used the existing shared uv venv. Builds used at most four jobs. No packages were installed.
 
 | Command | Result |
 |---|---|
@@ -50,7 +50,7 @@ The quality cases cover unset/off defaults, max, explicit overrides back to stoc
 
 Metal API validation was enabled for the stock, forced-stock and malformed-input cases. The MetalFX cases run without it because this existing Metal 4 scaler hits its own internal barrier-stage assertion under validation. `t_quality` compiled with 57 warnings from the included backend and none in the new test itself. The first test iteration exposed three test-only compiler warnings, which were corrected before the final run. Host-only Metal shaders were compiled by the normal host build. The game's shader chain and `DMSH_CHAIN` are unchanged.
 
-Logs are in `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-quality/`: `host-build.log`, `host-build-final.log`, `quality-tests.log`, `presentation-regression-tests.log`, `docs-tests.log` and `env-tests.log`. The tests establish synthetic GPU behaviour, not actual Ocarina sampler usage, gameplay image quality or frame cost.
+Logs are in `oot-quality/` under the external task workspace: `host-build.log`, `host-build-final.log`, `quality-tests.log`, `presentation-regression-tests.log`, `docs-tests.log` and `env-tests.log`. The tests establish synthetic GPU behaviour, not actual Ocarina sampler usage, gameplay image quality or frame cost.
 
 ## Parent review and remaining gates
 
@@ -68,7 +68,7 @@ The user assigned implementation-sub-agent work and explicitly requested a local
 
 `DM_OOT_RENDER_RES=1440|2160` is implemented as an experimental Mac-only engine override. The Ocarina profile supplies three observation gates keyed to main build `e0f3ccfaf50065ae4ea01eb5aeb13b1a`. The new host file updates loaded base/final dimensions, fixes each dynamic level at 1.0 and updates final-size selection after the framework clamp/fixed-1080p branch. No NVN texture scaling or shader-chain change was added. Default-off and unsupported/missing-gate paths leave the game settings intact. Activation needs a freshly rewritten main; a host rebuild alone is insufficient. The shared original/rewritten game files were inspected read-only and were not changed.
 
-The permanent finding, exact hook trace, acceptance checklist and cost estimates are in the game's README, "Internal render resolution". The requested standalone report is `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/render-res.md`. Supporting scripts, disassembly, RomFS parameter audit and logs are in its `oot-res/` subdirectory. Those scripts read game data in memory and write no extracted module or archive into the report directory.
+The permanent finding, exact hook trace, acceptance checklist and cost estimates are in the game's README, "Internal render resolution". The requested standalone report is `render-res.md` in the external task workspace. Supporting scripts, disassembly, RomFS parameter audit and logs are in its `oot-res/` subdirectory. Those scripts read game data in memory and write no extracted module or archive into the report directory.
 
 Validation passed: host build, including the final rebuild (59 warnings in unchanged files); 120 new host checks across 15 startup cases; the same checks with ASan/UBSan; 45 affected tool tests including the original-NSO gate audit; 1,963 graphics checks across quality, MetalFX, crop, copy alias and texture view levels; and diff whitespace checks. Python lint reports three errors in unchanged tests and no new findings in changed files. The compilation database generated, but clang-tidy is unavailable. No lint baseline was changed or tool installed.
 
