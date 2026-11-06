@@ -4,17 +4,18 @@
 # Source of query answers: the answer table in the game profile, dm/games/<id>/shader_facts.tsv (dmsh_facts.py) - texture types, vertex attribute / fragment output component types, compute thread group size and shared memory.
 # Usage: dmsh_build.py <Switch package dir> <output cache dir> [key...] (no keys = all); build output is actually written to <output cache dir>/b-<chain version>/ (same for IOSOUT), for the chain version see dmsh_chain.py.
 # A full build (no keys) also stamps both directories with the game and the digest of its profile inputs (inputs.tsv) and writes the profile's c1_full.tsv and cb_extent.tsv (c1_guard.py, cb_extent.py)
-# from its Mac outputs. One output directory per game: the chain version is the same for every game   Environment: DM_GAME=game profile (required, dm/games/<id>), XLATE=path to the translation tool (default the in-repo dmsh_xlate_bin), DMSH_CAS=content-addressed cache dir (default <output cache dir>/cas), DMSH_PREFILL=Mac library root[=iOS library root] (separated by :, their b-*/ go into the MSL-keyed compile cache first; sibling b-*/ always do), J=concurrency
+# from its Mac outputs. One output directory per game: the chain version is the same for every game   Environment: DM_GAME=game profile (required, dm/games/<id>), XLATE=path to the translation tool (default the in-repo dmsh_xlate_bin), DMSH_STAGECACHE=1 enables intermediate stage caching (DMSH_STAGECACHE_WARM=1 also seeds complete-shader hits), DMSH_CAS=content-addressed cache dir (default <output cache dir>/cas), DMSH_PREFILL=Mac library root[=iOS library root] (separated by :, their b-*/ go into the MSL-keyed compile cache first; sibling b-*/ always do), J=concurrency
 # Build output: <key>_b.metallib, <key>_b.json (replay reflection, including drv_reads, the runtime read offsets into driver segments c0 / c2), <key>_b.metal (MSL)
 # Environment IOSOUT=dir: the same MSL also goes through dm/ios/tools/ios_metal.compile to produce an iphoneos metallib + reflection (chain_metal records the iOS compile convention)
 # Final summary: success / failure counts and the distribution of reasons; distribution of driver segment read offsets (those outside the range the replay layer can fill are listed separately);
 # a [RED] line per shader that built but lost something (shader_regressions.report_losses), which does not change the exit status
+from typing import Callable, ParamSpec, TypeVar
 import inspect, os, re, sys, json, mmap, struct, hashlib, shutil, subprocess, tempfile, collections, threading, concurrent.futures as cf
 import dmsh_geometry, dmsh_atomic, dmsh_wide, dmsh_meshstage, dmsh_abi as abi   # abi: the driver segment layout and the binding kinds the host shares (dm/gfx/nvn/dmsh_abi.h)
 DM_ROOT = os.environ.get('DM_ROOT') or os.path.expanduser('~/dm-work')   # Workspace root (game files, build outputs and run artifacts are all under it)
 HOME = os.path.expanduser('~')
 dm_dir, out = sys.argv[1:3]; want = set(sys.argv[3:]); cache_root = out
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import dmsh_chain, dmsh_fetch, dmsh_facts, dmsh_mtlcache, dmsh_pch, dmsh_vin, dmsh_pull, dmsh_side, dmsh_mesh, dmsh_ampere, shader_regressions, tool_lock   # translation chain version: verify the tools against the lock file first; build output goes into b-<V>/
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import dmsh_chain, dmsh_fetch, dmsh_facts, dmsh_mtlcache, dmsh_pch, dmsh_stagecache, dmsh_vin, dmsh_pull, dmsh_side, dmsh_mesh, dmsh_ampere, shader_regressions, tool_lock   # translation chain version: verify the tools against the lock file first; build output goes into b-<V>/
 _bad = tool_lock.check_tools()
 if _bad: sys.exit('\n'.join('[RED] translation chain tools do not match the lock file: ' + b for b in _bad) + '\n(if the tools changed, run tool_lock.py --update-lock and commit the lock file; if the translator just was not rebuilt, rebuild it)')
 CHAIN = dmsh_chain.version(); out = os.path.join(out, 'b-' + CHAIN)
@@ -401,7 +402,7 @@ def write_refl(key, refl):
 def fetch_finish(key, src, refl):
     if refl['stage'] != 'ps': return refl
     # Those with rewritable samples get variants as before; those without get an output-mapping-only variant, and only for keys in the list (bf_want.tsv, produced by the host planner)
-    fv, fmeta = dmsh_fetch.variant(src, refl['bindings'], om_only_ok=key in BF_WANT)
+    fv, fmeta = stage_pass(dmsh_fetch.variant, src, refl['bindings'], om_only_ok=key in BF_WANT)
     if not fv:
         for path in (os.path.join(out, key + '_bf.metallib'), os.path.join(out, key + '_bf.metal')) + ((os.path.join(IOSOUT, key + '_bf.metallib'),) if IOSOUT else ()):
             try: os.unlink(path)
@@ -455,8 +456,8 @@ def pull_finish(key, full, refl):
         for p in libs:
             try: os.unlink(p)
             except FileNotFoundError: pass
-    v, info = dmsh_pull.variant(full)
-    if not v:
+    v, info = stage_pass(dmsh_pull.variant, full)
+    if not v or not isinstance(info, dict):
         PULL_STATS['no stage input' if info == 'no stage input' else 'not generated'] += 1
         if info != 'no stage input': print(f'[RED] {key}: no pulling library ({info}): its pipelines are always built for the draw\'s vertex layout', flush=True)
         drop(); return refl
@@ -484,7 +485,7 @@ def vin_finish(key, full, refl):
         for p in libs:
             try: os.unlink(p)
             except FileNotFoundError: pass
-    v, shadows = dmsh_vin.variant(full)
+    v, shadows = stage_pass(dmsh_vin.variant, full)
     if not v:
         if shadows != 'no integer input': VIN_STATS['not generated'] += 1; print(f'[RED] {key}: no shadow-input library ({shadows}): its integer inputs keep the CPU conversion', flush=True)
         drop(); return refl
@@ -508,7 +509,7 @@ def ps_libraries(key, msl, full):
     its plain source, full. A shader none of them apply to, or whose compile unit does not build, gets <key>_b from the plain source and no <key>_bx (a stale one removed): the host draws it
     without. → what the reflection says of them. Raises CalledProcessError when the plain source does not compile"""
     targets = [(t, d) for t, d in (('mac', out), ('ios', IOSOUT)) if d and t in TARGETS]
-    src, info = dmsh_side.unit(full)
+    src, info = stage_pass(dmsh_side.unit, full)
     if src:
         u = os.path.join(w, key + '_bu.metal'); open(u, 'w').write(src)
         try:
@@ -957,12 +958,13 @@ def unfillable(dr, stage):
 
 RULES = []   # MSL rewrite rules attached by shader name (function, applicability test); the former dark-range remap toe has been removed (back to the original Switch brightness)
 # CODE_FP hashes the code form of this file and its helper modules (dmsh_chain.code_form): editing a comment, a docstring or the layout does not change any shader's key.
-# The library ABI enters as its values (dmsh_abi.VALUES), so a comment in dmsh_abi.h does not change a key either.
+# The ABI header also enters byte for byte. Any ABI edit invalidates complete shaders and all intermediate stages.
 # It covers what runs only when a shader misses the cache, since a hit restores the output and skips it. dmsh_fetch.py is not in it, but for screen_varyings (raster_facts): readable-tile variants get a
 # separate second-stage cache keyed on the generated MSL. Nor are the other side libraries' modules, made again from the restored MSL on every build (test_dmsh_code_fp.py checks this list).
-CODE_FP = hashlib.sha256(source_without_rule_bodies() + b''.join(b'\0' + dmsh_chain.code_form(open(m.__file__, 'r').read()) for m in (dmsh_chain, dmsh_geometry, dmsh_atomic, dmsh_wide, dmsh_meshstage, dmsh_ampere, abi) + ((ios_metal,) if IOSOUT else ()))
+CODE_FP = hashlib.sha256(source_without_rule_bodies() + b''.join(b'\0' + dmsh_chain.code_form(open(m.__file__, 'r').read()) for m in (dmsh_chain, dmsh_stagecache, dmsh_geometry, dmsh_atomic, dmsh_wide, dmsh_meshstage, dmsh_ampere, abi) + ((ios_metal,) if IOSOUT else ()))
                          + b'\0' + inspect.getsource(dmsh_fetch.screen_varyings).encode()
-                         + b'\0abi\0' + repr(sorted(abi.VALUES.items())).encode()).hexdigest()
+                         + b'\0abi\0' + repr(sorted(abi.VALUES.items())).encode()
+                         + b'\0abi-header\0' + open(abi.HEADER, 'rb').read()).hexdigest()
 TOOL_FP = tool_fingerprint().encode()
 
 _CAST = ('as_type<int>(', 'as_type<uint>(')
@@ -1022,7 +1024,10 @@ def vs_pad(key, src):
         fn = os.path.join(out, ps + '_b.metal')
         if os.path.exists(fn):
             with open(fn) as f: want |= {int(x) for x in re.findall(r'\[\[user\(locn(\d+)\)', f.read())}
-    miss = sorted(want - {int(x) for x in re.findall(r'\[\[user\(locn(\d+)\)', src)})
+    return stage_pass(pad_locations, src, sorted(want))
+
+def pad_locations(src, want):
+    miss = sorted(set(want) - {int(x) for x in re.findall(r'\[\[user\(locn(\d+)\)', src)})
     i = src.find('struct main0_out\n{\n'); j = src.find('\n};', i); k = src.find('main0_out out = {};')
     if not miss or i < 0 or j < 0 or k < 0: return src, []
     src = src[:j] + ''.join(f'\n    float4 dm_pad{l} [[user(locn{l})]];' for l in miss) + src[j:]
@@ -1086,7 +1091,7 @@ def gs_slice(spv):
     grading LUT the tone mapper reads, and without it the screen came out a flat blue). Metal has no geometry stage, so the host drops such a shader and draws with the vertex shader's
     layer entry points instead (vs_layer_entry), which write that component as the layer. Read from the SPIR-V as GLSL (SPIRV-Cross writes no MSL for a geometry stage).
     → {'loc': input location, 'comp': component} or None (any other geometry shader: one-pass cube shadows emit six transformed triangles)"""
-    r = subprocess.run([SPIRV_CROSS, spv, '--version', '450'], capture_output=True, text=True)
+    r = cross_run(spv, ['--version', '450'])
     g = r.stdout
     if r.returncode or 'layout(triangles) in;' not in g or 'layout(max_vertices = 3, triangle_strip) out;' not in g or g.count('EmitVertex();') != 3 or 'EndPrimitive' in g: return None
     ins = {m.group(2): int(m.group(1)) for m in re.finditer(r'layout\(location = (\d+)\) in vec4 (\w+)\[3\];', g)}
@@ -1303,19 +1308,19 @@ def geometry_finish(key, w, j, c1):
     dmsh_geometry.output_layout(code, 0)   # validate before running the translator
     jobs = [{**j, 'key': key + '_g' + str(t), 'geometry_topology': t} for t in range(5)]
     jp = os.path.join(w, key + '_geometry.json'); atomic_json(jp, jobs)
-    rx = subprocess.run([XLATE, jp, w], capture_output=True, text=True)
+    rx = translate_jobs(jobs, jp, w)
     if rx.returncode: return 'geometry failed', rx.stderr.strip()[:160], None
     base = None
     for t, job in enumerate(jobs):
         layout = dmsh_geometry.output_layout(code, t)
         k = job['key']; spv = os.path.join(w, k + '.spv')
         dmsh_geometry.flatten_sets(spv)
-        r = subprocess.run([SPIRV_CROSS, *dmsh_atomic.cross_args(XC, spv), spv], capture_output=True, text=True)
+        r = cross_run(spv, dmsh_atomic.cross_args(XC, spv))
         if r.returncode: return 'geometry MSL failed', r.stderr.strip()[:160], None
-        plain = dmsh_geometry.topology_pointer(pool_arrays(precise(dmsh_atomic.check_msl(r.stdout))))
+        plain = stage_pass(dmsh_geometry.topology_pointer, stage_pass(pool_arrays, stage_pass(precise, stage_pass(dmsh_atomic.check_msl, r.stdout))))
         res = json.load(open(os.path.join(w, k + '.res.json')))
-        plain = raw_log_opt(key, 'gs', plain, res)
-        src = dmsh_geometry.capture_input(plain)
+        plain = stage_pass(raw_log_opt, key, 'gs', plain, res)
+        src = stage_pass(dmsh_geometry.capture_input, plain)
         refl = {'key': key + '_bg' + str(t), 'route': 'B', 'chain': CHAIN, 'dm_ctl': key,
                 'source': f'{loc[key][0]}#{loc[key][1]}', 'pc_paired': pc_of[key], 'stage': 'gs',
                 'entry': 'main0', 'msl_entry_kind': 'kernel', 'threadgroup_size': [32, 1, 1],
@@ -1332,7 +1337,7 @@ def geometry_finish(key, w, j, c1):
         save('_bg' + str(t), src, refl)
         # Passthrough input without adjacency: a lean kernel the host can pair with the game's own vertex shader (dmsh_geometry.lean)
         if dmsh_geometry.passthrough(code) and t in (0, 1, 3):
-            try: lean, reads = dmsh_geometry.lean(plain, res['geometry_stride'])
+            try: lean, reads = stage_pass(dmsh_geometry.lean, plain, res['geometry_stride'])
             except ValueError as e: lean = None; refl['notes'] = refl['notes'] + [str(e)]
             if lean:
                 save('_bl' + str(t), lean, {**refl, 'key': key + '_bl' + str(t), 'geometry': dict(layout, stride=1, lean=True, capture_reads=reads),
@@ -1341,20 +1346,52 @@ def geometry_finish(key, w, j, c1):
             base = {**refl, 'key': key + '_b'}
             save('_b', src, base)
             spv = os.path.join(w, k + '.reader.spv'); dmsh_geometry.flatten_sets(spv)
-            r = subprocess.run([SPIRV_CROSS, *dmsh_atomic.cross_args(XC, spv), spv], capture_output=True, text=True)
+            r = cross_run(spv, dmsh_atomic.cross_args(XC, spv))
             if r.returncode: return 'geometry reader failed', r.stderr.strip()[:160], None
-            reader = vs_layer(vs_init(dmsh_geometry.reader(pool_arrays(precise(dmsh_atomic.check_msl(r.stdout))))))
-            analysis, full = vs_depth(reader)
+            reader = stage_pass(vs_layer, stage_pass(vs_init, stage_pass(dmsh_geometry.reader, stage_pass(pool_arrays, stage_pass(precise, stage_pass(dmsh_atomic.check_msl, r.stdout))))))
+            analysis, full = stage_pass(vs_depth, reader)
             meta = {'key': key + '_bgv', 'route': 'B', 'chain': CHAIN, 'dm_ctl': key,
                     'stage': 'vs', 'entry': 'main0', 'entry_z': 'main0_z', 'msl_entry_kind': 'vertex',
                     'geometry_reader': True, 'geometry_output': layout['output'], 'c1': '', 'notes': [], 'drv_reads': {}, 'drv_unfillable': [],
                     'bindings': reflect(key, 'vs', analysis, {'sbufs': []}), 'vertex_inputs': [], 'raster': {}}
             if j.get('tf'):
-                full += vs_tf(analysis, j['tf'], geometry=True)
+                full += stage_pass(vs_tf, analysis, j['tf'], geometry=True)
                 meta.update(entry_tf='main0_tf', tf_strides=[e['stride'] if e else 0 for e in j['tf']])
             save('_bgv', full, meta)
     return 'ok', '', base
 
+
+_P = ParamSpec('_P')
+_T = TypeVar('_T')
+def stage_pass(fn: 'Callable[_P, _T]', *args: '_P.args', **kwargs: '_P.kwargs') -> '_T':
+    return STAGES.call(fn, *args, **kwargs) if STAGES else fn(*args, **kwargs)
+
+def cross_run(spv, flags, output=None):
+    if not STAGES and output:
+        result = subprocess.run([SPIRV_CROSS, *flags, spv, '--output', output], capture_output=True, text=True)
+        if not result.returncode: result.stdout = open(output).read()
+        return result
+    run = lambda: subprocess.run([SPIRV_CROSS, *flags, spv], capture_output=True, text=True)
+    if not STAGES: return run()
+    result = STAGES.cross(spv, flags, CROSS_FP, run)
+    return subprocess.CompletedProcess([], 0, result, '') if isinstance(result, str) else result
+
+def translate_jobs(batch, jp, work):
+    if not STAGES:
+        atomic_json(jp, batch)
+        return subprocess.run([XLATE, jp, work], capture_output=True, text=True)
+    todo = [j for j in batch if not (STAGES and STAGES.translation(j, work, XLATE_FP))]
+    if not todo: return subprocess.CompletedProcess([], 0, '', '')
+    # A failed retranslation must not publish the previous integer-input SPIR-V.
+    for j in todo:
+        for suffix in ('.spv', '.res.json', '.reader.spv'):
+            path = os.path.join(work, j['key'] + suffix)
+            if os.path.exists(path): os.unlink(path)
+    atomic_json(jp, todo)
+    result = subprocess.run([XLATE, jp, work], capture_output=True, text=True)
+    if STAGES:
+        for j in todo: STAGES.translation(j, work, XLATE_FP, publish=True)
+    return result
 
 def finish(key, w, j, c1):
     name, k = loc[key]
@@ -1369,61 +1406,63 @@ def finish(key, w, j, c1):
         try: return geometry_finish(key, w, j, c1)
         except (ValueError, subprocess.CalledProcessError) as e: return 'geometry failed', str(e)[:160], None
     if j['stage'] == 'vs': spv_single_lane(os.path.join(w, key + '.spv'))   # one-lane subgroups (see spv_single_lane)
-    r = subprocess.run([SPIRV_CROSS, *dmsh_atomic.cross_args(XC, os.path.join(w, key + '.spv')), os.path.join(w, key + '.spv'), '--output', msl], capture_output=True, text=True)
+    r = cross_run(os.path.join(w, key + '.spv'), dmsh_atomic.cross_args(XC, os.path.join(w, key + '.spv')), output=msl)
     if r.returncode: return 'MSL failed', r.stderr.strip()[:160], None
-    src = open(msl).read()
+    src = r.stdout
+    open(msl, 'w').write(src)
     if j['stage'] == 'vs':   # second pass: re-translate with inputs that are only used as integers reported as uint (see int_inputs)
-        extra = {l: t for l, t in int_inputs(src).items() if l not in j['attr']}
+        extra = {l: t for l, t in stage_pass(int_inputs, src).items() if l not in j['attr']}
         if extra:
             j['attr'].update(extra); jp = os.path.join(w, f'job1_{key}.json'); json.dump([j], open(jp, 'w'))
-            rx = subprocess.run([XLATE, jp, w], capture_output=True, text=True)
+            rx = translate_jobs([j], jp, w)
             if rx.returncode or not os.path.exists(os.path.join(w, key + '.spv')): return 'translation failed', ('integer-input retranslation: ' + rx.stderr.strip())[:160], None
             spv_single_lane(os.path.join(w, key + '.spv'))
-            r = subprocess.run([SPIRV_CROSS, *dmsh_atomic.cross_args(XC, os.path.join(w, key + '.spv')), os.path.join(w, key + '.spv'), '--output', msl], capture_output=True, text=True)
+            r = cross_run(os.path.join(w, key + '.spv'), dmsh_atomic.cross_args(XC, os.path.join(w, key + '.spv')), output=msl)
             if r.returncode: return 'MSL failed', r.stderr.strip()[:160], None
-            src = open(msl).read()
-    try: src = dmsh_atomic.check_msl(src)
+            src = r.stdout
+            open(msl, 'w').write(src)
+    try: src = stage_pass(dmsh_atomic.check_msl, src)
     except ValueError as e: return 'image atomic MSL failed', str(e), None
-    src = precise(src)   # min / max / clamp with Maxwell's NaN results (see precise)
-    try: src = hmma_msl(src)   # Ampere HMMA through simdgroup_matrix (see hmma_msl)
+    src = stage_pass(precise, src)   # min / max / clamp with Maxwell's NaN results (see precise)
+    try: src = stage_pass(hmma_msl, src)   # Ampere HMMA through simdgroup_matrix (see hmma_msl)
     except ValueError as e: return 'HMMA rewrite failed', str(e)[:160], None
-    try: src = pool_arrays(src)   # handles traced to no slot read the pools the replay keeps (see pool_arrays)
+    try: src = stage_pass(pool_arrays, src)   # handles traced to no slot read the pools the replay keeps (see pool_arrays)
     except ValueError as e: return 'pool rewrite failed', str(e)[:160], None
     res = json.load(open(os.path.join(w, key + '.res.json')))
-    try: src = raw_log_opt(key, j['stage'], src, res)
+    try: src = stage_pass(raw_log_opt, key, j['stage'], src, res)
     except ValueError as e: return 'reflection failed', str(e)[:160], None
-    src = dmsh_wide.wide_loads(src)   # storage words the translator split, read whole again (see dmsh_wide.py)
-    src = border_emu(src); open(msl, 'w').write(src)   # border colours Metal lacks (see border_emu)
+    src = stage_pass(dmsh_wide.wide_loads, src)   # storage words the translator split, read whole again (see dmsh_wide.py)
+    src = stage_pass(border_emu, src); open(msl, 'w').write(src)   # border colours Metal lacks (see border_emu)
     first, spill = [], 0
     mesh = j.get('mesh_stage')
     if mesh:   # the kernel as the Metal object or mesh function (dmsh_meshstage.py)
         if mesh.get('refused'): return 'mesh stage failed', mesh['refused'], None
-        try: src = dmsh_meshstage.to_stage(src, mesh); open(msl, 'w').write(src)
+        try: src = stage_pass(dmsh_meshstage.to_stage, src, mesh); open(msl, 'w').write(src)
         except ValueError as e: return 'mesh stage failed', str(e)[:160], None
     elif j['stage'] == 'cs':
-        src, first = first_store(src, j.get('local')); open(msl, 'w').write(src)   # the first invocation's store, for the host (see first_store)
-        try: src, spill = tg_spill(src)   # shared memory past Metal's 32 KB in a device buffer (see tg_spill)
+        src, first = stage_pass(first_store, src, j.get('local')); open(msl, 'w').write(src)   # the first invocation's store, for the host (see first_store)
+        try: src, spill = stage_pass(tg_spill, src)   # shared memory past Metal's 32 KB in a device buffer (see tg_spill)
         except ValueError as e: return 'shared memory rewrite failed', str(e)[:160], None
         if spill: open(msl, 'w').write(src)
     pad = []
     if j['stage'] == 'vs':   # outputs start as (0,0,0,1) (see vs_init); no point size beside a layer output (see vs_layer); the base instance from Metal (see vs_base_instance)
-        src = vs_base_instance(vs_layer(vs_init(src))); open(msl, 'w').write(src)
+        src = stage_pass(vs_base_instance, stage_pass(vs_layer, stage_pass(vs_init, src))); open(msl, 'w').write(src)
     if j['stage'] == 'vs' and PAIRS.get(key):   # outputs the pixel shader reads but the vertex shader does not write get (0,0,0,1) (see vs_pad)
         src, pad = vs_pad(key, src)
         if pad: open(msl, 'w').write(src)
     lay = None; discard = False
     if j['stage'] == 'vs':   # the two depth-convention entry points (see vs_depth); the analysis below uses the source with only main0
-        capture = dmsh_geometry.capture(src)
-        src, full = vs_depth(src)
+        capture = stage_pass(dmsh_geometry.capture, src)
+        src, full = stage_pass(vs_depth, src)
         full += capture
-        discard = vs_writes(src, reflect(key, 'vs', src, res))
-        if discard: full += vs_discard(src)
-        if j.get('tf'): full += vs_tf(src, j['tf'])   # transform feedback capture (see vs_tf)
+        discard = stage_pass(vs_writes, src, reflect(key, 'vs', src, res))
+        if discard: full += stage_pass(vs_discard, src)
+        if j.get('tf'): full += stage_pass(vs_tf, src, j['tf'])   # transform feedback capture (see vs_tf)
         plain = full
-        full, lay = vs_layer_entry(full)   # layer entry points for a slice-writing geometry shader (see vs_layer_entry)
+        full, lay = stage_pass(vs_layer_entry, full)   # layer entry points for a slice-writing geometry shader (see vs_layer_entry)
         open(msl, 'w').write(full)
-    fu, fmask = fs_uint(src) if j['stage'] == 'ps' else (None, 0)   # the integer-output entry points (see fs_uint); the analysis below uses the source with only main0
-    fd = fs_dual(src) if j['stage'] == 'ps' and key in DUAL_WANT else None   # the dual-source entry point (see fs_dual), from the source with only main0
+    fu, fmask = stage_pass(fs_uint, src) if j['stage'] == 'ps' else (None, 0)   # the integer-output entry points (see fs_uint); the analysis below uses the source with only main0
+    fd = stage_pass(fs_dual, src) if j['stage'] == 'ps' and key in DUAL_WANT else None   # the dual-source entry point (see fs_dual), from the source with only main0
     if fu or fd: plain = src; open(msl, 'w').write((fu or src) + (fd or ''))
     side, lost = {}, []
     def compile_targets():   # the selected targets from the same MSL (MSL identical to one compiled before takes that library, dmsh_mtlcache.py)
@@ -1459,6 +1498,13 @@ def finish(key, w, j, c1):
     write_refl(key, refl)
     fetch_finish(key, src, refl)
     return 'ok', '', refl
+
+# Opt in for A/B builds. Warm mode also bypasses complete-shader hits to seed stages.
+STAGES = None
+if os.environ.get('DMSH_STAGECACHE') == '1':
+    STAGES = dmsh_stagecache.Cache(os.path.join(CAS, 'stages'), open(abi.HEADER, 'rb').read())
+    XLATE_FP = dmsh_stagecache.tool_code(XLATE, directory=True)
+    CROSS_FP = dmsh_stagecache.tool_code(SPIRV_CROSS)
 
 keys = build_keys(want, loc, PAIRS)
 if want: want = set(keys)   # dependency outputs are cleaned too, so a failed pixel build cannot leave old MSL for padding
@@ -1499,14 +1545,14 @@ for key in keys:
 for key in keys:
     name = loc[key][0]
     rule_fps[key] = hashlib.sha256(shader_rule_source(name) + ','.join(sorted(PAIRS.get(key, ()))).encode()).hexdigest()   # the vertex shader must be rebuilt when its pairs change (vs_pad)
-    hit, cache_reasons[key] = cache_lookup(key, digests[key], rule_fps[key], CODE_FP)
+    hit, cache_reasons[key] = cache_lookup(key, digests[key], rule_fps[key], CODE_FP) if not (STAGES and os.environ.get('DMSH_STAGECACHE_WARM') == '1') else (False, 'stage warm-up')
     if hit: cache_hits.add(key)
     else: jobs[key], c1s[key] = job_for(key, name, rec_of(key)[1], w)
 misses = [key for key in keys if key not in cache_hits]
 chunks = [misses[i::NJ] for i in range(NJ)]
 def xl(ch):
     jp = os.path.join(w, f'job_{abs(hash(ch[0]))}.json'); json.dump([jobs[k] for k in ch], open(jp, 'w'))
-    return subprocess.run([XLATE, jp, w], capture_output=True, text=True)
+    return translate_jobs([jobs[k] for k in ch], jp, w)
 with cf.ThreadPoolExecutor(NJ) as ex: xr = list(ex.map(xl, [c for c in chunks if c]))
 xerr = {}
 for r in xr:
@@ -1534,7 +1580,7 @@ def mesh_finish(pair):
     srcs = [os.path.join(out, n) for n in (vk + '_b.metal', gk + '_bl3.metal', gk + '_bl3.json')]
     libs = [os.path.join(out, f'{vk}_{gk}_m3.metallib')] + ([os.path.join(IOSOUT, f'{vk}_{gk}_m3.metallib')] if IOSOUT else [])
     if not all(os.path.exists(p) for p in srcs): MESH_STATS['missing a library'] += 1; return
-    try: msl = dmsh_mesh.compose(open(srcs[0]).read(), open(srcs[1]).read(), json.load(open(srcs[2]))['geometry']['capture_reads'])
+    try: msl = stage_pass(dmsh_mesh.compose, open(srcs[0]).read(), open(srcs[1]).read(), json.load(open(srcs[2]))['geometry']['capture_reads'])
     except ValueError as e: MESH_STATS['not composed'] += 1; print(f'[RED] mesh {vk} {gk}: {e}', flush=True); return
     path = os.path.join(w, f'{vk}_{gk}_m3.metal'); open(path, 'w').write(msl)
     try:
@@ -1559,6 +1605,7 @@ print(f'pulling libraries (<key>_bp, dmsh_pull.py): {PULL_STATS["generated"]} ge
       f'{PULL_STATS["no stage input"]} vertex shaders without stage inputs (none needed)')
 print('mesh libraries (<vertex>_<geometry>_m3, dmsh_mesh.py): ' + (', '.join(f'{k} {v}' for k, v in MESH_STATS.items()) or 'none'))
 print(MTL.summary())
+if STAGES: print(STAGES.summary())
 for lvl in [k for k in st if k != 'ok']:
     for e, n in collections.Counter(r[2] for r in res if r[1] == lvl).most_common(10): print(f'  [{lvl}] {n:5d}  {e}')
 ok = [r[3] for r in res if r[1] == 'ok']
