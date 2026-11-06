@@ -376,3 +376,10 @@ $(B)/t_gpu_stop: t_gpu_stop.c ../hle_lifecycle.c ../hle.h ../dm.h $(GAME_H) | $(
 .PHONY: check_gpu_stop
 check_gpu_stop: $(B)/t_gpu_stop
 	$(B)/t_gpu_stop
+
+$(B)/t_front_screen: t_front_screen.m ../front_screen.h | $(B)
+	$(CLANG) -O1 -g -fobjc-arc -Wall -Werror -I.. -o $@ t_front_screen.m -framework Foundation
+.PHONY: front-screen
+front-screen: $(B)/t_front_screen
+	$(B)/t_front_screen
+run: front-screen
