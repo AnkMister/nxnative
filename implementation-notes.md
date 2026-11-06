@@ -373,3 +373,21 @@ Expected symptom improvement is the washed-out outdoor scene from missing sky,
 probe and shadow accumulation. Numeric/concurrency GPU checks are pending the
 single translator rebuild. Risks include CAS contention and console NaN payload
 parity; gameplay remains unverified.
+
+## #1312: adapted
+
+Head `ac0244286663545b5980509b0133bc2b47295da7`, including `9cb1fe2a`.
+Imported host/Metal sources and the mesh-indirect, image-usage and deferred
+release tests. No lint baseline or binaries imported. Integer-image upgrades
+and the equivalent deferred-release partition require `DM_NVN_VISUAL=1`.
+Indirect mesh draws require `DM_NVN_MESH_INDIRECT=1`. The API takes only a
+command buffer and address, consistent with the v0 call-site probe.
+The PR assumes {count, first}, matching GL/VK NV_mesh_shader, and converts it
+on the GPU to Metal XYZ plus the first-task uniform. This is not proof of NVN2
+layout. Added a completion log of the first eight records and an explicit
+provisional-layout warning. Zero-count and GPU-produced records have fixtures.
+Image atomics use R32 integer storage with an RGBA8 color view, retaining heap
+lifetime. The image test checks a clear survives and atomic OR reaches the color
+view. Expected improvements are missing mesh/texture effects; no picture tested.
+Risks include unverified NVN2 layout and resource/view lifetime across full
+gameplay. Converter synchronization is retained from the PR for correctness.
