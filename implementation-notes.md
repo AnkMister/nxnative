@@ -656,3 +656,7 @@ game run, shader corpus build, push or PR is authorized here.
 - #1373 / b44bcafd preserves a provisional profile's alias budget when growing
   its heap reservation. DM_OOT_BRENT=1 enables the new arithmetic. Static
   Ocarina profiles do not need regeneration for this tool fix.
+
+- #1354 / 5292ae49 excludes mount device numbers from RomFS reuse identities
+  with DM_OOT_BRENT=1. It accepts old five-field image stamps and rejects malformed
+  identity lists. The source digest still changes once when adopting this packer.
