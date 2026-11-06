@@ -29,6 +29,16 @@ class Base(unittest.TestCase):
             cm.__enter__(); self.addCleanup(cm.__exit__, None, None, None)
 
 
+class Temporaries(unittest.TestCase):
+    def test_temporary_folder_is_opt_in(self):
+        for value, expected in [('0', 'tmp'), ('1', 'tmp.noindex')]:
+            with self.subTest(value=value), mock.patch.dict(os.environ, DM_BUILD_NOINDEX=value):
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                self.assertEqual(module.TMP, expected)
+        self.assertNotIn("WORK=str(work / 'tmp')", SCRIPT.read_text())
+
+
 class Header(Base):
     def setUp(self):   # a repository whose chain tools are the real ones (linked) and whose header is its own
         super().setUp()
