@@ -98,6 +98,15 @@ t_cover: t_cover.c ../nvn/nvn_cover.h
 	clang -O1 -Wall -o $@ t_cover.c
 t_pace: t_pace.c ../nvn/nvn_pace.h
 	clang -O1 -Wall -o $@ t_pace.c
+t_eco: t_eco.c ../nvn/nvn_eco.h
+	clang -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -o $@ t_eco.c
+t_eco_wait: t_eco_wait.c ../nvn/nvn_eco.c ../nvn/nvn_eco.h
+	clang -O1 -g -Wall -Wextra -Werror -o $@ t_eco_wait.c ../nvn/nvn_eco.c
+.PHONY: check_t_eco_wait
+check_t_eco_wait: t_eco_wait
+	./t_eco_wait off
+	./t_eco_wait pause
+	./t_eco_wait slow
 t_timestamp: t_timestamp.c ../nvn/nvn_timestamp.h
 	$(CC) -std=c11 -O2 -g -Wall -Wextra -Werror -o $@ $<
 t_fstep: t_fstep.c ../nvn/nvn_fstep.h
@@ -214,6 +223,9 @@ check_t_present_rescue: t_present_rescue
 	MTL_DEBUG_LAYER=1 ./t_present_rescue --metal
 t_present_alloc: t_present_alloc.m $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -o $@ t_present_alloc.m $(MTL_T_SRC) $(FW)
+t_eco_present: t_eco_present.m t_present_alloc.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_eco_present.m $(MTL_T_SRC) $(FW)
+check_t_eco_present: RUN_ENV = MTL_DEBUG_LAYER=1
 .PHONY: check_t_present_alloc
 check_t_present_alloc: t_present_alloc
 	MTL_DEBUG_LAYER=1 ./t_present_alloc

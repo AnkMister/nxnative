@@ -10,6 +10,7 @@
 // Environment switches: DM_NVN_FRAMES=N prints the call table per frame for the first N frames (default 3); DM_NVN_TSV=path writes the per-frame call table and timing to a TSV (DM_NVN_TSV_CALLS=0 writes timing only); DM_SLOWFRAME=1 writes only the per-frame breakdown of dropped frames to the log; DM_NVN_LOG=1 logs object creation.
 #include "../../host/hle.h"
 #include "nvn_protos.h"
+#include "nvn_eco.h"
 #include "nvn_count.h"
 #include "nvn_tex.h"
 #include "../tex/nvn_deswizzle.h"
@@ -1436,6 +1437,7 @@ static uint64_t g_fs_start, g_fs_wait;   // frame step (fstep_tick): when the fi
 uint64_t dm_nvn_frame_count(void) { return g_frame; }
 extern uint64_t g_t0_ns;   // Host process start point (main.c; same base as the UIMSG timestamps)
 NVN(nvnWindowAcquireTexture, NVNwindowAcquireTextureResult, NVNwindow *w, NVNsync *s, int *idx) {
+    static __thread uint64_t eco_next; nvn_eco_wait(&eco_next);
     win_t *o = (win_t *)w;
     *idx = o->ntex ? o->next++ % o->ntex : 0;
     // Vsync blocks here (real-device NVN: when all textures in the swapchain are waiting for display, wait for the next one to be released), not in present -- the game often calls present while holding a lock
