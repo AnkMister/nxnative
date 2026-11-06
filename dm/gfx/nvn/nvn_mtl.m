@@ -2225,6 +2225,51 @@ static int serial_holds(nvn_hmap *m, id o) {
     }
     return 0;
 }
+// Under g_smu. Each serial holds its object and every texture-view ancestor.
+// Count ancestors too: the stable port's serial_holds protects their storage.
+static nvn_hmap g_by_serial_held = {.klen = sizeof(uintptr_t)};
+static int serial_held_fast(void) {
+    static int v = -1;
+    if (v < 0) { const char *e = getenv("DM_NVN_SERIAL_HELD"); v = e && atoi(e) != 0; }
+    return v;
+}
+static int serial_held_check(void) {
+#ifndef NDEBUG
+    static int v = -1;
+    if (v < 0) { const char *e = getenv("DM_NVN_SERIAL_HELD_CHECK"); v = e && atoi(e) != 0; }
+    return v;
+#else
+    return 0;
+#endif
+}
+static void held_add(const void *ptr, int delta) {
+    if (!serial_held_fast() && !serial_held_check()) return;
+    for (id o = (__bridge id)ptr; o;) {
+        uintptr_t k = (uintptr_t)(__bridge void *)o;
+        uintptr_t n = (uintptr_t)nvn_hm_get(&g_by_serial_held, &k);
+        if (delta > 0) nvn_hm_put(&g_by_serial_held, &k, (void *)(n + 1));
+        else if (n > 1) nvn_hm_put(&g_by_serial_held, &k, (void *)(n - 1));
+        else if (n) nvn_hm_del(&g_by_serial_held, &k);
+        o = [o conformsToProtocol:@protocol(MTLTexture)] ? ((id<MTLTexture>)o).parentTexture : nil;
+    }
+}
+static int serial_table_holds(const void *ptr) {
+    uintptr_t k = (uintptr_t)ptr, n = (uintptr_t)nvn_hm_get(&g_by_serial_held, &k);
+#ifndef NDEBUG
+    if (serial_held_check()) {
+        uintptr_t actual = 0;
+        for (uint32_t i = 0; i < g_by_serial.cap; i++) {
+            id o = (__bridge id)g_by_serial.vals[i];
+            if (o == (__bridge id)ptr) { actual++; continue; }
+            if ([o conformsToProtocol:@protocol(MTLTexture)])
+                for (id<MTLTexture> parent = ((id<MTLTexture>)o).parentTexture; parent; parent = parent.parentTexture)
+                    if (parent == (__bridge id)ptr) { actual++; break; }
+        }
+        if (n != actual) { MLOG("[RED] serial held count mismatch: object=%p count=%llu walk=%llu", ptr, (unsigned long long)n, (unsigned long long)actual); abort(); }
+    }
+#endif
+    return serial_held_fast() ? n != 0 : serial_holds(&g_by_serial, (__bridge id)ptr);
+}
 // These entries leave the sharing table. A finalized object resolved through the ghost tables keeps its own reference; otherwise the texture is retired. Caller holds g_smu
 static void alias_let_go(const alias_key *ks, uint32_t n) {
     for (uint32_t j = 0; j < n; j++) {
@@ -2247,7 +2292,7 @@ static void alias_take_over(const alias_key *nk) {
         if (k.pool != nk->pool || !memcmp(&k, nk, sizeof k) || k.off >= hi) continue;
         nvn_texlayout kl; nvn_tex_layout(&k.d, &kl);
         uint64_t seen = (uint64_t)(uintptr_t)nvn_hm_get(&g_alias_seen, &k);
-        if (k.off + (int64_t)kl.size <= lo || (seen && g_fence + 1 - seen < ALIAS_IDLE) || serial_holds(&g_by_serial, (__bridge id)g_alias.vals[i])) continue;
+        if (k.off + (int64_t)kl.size <= lo || (seen && g_fence + 1 - seen < ALIAS_IDLE) || serial_table_holds(g_alias.vals[i])) continue;
         ks[n++] = k;
     }
     alias_let_go(ks, n);
@@ -2258,8 +2303,9 @@ static int serial_is_program(id o);
 static void serial_put(uint64_t k, id o) {
     pthread_mutex_lock(&g_smu);
     id old = hm_get_id(&g_by_serial, &k);
-    if (old) { if (alias_has(old)) defer_obj_unref(old); else defer_obj_release(old); }
+    if (old) { held_add((__bridge void *)old, -1); if (alias_has(old)) defer_obj_unref(old); else defer_obj_release(old); }
     hm_put_id(&g_by_serial, &k, o);
+    held_add((__bridge void *)o, 1);
     if (serial_is_program(o)) g_prog_gen++; else ser_note(k);
     pthread_mutex_unlock(&g_smu);
 }
@@ -2267,6 +2313,7 @@ static void serial_del(uint64_t k) {
     pthread_mutex_lock(&g_smu);
     id old = hm_get_id(&g_by_serial, &k);
     if (old) {
+        held_add((__bridge void *)old, -1);
         if (alias_has(old)) defer_obj_unref(old); else defer_obj_release(old);
         hm_del_id(&g_by_serial, &k);
         if (serial_is_program(old)) g_prog_gen++; else ser_note(k);
@@ -2305,6 +2352,7 @@ static void tex_put(uint64_t k, id o) {   // serials from 2^62 up are external t
     nvn_hmap *m = live ? &g_by_serial : &g_ghost;
     if (active && !hm_get_id(&g_ghost, &k)) m = &g_ghost_active;
     id old = hm_get_id(m, &k);
+    if (m == &g_by_serial) held_add((__bridge void *)old, -1);
     if (old) { if (old != o) obj_drop(old); }
     else if (m == &g_ghost) {
         uint64_t *slot = &g_ghost_ring[g_ghost_next++ % NGHOST];
@@ -2316,6 +2364,7 @@ static void tex_put(uint64_t k, id o) {   // serials from 2^62 up are external t
         *slot = k; g_ghost_puts++;
     }
     hm_put_id(m, &k, o); ser_note(k);
+    if (m == &g_by_serial) held_add((__bridge void *)o, 1);
     if (m == &g_ghost && (active || (on_sub_thread() && g_cb))) hm_put_id(&g_ghost_active, &k, o);
     pthread_mutex_unlock(&g_smu);
 }
@@ -2562,7 +2611,9 @@ static id<MTLTexture> tex_upgrade(const tex_t *t, id<MTLTexture> asked, MTLTextu
         for (unsigned j = 0; j < sizeof tables / sizeof tables[0]; j++) for (uint32_t i = 0; i < tables[j]->cap; i++) {
             if (tables[j]->vals[i] != (__bridge void *)base) continue;
             uint64_t serial; memcpy(&serial, tables[j]->keys + (size_t)i * tables[j]->klen, sizeof serial);
-            void *old = tables[j]->vals[i]; tables[j]->vals[i] = (void *)CFBridgingRetain(upgraded); CFRelease(old); named |= serial == t->serial;
+            void *old = tables[j]->vals[i]; tables[j]->vals[i] = (void *)CFBridgingRetain(upgraded);
+            if (tables[j] == &g_by_serial) { held_add(old, -1); held_add((__bridge void *)upgraded, 1); }
+            CFRelease(old); named |= serial == t->serial;
         }
         for (uint32_t i = 0; i < g_alias.cap; i++) {
             if (g_alias.vals[i] != (__bridge void *)base) continue;

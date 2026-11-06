@@ -92,3 +92,39 @@ clang-tidy remains unavailable. No generated roots were removed because T3
 processes retain working directories in this checkout. The eight .NET bin/obj
 roots, host outputs, native fixtures and private evidence are inventoried and
 retained for review. No protected game root was written.
+
+## PR 1439 port
+
+Branched oot-1439 from oot-review3 b3e29584 and fetched upstream PR #1439
+45996122. Ported its held-object count into all four serial-table writer paths,
+beside the base lineage's generation updates. tex_put keeps its active-ghost
+routing and same-object release guard. The upgrade still replaces slots in place.
+The pool-retired, AOT and stable paths have no additional serial-table writers.
+
+The stable branch's serial_holds also follows texture-view parents. Counts now
+include those ancestors, so the faster lookup preserves that protection.
+DM_NVN_SERIAL_HELD=1 enables the lookup; the default keeps the original walk.
+DM_NVN_SERIAL_HELD_CHECK=1 enables a count-versus-walk diagnostic unless NDEBUG
+is defined. It aborts on a queried count mismatch and defaults off.
+
+Tests cover live/ghost ownership, serial replacement, shared names, texture-view
+parents, upgrades at the growth threshold and deliberate diagnostic corruption.
+The upgrade fixture now uses serial_put for its synthetic names so it follows
+the same ownership rules as production. No shader or chain inputs were changed.
+Game execution, regression game runs, pushes and PR creation are excluded.
+All heavy commands use nice 19 and at most four combined build jobs.
+
+Verification passed: t_alias_takeover has 53 checks in each of default, fast and
+checked-fast modes; deliberate count corruption aborts as expected. Nine affected
+targets passed in default and checked-fast modes: upgrade_alias, pool_retired,
+tex_dedupe, deferred_release, srgb_alias, image_alias, copy_alias, res_guard and
+defer_chain. Host build passed. Documentation and chain checks passed all 28 tests.
+clang-tidy could not run because the tool is absent; no packages were installed.
+The first expanded takeover fixture also covered an intentionally unheld texture;
+its synthetic cost case now uses a separate pool key so it checks only its own
+held entries. No production fix was needed for that fixture failure.
+
+Retained generated host gen/, dmhost and ten native test binaries for the parent's
+integration review. No generated storage was removed. No protected build, game,
+shader-chain input or translator output was changed. Independent review and game
+visual/performance acceptance remain parent gates.
