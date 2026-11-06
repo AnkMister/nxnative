@@ -76,6 +76,7 @@ int main(void) { @autoreleasepool {
     alarm(30); setbuf(stdout, NULL);
     setenv("DM_PRESENT_HZ", "0", 1);
     mtl_init();
+    mtl_present_layer(8, 8);   // This fixture owns a square compositor layer.
     g_test_layer = offscreen_layer(); g_layers = [NSMutableArray new];
     mtl_present_layer(8, 8);   // a layer of the drawables' shape, so the picture fills them: left to the default, the display's 16:9, it has bars in a square drawable (present_shape)
     // Display-link mode without a link thread: link_sync sees a started link that is not there yet, the present thread leaves the queue to the callback

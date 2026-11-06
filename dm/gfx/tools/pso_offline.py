@@ -8,8 +8,9 @@
 #   · left out as the host leaves them out (to the draws): a reflection of another chain version or none, a vertex shader with stage inputs and no pulling library, a vertex library that
 #     writes the layer (render_target_array_index), a pixel shader that reads the primitive ID (its reflection's raster.primitive_id: the host builds its pipelines whole, since
 #     through a base every primitive reads 0), a missing library or entry point
-#   · a pair whose functions declare function constants is left to the device (rest_pairs.tsv): the host specializes such functions with an empty set of values, and metal-tt makes
+#   · without --aot, a pair whose functions declare function constants is left to the device (rest_pairs.tsv): the host specializes such functions with an empty set of values, and metal-tt makes
 #     no specialized function from a library (applegpu-nt: "cannot find private metadata"), nor the function unspecialized ("cannot lower module with unresolved function constants")
+# --aot with --seen/--user captures exact final states and typed constants. Constant descriptors use the matching local Mac --host compiler/serializer instead of metal-tt.
 # Output folder (what the app bundles as pso/, the host's DM_PSO_BUNDLE):
 #   <arch>.mtl4a     one archive per GPU architecture (applegpu_g18p = A19 / A19 Pro); the host opens the one named after its device's architecture
 #   prebuilt.tsv     what the archives cover, in the host's stamp format (pso_prebuild): chain version, depth mode, the pair lists' size and SHA-256. The host skips its prebuild when
@@ -18,8 +19,9 @@
 #   archive.tsv      what was built: architectures, OS minimum, toolchain, bases (for people and logs; the host does not read it)
 # Each archive is made again only when its compiler inputs change (key.<arch> in the work folder): the complete pipeline configuration without library locations,
 # the referenced libraries' bytes, architecture, platform, minimum OS and metal-tt version. Chain/profile stamps are validated and refreshed independently.
-# More bases than --batch-size are compiled in sequential groups (batches.<arch>/<index>/ in the work folder, each cached by its own inputs) and merged with metal-pack: one metal-tt on
+# More bases than --batch-size are compiled in bounded groups (batches.<arch>/<index>/ in the work folder, each cached by its own inputs) and merged with metal-pack: one metal-tt on
 # Super Mario Odyssey's 32,864 bases runs an 8 GB Mac out of paging space (docs/reference/shaders.md, Bounded groups for the offline pipeline compiler). The output is the same single file.
+# DM_PSO_J: independent cached batch workers; DM_METAL_PACK_THREADS: merge threads (both default 1).
 # Usage: pso_offline.py --msl <b-<chain> folder> --out <folder> --work <folder> [--game <id>] [--pairs <shader_pairs.tsv> [--pairs <pso_pairs.tsv>]] [--gpu g18p[,g17p]]
 #          [--depth gl|zero] [--platform ios|macos] [--os-min 27.0] [--script-only] [--batch-size N]
 #   --game: the profile (DM_GAMES_DIR as for game.py) whose shader_pairs.tsv and pso_pairs.tsv are the pairs, and whose depth_mode key the depth mode, unless --pairs / --depth say;
@@ -28,11 +30,18 @@
 #   --os-min: the archives' system (default: for iOS the SDK's major version, e.g. 27.0; for macOS the major version this Mac runs, since the Mac app is built for the Mac that builds it).
 #   A device opens only an archive of its own major version (macOS 27.2 refused archives made for 26.0 and 26.6 and opened those for 27.0 and 27.2), and builds the bases itself
 #   otherwise: the SDK's version on a Mac whose system is older than its Xcode's SDK (macOS 26.6 with Xcode 27.1) left that Mac without them (GitHub issue #673)
+import concurrent.futures as cf
 import argparse, filecmp, hashlib, json, os, shutil, struct, subprocess, sys, time
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'tools'))
 import romfs, shader_lib   # the libraries may be one file (shader_lib.py), read in place; metal-tt alone needs files of its own (real_libraries)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pso_aot
+AOT_ENUMS = {}
+AOT_HOST = None
+AOT_SHADER_MAP = None
+AOT_ZERO = False
 
 LAYER = b'render_target_array_index'
 BATCH = 1000   # bases per metal-tt run: Odyssey's largest compiler lifetime footprint at this size was 2.065 GiB on an 8 GB M2
@@ -82,15 +91,23 @@ def functions(path):
         count = struct.unpack_from('<I', b, fo)[0]; p = fo + 4; names = []
         for _ in range(count):   # each entry: its size (counting the size field), then tags
             size = struct.unpack_from('<I', b, p)[0]; names.append(tags(p + 4, p + size)[b'NAME'].rstrip(b'\0').decode()); p += size
-        consts, p = [], po
-        for _ in range(count):   # each entry: its size (not counting the size field), then tags
-            size = struct.unpack_from('<I', b, p)[0]; consts.append(b'CNST' in tags(p + 4, p + 4 + size)); p += 4 + size
-        if p != po + ps: raise ValueError(f'{path}: public metadata does not match the function list')
+        # metal -c + metallib excludes the size word; direct metal -o includes
+        # it on current Xcode. Validate the complete section in either format.
+        for includes_size in (False, True):
+            consts, p = [], po
+            try:
+                for _ in range(count):
+                    size = struct.unpack_from('<I', b, p)[0]; end = p + size + (0 if includes_size else 4)
+                    if end > po + ps or end <= p + 4: raise ValueError('metadata bounds')
+                    consts.append(b'CNST' in tags(p + 4, end)); p = end
+                if p == po + ps: break
+            except (struct.error, ValueError): pass
+        else: raise ValueError(f'{path}: public metadata does not match the function list')
     except (struct.error, KeyError) as e: raise ValueError(f'{path}: unreadable function list ({e})') from e
     return dict(zip(names, consts))
 
 
-def plan(lib_dir, chain, pairs, zero):
+def plan(lib_dir, chain, pairs, zero, aot=False):
     """The bases the archive holds: [(vertex library, vertex entry, pixel library, pixel entry)], the pairs left to the device (function constants), and counts of the pairs left out"""
     lib_dir = romfs.Path(lib_dir); js, fns, layer = {}, {}, {}
     def refl(key):
@@ -109,7 +126,7 @@ def plan(lib_dir, chain, pairs, zero):
     bases, rest, seen, left = [], [], set(), dict.fromkeys(('reflection', 'stage inputs', 'library', 'layer', 'primitive ID', 'entry'), 0)
     for vk, fk in pairs:
         vj, fj = refl(vk), refl(fk)
-        if not vj or not fj or vj.get('chain') != chain or fj.get('chain') != chain: left['reflection'] += 1; continue
+        if not vj or not fj or vj.get('chain') != chain or fj.get('chain') != chain or vj.get('mesh_stage'): left['reflection'] += 1; continue
         ventry = vj['entry_z'] if zero and vj.get('entry_z') else vj.get('entry'); fentry = fj.get('entry') or 'main0'
         pull = isinstance(vj.get('pull'), dict)
         if not pull and vj.get('vertex_inputs'): left['stage inputs'] += 1; continue
@@ -117,27 +134,40 @@ def plan(lib_dir, chain, pairs, zero):
         vl, fl = vk + ('_bp' if pull else '_b'), fk + '_b'
         vf, ff = fn(vl), fn(fl)
         if vf is None or ff is None: left['library'] += 1; continue
-        if writes_layer(vl): left['layer'] += 1; continue
+        layered = writes_layer(vl)
+        if layered and not aot: left['layer'] += 1; continue
         if ventry not in vf or fentry not in ff: left['entry'] += 1; continue
         if vf[ventry] or ff[fentry]: rest.append((vk, fk)); continue
-        b = (vl, ventry, fl, fentry)
+        b = (vl, ventry, fl, fentry) + (('layer',) if layered else ())
         if b not in seen: seen.add(b); bases.append(b)
     return bases, rest, left
 
 
 def script(lib_dir, bases):
     """A Metal 4 pipelines script (metal4-pipelines-script(5), the .mtl4-json format metal-tt reads) with one render pipeline descriptor per base"""
-    libs, fns, pipes = {}, {}, []
-    def fd(lib, entry):
-        if lib not in libs: libs[lib] = {'label': lib, 'path': str(Path(lib_dir).resolve() / f'{lib}.metallib')}
+    libs, fns, specs, pipes = {}, {}, {}, []
+    def fd(lib, entry, constants=None):
+        if lib not in libs: libs[lib] = {'label': lib, 'path': str(pso_aot.library_path(lib_dir, lib).resolve())}
         label = f'{lib}.{entry}'
         if label not in fns: fns[label] = {'label': label, 'library': f'lib:{lib}', 'name': entry}
-        return f'fnd:{label}'
-    for vl, ve, fl, fe in bases:
+        if constants is None: return f'fnd:{label}'
+        specialized = label + '.' + hashlib.sha256(json.dumps(constants, separators=(',', ':')).encode()).hexdigest()[:16]
+        specs[specialized] = {'label': specialized, 'function_descriptor': f'fnd:{label}', 'constant_values': [
+            {'id_type': 'FunctionConstantIndex', 'id': {'data': index}, 'value_type': 'ConstantBool' if typ == 'bool' else 'ConstantInt', 'value': {'data': int(value)}} for index, typ, value in constants]}
+        return f'fnd:{specialized}'
+    extra = {}
+    for row in bases:
+        if isinstance(row, dict):
+            name, desc = pso_aot.configuration(row, fd, AOT_ENUMS)
+            extra.setdefault(name, []).append(desc); continue
+        vl, ve, fl, fe = row[:4]
         pipes.append({'vertex_function_descriptor': fd(vl, ve), 'fragment_function_descriptor': fd(fl, fe),
-                      'color_attachments': [dict.fromkeys(COLOUR, 'Unspecialized') for _ in range(8)]})
-    return {'libraries': list(libs.values()), 'function_descriptors': {'library_function_descriptors': list(fns.values())},
-            'pipeline_descriptors': {'render_pipeline_descriptors': pipes}}
+                      'color_attachments': [dict.fromkeys(COLOUR, 'Unspecialized') for _ in range(8)],
+                      **({'input_primitive_topology': 'Triangle'} if len(row) == 5 else {})})
+    pipes.extend(extra.pop('render_pipeline_descriptors', []))
+    return {'libraries': list(libs.values()), 'function_descriptors': dict({'library_function_descriptors': list(fns.values())},
+            **({'specialized_function_descriptors': list(specs.values())} if specs else {})),
+            'pipeline_descriptors': dict(extra, render_pipeline_descriptors=pipes)}
 
 
 def write_script(path, configuration):
@@ -152,10 +182,11 @@ def write_script(path, configuration):
 def library_digest(lib_dir, bases):
     """The bytes metal-tt consumes: a profile/chain stamp does not change when the same shaders are rebuilt by another Metal compiler."""
     h = hashlib.sha256()
-    for name in sorted({lib for vl, _, fl, _ in bases for lib in (vl, fl)}):
+    names = {lib for row in bases if not isinstance(row, dict) for lib in (row[0], row[2])} | pso_aot.libraries([row for row in bases if isinstance(row, dict)])
+    for name in sorted(names):
         h.update(name.encode() + b'\0')
         lib = hashlib.sha256()
-        with romfs.open(os.path.join(lib_dir, f'{name}.metallib'), 'rb') as f:
+        with romfs.open(pso_aot.library_path(lib_dir, name), 'rb') as f:
             while chunk := f.read(1 << 20): lib.update(chunk)
         h.update(lib.digest())
     return h.hexdigest()
@@ -204,6 +235,20 @@ def os_min_default(platform):
     return v.split('.')[0] + '.0'
 
 
+def archive_os_min(platform, explicit, native):
+    if not native: return explicit or os_min_default(platform)
+    # MTL4's on-device serializer stamps the running OS major/minor and has no
+    # deployment-target option. All metal-tt pieces must use that exact triple.
+    runtime = '.'.join(subprocess.check_output(['sw_vers', '-productVersion'], text=True).strip().split('.')[:2])
+    if explicit and explicit != runtime:
+        raise ValueError(f'native function-constant archives require --os-min {runtime} on this Mac (got {explicit})')
+    return runtime
+
+
+class DescriptorRefused(SystemExit):
+    """Metal rejected a linked descriptor, rather than a storage/tool failure."""
+
+
 def compile_archive(js, part, work, arch, platform, osmin, count):
     """One compiler invocation, with its temporaries on the work volume. Never publish a failed output."""
     part.unlink(missing_ok=True)
@@ -218,6 +263,8 @@ def compile_archive(js, part, work, arch, platform, osmin, count):
         free = shutil.disk_usage(work).free
         clear_temporaries(work); part.unlink(missing_ok=True)
         full = f' ({free / 2**30:.1f} GB free on the volume of {work} when it failed: likely out of disk space)' if free < 1 << 30 else ''
+        if not full and 'cannot emit pipeline' in log_path.read_text():
+            raise DescriptorRefused(log_path.read_text()[-2000:])
         sys.exit(f'[RED] pso_offline: metal-tt failed for {arch} (exit {r.returncode}){full}: {log_path.read_text()[-2000:]}')
 
 
@@ -226,7 +273,9 @@ def real_libraries(lib_dir, bases, work):
     An archive whose key still holds compiles nothing and gets none"""
     if os.path.isdir(lib_dir): return lib_dir
     real = Path(work) / 'libraries'; shutil.rmtree(real, ignore_errors=True); real.mkdir(parents=True)
-    for name in sorted({lib for vl, _, fl, _ in bases for lib in (vl, fl)}):
+    names = {lib for row in bases if not isinstance(row, dict) for lib in (row[0], row[2])}
+    names |= pso_aot.libraries([row for row in bases if isinstance(row, dict)])
+    for name in sorted(n for n in names if not n.startswith('host:')):
         with romfs.open(os.path.join(lib_dir, f'{name}.metallib'), 'rb') as f, open(real / f'{name}.metallib', 'wb') as o: shutil.copyfileobj(f, o)
     return real
 
@@ -240,39 +289,107 @@ def compile_batch(lib_dir, bases, work, arch, platform, osmin, toolchain):
     configuration = script(lib_dir, bases)
     js = work / 'bases.mtl4-json'; write_script(js, configuration)
     key = archive_key(configuration, library_digest(lib_dir, bases), arch, platform, osmin, toolchain)
+    native = any(pso_aot.has_constants(row) for row in bases)
+    if native:
+        if platform != 'macos' or not AOT_HOST or not AOT_SHADER_MAP:
+            raise ValueError('function-constant archives require the local Mac --host and --shader-map (or --game)')
+        key = hashlib.sha256((key + hashlib.sha256(Path(AOT_HOST).read_bytes()).hexdigest()).encode()).hexdigest()
     del configuration
     dst, kf = work / f'{arch}.mtl4a', work / f'key.{arch}'
     if dst.is_file() and dst.stat().st_size and kf.is_file() and kf.read_text().strip() == key: return dst, True
+    refused = work / f'refused.{arch}.json'
+    if refused.is_file():
+        saved = json.loads(refused.read_text())
+        if saved['key'] == key: raise DescriptorRefused(saved['error'])
     kf.unlink(missing_ok=True)
     part = work / f'{arch}.mtl4a.partial'
+    if native:
+        # metal-tt has refused specialized library functions on this toolchain
+        # (private metadata/unresolved constants). Capture the exact MTL4 API
+        # descriptor at build time on its target Mac instead. No game is loaded.
+        rows = [row for b in bases for row in ([b] if isinstance(b, dict) else pso_aot.base_rows([b], shader_lib.name_of(lib_dir)[2:]))]
+        source = work / 'exact.json'; source.write_text(json.dumps(rows, sort_keys=True) + '\n')
+        env = pso_aot.tool_env(lib_dir, AOT_SHADER_MAP, 'compile', source.resolve(), part.resolve(), AOT_ZERO, arch)
+        log = work / f'native-compile.{arch}.log'
+        part.unlink(missing_ok=True)
+        with log.open('w') as f: r = subprocess.run([str(Path(AOT_HOST).resolve())], env=env, stdout=f, stderr=subprocess.STDOUT)
+        if r.returncode == 2:
+            audit = Path(str(part) + '.refused.json')
+            raise DescriptorRefused(audit.read_text() if audit.is_file() else log.read_text()[-2000:])
+        if r.returncode or not part.is_file():
+            raise RuntimeError(f'exact native archive failed (no states dropped): {log}')
+        os.replace(part, dst); kf.write_text(key + '\n'); return dst, False
     write_script(js, script(real_libraries(lib_dir, bases, work), bases))
-    compile_archive(js, part, work, arch, platform, osmin, len(bases))
-    clear_real_libraries(work)
+    try:
+        compile_archive(js, part, work, arch, platform, osmin, len(bases))
+    except DescriptorRefused as error:
+        tmp = refused.with_suffix('.partial')
+        tmp.write_text(json.dumps({'key': key, 'error': str(error)}))
+        os.replace(tmp, refused)
+        raise
+    finally:
+        clear_real_libraries(work)
+    refused.unlink(missing_ok=True)
     os.replace(part, dst); kf.write_text(key + '\n')
     return dst, False
 
 
-def compile_batches(lib_dir, bases, work, part, arch, platform, osmin, toolchain, batch_size):
+def compile_aot_batch(lib_dir, bases, work, arch, platform, osmin, toolchain):
+    """Bisect only actual descriptor refusals; keep every successful child cached."""
+    try:
+        piece, reused = compile_batch(lib_dir, bases, work, arch, platform, osmin, toolchain)
+        return [piece], []
+    except DescriptorRefused as error:
+        if len(bases) == 1:
+            print(f'[RED] AOT descriptor refused: {json.dumps(bases[0], sort_keys=True)}: {error}', flush=True)
+            return [], [{'descriptor': bases[0], 'error': str(error)}]
+        middle = len(bases) // 2
+        pieces, rejected = [], []
+        for name, group in (('left', bases[:middle]), ('right', bases[middle:])):
+            ready, bad = compile_aot_batch(lib_dir, group, work / name, arch, platform, osmin, toolchain)
+            pieces.extend(ready); rejected.extend(bad)
+        return pieces, rejected
+
+
+def compile_batches(lib_dir, bases, work, part, arch, platform, osmin, toolchain, batch_size, aot=False, rejected=None):
     """Limit compiler input size, then combine every completed group into the usual single archive.
 
     This bounds input count, not memory: a single pipeline can still exceed Apple's compiler resources.
     On M2, merged archives passed archive-only lookups of two synthetic pipelines and all 32,864 Odyssey bases.
     Other workloads and compiler versions can have different resource use.
     """
-    pieces = []; total = (len(bases) + batch_size - 1) // batch_size
+    total = (len(bases) + batch_size - 1) // batch_size
     for old in (work / f'batches.{arch}').glob('[0-9]*'):   # the groups of a longer list than this one
         if int(old.name) > total: shutil.rmtree(old)
-    for index, start in enumerate(range(0, len(bases), batch_size), 1):
+    workers = int(os.environ.get('DM_PSO_J', '1'))
+    pack_threads = int(os.environ.get('DM_METAL_PACK_THREADS', '1'))
+    if workers < 1 or pack_threads < 1: raise ValueError('archive worker counts must be positive')
+    def build_group(item):
+        index, start = item
         group = bases[start:start + batch_size]
         print(f'pso_offline: {arch}: batch {index}/{total}: {len(group)} bases, compiling or checking cache', flush=True)
-        piece, reused = compile_batch(lib_dir, group, work / f'batches.{arch}' / f'{index:05d}', arch, platform, osmin, toolchain)
-        pieces.append(piece)
+        folder = work / f'batches.{arch}' / f'{index:05d}'
+        if aot:
+            ready, bad = compile_aot_batch(lib_dir, group, folder, arch, platform, osmin, toolchain)
+            print(f'pso_offline: {arch}: batch {index}/{total}: ready, {len(bad)} refused descriptors', flush=True)
+            return ready, bad
+        piece, reused = compile_batch(lib_dir, group, folder, arch, platform, osmin, toolchain)
         print(f'pso_offline: {arch}: batch {index}/{total}: ready ({"reused" if reused else "compiled"})', flush=True)
+        return [piece], []
+    groups = enumerate(range(0, len(bases), batch_size), 1)
+    if workers == 1:
+        results = list(map(build_group, groups))
+    else:
+        with cf.ThreadPoolExecutor(max_workers=workers) as pool:
+            results = list(pool.map(build_group, groups))
+    pieces = [piece for ready, bad in results for piece in ready]
+    if rejected is not None: rejected.extend(item for ready, bad in results for item in bad)
+    if not pieces: raise SystemExit('[RED] pso_offline: every descriptor was refused')
     part.unlink(missing_ok=True)
     need, free = max(2 << 30, sum(p.stat().st_size for p in pieces)), shutil.disk_usage(work).free
     if free < need: sys.exit(f'[RED] pso_offline: {free / 2**30:.1f} GB free before merging; need at least {need / 2**30:.1f} GB')
     print(f'pso_offline: {arch}: merging {total} batches', flush=True)
-    cmd = ['xcrun', '-sdk', sdk(platform), 'metal-pack', '-nthreads', '1', *map(str, pieces), '-o', str(part)]
+    cmd = ['xcrun', '-sdk', sdk(platform), 'metal-pack', '-nthreads', str(pack_threads), *map(str, pieces), '-o', str(part)]
     log_path = work / f'metal-pack.{arch}.log'
     with log_path.open('w') as log:
         r = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, env=dict(os.environ, TMPDIR=str(work)))
@@ -293,14 +410,22 @@ def main(argv=None):
     ap.add_argument('--platform', choices=('ios', 'macos'), default='ios')
     ap.add_argument('--os-min', help='minimum OS of the archives (default: iOS, the SDK\'s major version; macOS, this Mac\'s)')
     ap.add_argument('--script-only', action='store_true', help='write the script and the stamp, run no metal-tt')
-    ap.add_argument('--batch-size', type=int, default=BATCH, help=f'compile sequential groups of at most N bases and merge with metal-pack, when there are more (default {BATCH}; 0: one compiler invocation)')
+    ap.add_argument('--batch-size', type=int, default=BATCH, help=f'compile groups of at most N bases and merge with metal-pack, when there are more (default {BATCH}; 0: one compiler invocation)')
+    ap.add_argument('--aot', action='store_true', default=os.getenv('DM_AOT') == '1', help='expanded compute/mesh/layer/helper coverage and exact learned descriptors (opt-in)')
+    ap.add_argument('--seen', action='append', default=[], help='per-game pso_seen.jsonl, repeatable; stale entries fail visibly')
+    ap.add_argument('--user', action='append', default=[], help='legacy pso_user.tsv, decoded by this build\'s --host before archive planning')
+    ap.add_argument('--host', help='matching source-built Mac dmhost; import and exact constant archive tool modes never load a game')
+    ap.add_argument('--rebase-seen', action='store_true', help='explicitly carry observed final state to this chain after function/library validation')
+    ap.add_argument('--shader-map', help='program-source evidence for native mesh combinations (default: profile shader_map.tsv)')
     a = ap.parse_args(argv)
+    if (a.seen or a.user or a.rebase_seen) and not a.aot: ap.error('--seen/--user/--rebase-seen require --aot')
     if a.batch_size < 0: ap.error('--batch-size must be zero or positive')
     if a.game:
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'games')); import game
         g = game.load(a.game)
         a.pairs = a.pairs or [str(g.table('shader_pairs.tsv')), str(g.table('pso_pairs.tsv'))]
         a.depth = a.depth or g.get('depth_mode', 'gl')
+        a.shader_map = a.shader_map or str(g.table('shader_map.tsv'))
         if a.depth not in ('gl', 'zero'): sys.exit(f'[RED] pso_offline: {g.id}: depth_mode must be gl or zero: {a.depth}')
     if not a.pairs: sys.exit('[RED] pso_offline: no pair lists (--pairs or --game)')
     a.depth = a.depth or 'gl'
@@ -313,8 +438,40 @@ def main(argv=None):
     zero = a.depth == 'zero'
     t0 = time.time()
     pairs = read_pairs(text)
-    bases, rest, left = plan(lib_dir, chain, pairs, zero)
+    bases, rest, left = plan(lib_dir, chain, pairs, zero, aot=a.aot)
     work.mkdir(parents=True, exist_ok=True); out.mkdir(parents=True, exist_ok=True)
+    if a.aot:
+        global AOT_ENUMS, AOT_HOST, AOT_SHADER_MAP, AOT_ZERO
+        AOT_ENUMS = pso_aot.enums(a.platform)
+        AOT_HOST, AOT_SHADER_MAP, AOT_ZERO = a.host, a.shader_map, zero
+        host_dir = pso_aot.prepare_helpers(work, a.platform)
+        learned = a.seen or ([os.environ['DM_PSO_SEEN']] if os.environ.get('DM_PSO_SEEN') else [])
+        imported = pso_aot.import_user(a.host, lib_dir, a.shader_map, a.user, work, zero) if a.user else []
+        rows, gaps = pso_aot.plan(lib_dir, chain, [*learned, *imported], functions, host_dir, a.shader_map, zero, a.rebase_seen)
+        refused_imports = [{**row, 'source': n} for n, path in enumerate(imported) for row in json.loads(Path(str(path) + '.refused.json').read_text())]
+        (out / 'aot-import-refused.json').write_text(json.dumps(refused_imports, indent=2) + '\n')
+        gaps['stale native rows'] = sum(r['stale'] for r in refused_imports)
+        gaps['unreplayable native rows'] = sum(not r['stale'] for r in refused_imports)
+        if os.environ.get('DM_AOT_STRICT') == '1' and gaps['unreplayable native rows']:
+            raise SystemExit('[RED] strict AOT: native states could not be replayed; see aot-import-refused.json (no app should be packed)')
+        if a.user:
+            profile = Path(a.shader_map).with_name('pso_manifest.tsv') if a.shader_map else None
+            (out / 'pso_manifest.tsv').write_text(pso_aot.manifest(profile, [str(path) + '.manifest.tsv' for path in imported]))
+        else: (out / 'pso_manifest.tsv').unlink(missing_ok=True)
+        inventory = pso_aot.base_rows(bases, chain) + rows
+        bases.extend(rows)
+        (out / 'aot.json').write_text(json.dumps(inventory, sort_keys=True, separators=(',', ':')) + '\n')
+        classes = {k: sum(r['class'] == k for r in rows) for k in ('compute', 'mesh', 'render')}
+        report = {'format': 1, 'chain': chain, 'classes': classes, 'gaps': dict(gaps, **left), 'constant_pairs': len(rest),
+                  'layer_bases': sum(isinstance(b, tuple) and len(b) == 5 for b in bases),
+                  'unknown': ['unobserved final render/mesh state', 'unobserved function-constant variants', 'diagnostic source', 'helper render state until learned'],
+                  'seen_files': len(learned), 'user_files': len(a.user), 'rebased_seen': a.rebase_seen,
+                  'constant_descriptors': sum(pso_aot.has_constants(row) for row in rows),
+                  'render_bases': len(inventory) - len(rows), 'exact_learned_render': sum(r['class'] == 'render' and not r.get('base') for r in rows),
+                  'complete': False, 'archive_verified': False}
+        (out / 'aot-preflight.json').write_text(json.dumps(report, indent=2) + '\n')
+    else:
+        for name in ('aot.json', 'aot-preflight.json', 'aot-import-refused.json', 'pso_manifest.tsv'): (out / name).unlink(missing_ok=True)
     js = work / 'bases.mtl4-json'   # metal-tt takes the format from the extension: .mtl4-json is Metal 4's (.mtlp-json is the Metal 3 format)
     configuration = script(lib_dir, bases)
     write_script(js, configuration)
@@ -325,24 +482,59 @@ def main(argv=None):
     if pairs and not bases and not rest: sys.exit('[RED] pso_offline: no base to build')   # pairs, but the host would leave out every one: wrong or missing libraries
     if not pairs: print('pso_offline: no pairs (only a header): nothing to build, no archive')   # a profile whose split found no pair (GitHub issue #338)
     if not bases: archs = []   # no pair, or every eligible pair needs device specialization; clear old archives and still write the stamp and the remainder list
-    osmin = a.os_min or os_min_default(a.platform); tv = tool_version(a.platform) if bases else 'not used (function constants only)'
+    native = any(pso_aot.has_constants(row) for row in bases)
+    osmin = archive_os_min(a.platform, a.os_min, native); tv = tool_version(a.platform) if bases else 'not used (function constants only)'
     libraries = library_digest(lib_dir, bases)
     keys = {arch: archive_key(configuration, libraries, arch, a.platform, osmin, tv) for arch in archs}
+    if any(pso_aot.has_constants(row) for row in bases):
+        if not a.host or not a.shader_map or a.platform != 'macos': raise ValueError('captured function constants require --platform macos --host --shader-map (or --game)')
+        compiler = hashlib.sha256(Path(a.host).read_bytes()).hexdigest()
+        keys = {arch: hashlib.sha256((key + compiler).encode()).hexdigest() for arch, key in keys.items()}
     del configuration   # the compiler reads the script from disk
+    rejected_archs = {}
     for arch, key in keys.items():
         dst, kf = out / f'{arch}.mtl4a', work / f'key.{arch}'
-        if dst.is_file() and kf.is_file() and kf.read_text().strip() == key: print(f'pso_offline: {arch}: reused ({dst.stat().st_size / 2**20:.0f} MB)'); continue
+        rejected_file = out / f'aot-refused.{arch}.json'
+        if dst.is_file() and kf.is_file() and kf.read_text().strip() == key:
+            rejected_archs[arch] = json.loads(rejected_file.read_text()) if rejected_file.is_file() else []
+            for old in out.glob(f'{arch}*.mtl4a'):   # this branch publishes one archive per architecture, so leftover split parts are obsolete
+                if old.stem.split('.')[0] == arch and old != dst: old.unlink()
+            print(f'pso_offline: {arch}: reused ({dst.stat().st_size / 2**20:.0f} MB)'); continue
         kf.unlink(missing_ok=True); dst.unlink(missing_ok=True)
         part = work / f'{arch}.mtl4a.partial'; part.unlink(missing_ok=True)
         t1 = time.time(); print(f'pso_offline: {arch}: metal-tt, {len(bases)} bases (minutes) ...', flush=True)
-        if a.batch_size and len(bases) > a.batch_size:
-            compile_batches(lib_dir, bases, work, part, arch, a.platform, osmin, tv, a.batch_size)
+        refused_rows = []
+        if a.aot or a.batch_size and len(bases) > a.batch_size:
+            compile_batches(lib_dir, bases, work, part, arch, a.platform, osmin, tv, a.batch_size or len(bases), a.aot, refused_rows)
         else:
             write_script(js, script(real_libraries(lib_dir, bases, work), bases))
             compile_archive(js, part, work, arch, a.platform, osmin, len(bases))
             clear_real_libraries(work)
-        os.replace(part, dst); kf.write_text(key + '\n')
+        os.replace(part, dst)
+        rejected_tmp = rejected_file.with_suffix('.partial')
+        rejected_tmp.write_text(json.dumps(refused_rows, indent=2) + '\n')
+        os.replace(rejected_tmp, rejected_file)
+        kf.write_text(key + '\n')
+        rejected_archs[arch] = refused_rows
         print(f'pso_offline: {arch}: {dst.stat().st_size / 2**20:.0f} MB in {time.time() - t1:.0f} s')
+    if a.aot:
+        def identity(row): return json.dumps(row, sort_keys=True, separators=(',', ':'))
+        rejected_rows = []
+        for refused in rejected_archs.values():
+            for item in refused:
+                row = item['descriptor']
+                rejected_rows.extend([row] if isinstance(row, dict) else pso_aot.base_rows([tuple(row)], chain))
+        denied = {identity(row) for row in rejected_rows}
+        kept = [row for row in inventory if identity(row) not in denied]
+        (out / 'aot.json').write_text(json.dumps(kept, sort_keys=True, separators=(',', ':')) + '\n')
+        report['refused_descriptors'] = rejected_archs
+        report['gaps']['compiler-refused descriptors'] = len(denied)
+        report['classes'] = {k: sum(row['class'] == k and not (k == 'render' and row.get('base')) for row in kept) for k in ('compute', 'mesh', 'render')}
+        report['layer_bases'] = sum(row['class'] == 'render' and row.get('base', False) and row.get('topology') == 3 for row in kept)
+        report['render_bases'] = sum(row['class'] == 'render' and row.get('base', False) for row in kept)
+        (out / 'aot-preflight.json').write_text(json.dumps(report, indent=2) + '\n')
+        if os.environ.get('DM_AOT_STRICT') == '1' and any(not row.get('base') and identity(row) in denied for row in rows):
+            raise SystemExit('[RED] strict AOT: an exact descriptor was refused; see aot-preflight.json (no app should be packed)')
     for f in out.glob('*.mtl4a'):   # architectures no longer asked for
         if f.stem not in archs: f.unlink()
     (out / 'prebuilt.tsv').write_text(st)
@@ -350,7 +542,7 @@ def main(argv=None):
     if rest: rp.write_text(''.join(f'{v}\t{f}\n' for v, f in rest))
     else: rp.unlink(missing_ok=True)
     (out / 'archive.tsv').write_text(f'# the pipeline archive made offline (dm/gfx/tools/pso_offline.py); the host reads prebuilt.tsv, not this file\narch\t{" ".join(archs)}\n'
-                                     f'platform\t{a.platform}\t{osmin}\ntoolchain\t{tv}\nbases\t{len(bases)}\nrest\t{len(rest)}\n')
+                                     f'platform\t{a.platform}\t{osmin}\ntoolchain\t{tv}\nbases\t{len(bases) - (len(denied) if a.aot else 0)}\nrest\t{len(rest)}\n')
     return 0
 
 

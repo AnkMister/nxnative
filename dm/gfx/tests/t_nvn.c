@@ -61,6 +61,15 @@ static size_t tex_size(int fmt, int w, int h, int flags, size_t *align) {
 }
 
 int main(void) {
+    EXPECT("null buffer address", 0, h_nvnBufferGetAddress(NULL));
+    EXPECT("null buffer mapping", 0, (uintptr_t)h_nvnBufferMap(NULL));
+    EXPECT("null buffer size", 0, h_nvnBufferGetSize(NULL));
+    EXPECT("null buffer pool", 0, (uintptr_t)h_nvnBufferGetMemoryPool(NULL));
+    EXPECT("null buffer offset", 0, h_nvnBufferGetMemoryOffset(NULL));
+    EXPECT("null pool flags", 0, h_nvnMemoryPoolGetFlags(NULL));
+    EXPECT("null pool mapping", 0, (uintptr_t)h_nvnMemoryPoolMap(NULL));
+    EXPECT("null pool size", 0, h_nvnMemoryPoolGetSize(NULL));
+    setenv("DM_NVN_COPY_STATE", "1", 1);
     setenv("DM_NVN_COUNT", "1", 1);   // the call-count checks below need the counting trampolines (off by default)
     // Engine-native limiters have no FPS state page. Their launcher cap must
     // still pace presents and select the display-link rate in display mode.

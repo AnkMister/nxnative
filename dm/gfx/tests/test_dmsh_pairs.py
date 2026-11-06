@@ -90,6 +90,15 @@ class Pairing(unittest.TestCase):
         self.assertEqual(src.count('float4 v0 [[user(locn0)]];'), 1)
         self.assertEqual(self.ns['vs_pad']('v', src), (src, []))
 
+    def test_mesh_padding_covers_both_depth_entries(self):
+        from dm.gfx.tests.test_dmsh_meshstage import Stage
+        mesh, _ = Stage().mesh()
+        src, pad = self.ns['vs_pad']('v', mesh)
+        self.assertEqual(pad, [0, 6])
+        for loc in pad:
+            self.assertEqual(src.count(f'v.dm_pad{loc} = float4(0.0, 0.0, 0.0, 1.0);'), 2)
+        self.assertEqual(self.ns['vs_pad']('v', src), (src, []))
+
     def test_profile_table_wins_and_optional_table(self):
         self.g.table('pso_pairs.tsv').write_text('v\tf6\n')
         self.assertEqual(self.ns['load_pairs'](self.g, self.package), {'v': {'f0', 'f6'}})

@@ -117,11 +117,11 @@ static void rec_exec(const rec_t *r) {
         if (r->op == RO_COMMIT) ubc_wait(a[2]);   // the uniform shadows this command buffer reads
         id<MTL4CommandBuffer> buffers[] = {r->op == RO_COMMIT ? g_rx_cb : rec_id(a[1])}; MTL4CommitOptions *o = rec_id(a[0]);
         pthread_mutex_lock(&g_res_mu);
-        if (o) [g_q4 commit:buffers count:1 options:o]; else [g_q4 commit:buffers count:1];
+        safe_gpu_commit4_locked(buffers, 1, o);
         pthread_mutex_unlock(&g_res_mu);
         if (r->op == RO_COMMIT) g_rx_cb = nil;
         break; }
-    case RO_SIGNAL: [g_q4 signalEvent:rec_id(a[0]) value:a[1]]; break;
+    case RO_SIGNAL: if (!atomic_load(&g_safe_stopped)) [g_q4 signalEvent:rec_id(a[0]) value:a[1]]; break;
     case RO_Q_BLOCK: ((void (^)(void))rec_id(a[0]))(); break;
     case RO_RE_BEGIN: g_rx_enc = [(id<MTL4CommandBuffer>)g_rx_cb renderCommandEncoderWithDescriptor:rec_id(a[0])]; break;
     case RO_CE_BEGIN: g_rx_enc = [(id<MTL4CommandBuffer>)g_rx_cb computeCommandEncoder]; break;
@@ -345,15 +345,15 @@ static void rec_commit(id cb, MTL4CommitOptions *o) {
     if ([cb isKindOfClass:[DmRecCB class]]) { rec_t *r = rec_put(RO_COMMIT, 1); r->a[0] = rec_obj(o); r->a[2] = ubc_head(); return; }
     ubc_wait(ubc_head());
     id<MTL4CommandBuffer> buffers[] = {cb};
-    if (o) [g_q4 commit:buffers count:1 options:o]; else [g_q4 commit:buffers count:1];
+    safe_gpu_commit4(buffers, 1, o);
 }
 // An upload batch: its place in the queue is after what is recorded so far (it reads no uniform shadow)
 static void rec_commit_upload(id cb, MTL4CommitOptions *o) {
     if (rec_on() && g_rb_started) { rec_t *r = rec_put(RO_COMMIT_REAL, 2); r->a[0] = rec_obj(o); r->a[1] = rec_obj(cb); return; }
     id<MTL4CommandBuffer> buffers[] = {cb};
-    if (o) [g_q4 commit:buffers count:1 options:o]; else [g_q4 commit:buffers count:1];
+    safe_gpu_commit4(buffers, 1, o);
 }
 // A queue operation (a sparse texture's mapping update, nvn_mtl.m sparse_*): on the encoding thread in its place among the recorded commits, so it reaches the queue before the upload batch
 // committed after it and after the command buffers committed before it
 static void rec_queue_block(void (^block)(void)) { if (rec_on() && g_rb_started) rec_put(RO_Q_BLOCK, 1)->a[0] = rec_obj([block copy]); else block(); }
-static void rec_signal(id ev, uint64_t v) { if (rec_on() && g_rb_started) { rec_t *r = rec_put(RO_SIGNAL, 1); r->a[0] = rec_obj(ev); r->a[1] = v; } else [g_q4 signalEvent:ev value:v]; }
+static void rec_signal(id ev, uint64_t v) { if (atomic_load(&g_safe_stopped)) return; if (rec_on() && g_rb_started) { rec_t *r = rec_put(RO_SIGNAL, 1); r->a[0] = rec_obj(ev); r->a[1] = v; } else [g_q4 signalEvent:ev value:v]; }

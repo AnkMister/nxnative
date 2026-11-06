@@ -1,6 +1,7 @@
 using Ryujinx.Graphics.Shader.Decoders;
 using Ryujinx.Graphics.Shader.IntermediateRepresentation;
 using Ryujinx.Graphics.Shader.Translation;
+using Ryujinx.Graphics.Shader.Translation.Transforms;
 using static Ryujinx.Graphics.Shader.Instructions.InstEmitAluHelper;
 using static Ryujinx.Graphics.Shader.Instructions.InstEmitHelper;
 using static Ryujinx.Graphics.Shader.IntermediateRepresentation.OperandHelper;
@@ -256,7 +257,7 @@ namespace Ryujinx.Graphics.Shader.Instructions
 
             Operand addr = context.IAdd(ALocalAddress(context, x, 32, stride: false), Const((int)x.SignedField(40, 64)));
             int id = context.ResourceManager.SharedMemoryId;
-            bool compute = context.TranslatorContext.Definitions.Stage == ShaderStage.Compute;
+            bool compute = context.TranslatorContext.Definitions.Stage == ShaderStage.Compute && TensorPass.ChainsEnabled;
             Operand lane = compute ? null : ALaneId(context);
             Operand g = compute ? null : context.ShiftRightU32(lane, Const(2));
             Operand t = compute ? null : context.BitwiseAnd(lane, Const(3));

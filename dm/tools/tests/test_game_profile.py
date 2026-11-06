@@ -60,6 +60,17 @@ def macros(shader_map):
 
 
 class UpscalerKeys(unittest.TestCase):
+    def test_ndsr_pack_variants(self):
+        rows = [f"cs.bin\t{i}\tcompute\t{str(i) * 16}\t/Shader/{name}.pck#NDSR\n"
+                for i, name in enumerate(('agl_ndsr', 'agl_ndsr_vr', 'agl_ndsr_vr_light'), 1)]
+        rows += [rows[0],
+                 'cs.bin\t4\tcompute\t4444444444444444\t/Shader/agl_ndsr_vr_other.pck#NDSR\n',
+                 'vs.bin\t5\tvertex\t5555555555555555\t/Shader/agl_ndsr_vr.pck#NDSR\n',
+                 'cs.bin\t6\tcompute\tinvalid\t/Shader/agl_ndsr_vr_light.pck#NDSR\n']
+        self.assertEqual(macros(''.join(rows)), [
+            '#define DM_GAME_UPSCALER_KEYS "1111111111111111,2222222222222222,3333333333333333"',
+            '#define DM_GAME_UPSCALER_N 3'])
+
     def test_from_shader_map(self):
         none = ['#define DM_GAME_UPSCALER_KEYS ""', '#define DM_GAME_UPSCALER_N 0']   # the launcher hides the setting
         self.assertEqual(macros(None), none)

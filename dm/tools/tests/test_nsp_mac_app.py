@@ -163,6 +163,18 @@ class PackReuse(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()) as output: pack_app.pack(self.args)
         return output.getvalue()
 
+    def test_accepted_pipeline_manifest_and_audits_are_selected(self):
+        learned = self.tmp / 'pso/pso_manifest.tsv'; learned.write_text('C\taccepted_b\n')
+        for name in pack_app.AOT_PSO_FILES:
+            if '*' not in name: (self.tmp / 'pso' / name).write_text('{}\n')
+        with mock.patch.dict(os.environ, {'DM_AOT': '1'}):
+            _, _, archives, tables, _, _, _ = pack_app.selected_inputs(self.args)
+        self.assertEqual([p for p in tables if p.name == 'pso_manifest.tsv'], [learned])
+        self.assertIn(self.tmp / 'pso/aot-import-refused.json', archives)
+        with mock.patch.dict(os.environ, {'DM_AOT': '0'}):
+            _, _, archives, _, _, _, _ = pack_app.selected_inputs(self.args)
+        self.assertNotIn(self.tmp / 'pso/aot.json', archives)
+
     @property
     def key(self): return Path(self.args.out + '.key')
 
@@ -741,7 +753,7 @@ class Script(unittest.TestCase):
         with mock.patch.object(nsp, 'run', fake_run), mock.patch.object(nsp, 'PROG', self.prog), mock.patch.object(nsp, 'chain_of', lambda repo: '0123456789ab'), \
              mock.patch.object(nsp, 'mac_gpu_arch', lambda *a: 'applegpu_g14s'), mock.patch.object(nsp, 'say', self.said.append):
             nsp.mac_app(sys.executable, REPO, out, 0x01008CF01BAAC000, tmp, tmp / 'ex', tmp / 'patched', tmp / 'dmhost', tmp / 'font', tmp / 'shader/cache' if gfx == 'nvn' else tmp / 'shader',
-                        kw.get('aoc'), gfx, 'en-US', g, 'Game', '1.0.0', 'org.nxnative.01008cf01baac000', None, kw.get('sign', ''), {}, tmp, gpus=kw.get('gpus', ''))
+                        kw.get('aoc'), gfx, 'en-US', g, 'Game', '1.0.0', 'org.nxnative.01008cf01baac000', None, kw.get('sign', ''), kw.get('env', {}), tmp, gpus=kw.get('gpus', ''))
         self.pso_cmd = next((c for c in ran if c[1].endswith('pso_offline.py')), None)   # before the packer
         self.settings_cmd = next(c for c in ran if c[1].endswith('dm/games/settings.py'))
         c = ran[-1]; return {c[i]: c[i + 1] for i in range(3, len(c) - 1) if c[i].startswith('--')}, tmp
@@ -792,6 +804,26 @@ class Script(unittest.TestCase):
         self.assertNotIn(mock.call(ok=False), self.prog.end.call_args_list)
         self.assertTrue(any(m.startswith('[RED] pipeline archive: pso_offline.py failed') for m in self.said))
         self.assertFalse((tmp / 'pso/mac').exists())   # no half archive left to be picked up
+
+    def test_aot_archive_uses_both_censuses_and_matching_host(self):
+        tmp = Path(tempfile.mkdtemp(dir=TEST_ROOT)); self.addCleanup(shutil.rmtree, tmp)
+        (tmp / 'profile').mkdir(); (tmp / 'profile/shader_pairs.tsv').write_text('v\tf\n')
+        seen, user = tmp / 'seen.jsonl', tmp / 'user.tsv'
+        seen.write_text('{}\n'); user.write_text('C\tk_b\n')
+        env = {'DM_AOT': '1', 'DM_AOT_STRICT': '1', 'DM_PSO_SEEN': str(seen), 'DM_PSO_USER': str(user), 'DM_AOT_REBASE_SEEN': '1'}
+        self.pack_cmd('nvn', work=tmp, env=env)
+        cmd = self.pso_cmd
+        self.assertIn('--aot', cmd); self.assertIn('--rebase-seen', cmd)
+        for opt, path in (('--seen', seen), ('--user', user), ('--host', tmp / 'dmhost'), ('--shader-map', tmp / 'profile/shader_map.tsv')):
+            self.assertEqual(cmd[cmd.index(opt) + 1], str(path))
+        with self.assertRaisesRegex(nsp.BuildError, 'strict AOT pipeline archive failed'):
+            self.pack_cmd('nvn', work=tmp, env=env, pso_fail=True)
+        shutil.rmtree(tmp / 'pso')
+        with self.assertRaisesRegex(nsp.BuildError, 'strict AOT produced no pipeline archive'):
+            self.pack_cmd('nvn', work=tmp, env=env, no_bases=True)
+        user.unlink()
+        with self.assertRaisesRegex(nsp.BuildError, 'DM_PSO_USER census does not exist'):
+            self.pack_cmd('nvn', work=tmp, env=env)
 
     def test_ipa_build_says_its_archive_failed(self):   # build_ipa.sh's output goes to a log: the console shows this line, which the build going on would otherwise hide
         tmp = Path(tempfile.mkdtemp(dir=TEST_ROOT)); self.addCleanup(shutil.rmtree, tmp); said = []

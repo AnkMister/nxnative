@@ -8,6 +8,7 @@ uint64_t now_ns(void) { return bp_now(); }
 static int checks, failed;
 #define CHECK(c, label) do { checks++; if (!(c)) { failed++; fprintf(stderr, "FAIL: %s\n", label); } } while (0)
 int main(void) { @autoreleasepool {
+    setenv("DM_NVN_SERIAL_HELD", "1", 1); setenv("DM_NVN_SERIAL_HELD_CHECK", "1", 1);
     mtl_init(); mtl_sub_begin();
     tex_t a = {.magic=MAGIC('T','E','X',0), .serial=99301};
     a.d = (nvn_texdesc){.target=NVN_TEXTURE_TARGET_2D, .format=NVN_FORMAT_RGBA8, .width=4, .height=4, .depth=1, .levels=1, .samples=1};
@@ -26,7 +27,7 @@ int main(void) { @autoreleasepool {
     CHECK(tex_mtl(&a) == old && tex_mtl(&b) == old && tex_mtl(&ghost) == old, "IMAGE usage does not split storage across existing descriptors");
     // Exercise replacement at the hash table's growth threshold: reinserting while iterating would resize and reshuffle it.
     uint64_t extra = 99400;
-    while ((g_by_serial.n + 1) * 4 <= g_by_serial.cap * 3) { hm_put_id(&g_by_serial, &extra, old); extra++; }
+    while ((g_by_serial.n + 1) * 4 <= g_by_serial.cap * 3) { serial_put(extra, old); extra++; }
     uint32_t capacity = g_by_serial.cap, count = g_by_serial.n;
     id<MTLTexture> upgraded = tex_upgrade_pfv(&a, old, MTLPixelFormatR32Uint);
     CHECK(upgraded && upgraded != old, "usage upgrade creates a replacement");
@@ -34,7 +35,8 @@ int main(void) { @autoreleasepool {
     int all = 1; for (uint64_t serial = 99400; serial < extra; serial++) all &= tex_get(serial) == upgraded;
     CHECK(all, "every shared serial at the growth threshold sees the replacement");
     CHECK(tex_get(b.serial) == upgraded, "other live serial sees the replacement");
-    CHECK(tex_get(ghost.serial) == upgraded, "finalized serial sees the replacement");
+    // A finalized serial over a shared texture takes no ghost entry (tex_mtl_): it resolves through the sharing table, which the upgrade has updated
+    CHECK(tex_mtl(&ghost) == upgraded, "finalized serial sees the replacement");
     CHECK(!alias_has(old) && alias_has(upgraded), "sharing membership follows the replacement");
     uint32_t pixels[16]; for (int i = 0; i < 16; i++) pixels[i] = 0x44332211u;
     id<MTLBuffer> src = [g_dev newBufferWithBytes:pixels length:sizeof pixels options:MTLResourceStorageModeShared]; res_add(src);
@@ -49,6 +51,69 @@ int main(void) { @autoreleasepool {
         if (!j) mtl_sub_begin();
     }
     CHECK(![g_res_objects containsObject:old], "retired base is removed from the residency set after GPU completion");
+    if (p1444_tex_on()) {
+        mtl_sub_begin();
+        MTLTextureDescriptor *d = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm width:8 height:8 mipmapped:NO];
+        d.storageMode = MTLStorageModePrivate; d.usage = MTLTextureUsageShaderRead | MTLTextureUsageRenderTarget;
+        MTLSizeAndAlign need = [g_dev heapTextureSizeAndAlignWithDescriptor:d];
+        MTLHeapDescriptor *hd = [MTLHeapDescriptor new]; hd.type = MTLHeapTypePlacement; hd.size = need.size; hd.storageMode = d.storageMode;
+        NvImageHeap *owner = [NvImageHeap new]; owner->heap = [g_dev newHeapWithDescriptor:hd]; atomic_fetch_add(&g_image_heap_n, 1);
+        id<MTLTexture> raw = [owner->heap newTextureWithDescriptor:d offset:0];
+        objc_setAssociatedObject(raw, &g_image_heap_owner_key, owner, OBJC_ASSOCIATION_RETAIN_NONATOMIC); res_add(raw);
+        id<MTLTexture> srgb = [raw newTextureViewWithPixelFormat:MTLPixelFormatRGBA8Unorm_sRGB];
+        tex_t h = a; h.serial = 99801; mtl_tex_init(&h); tex_put(h.serial, srgb);
+        tex_t h2 = h; h2.serial++; mtl_tex_init(&h2); tex_put(h2.serial, srgb);
+        CHECK(serial_table_holds((__bridge void *)raw), "view ancestors have counted serial owners before upgrade");
+        id<MTLTexture> changed = tex_upgrade_pfv(&h, srgb, MTLPixelFormatR32Uint), root = changed;
+        while (root.parentTexture) root = root.parentTexture;
+        CHECK(root != raw && root.heap == owner->heap, "usage upgrade occupies the actual original placement heap");
+        CHECK(objc_getAssociatedObject(root, &g_image_heap_owner_key) == owner, "replacement retains the owner of its own allocation");
+        CHECK(changed.pixelFormat == MTLPixelFormatRGBA8Unorm_sRGB && changed.parentTexture, "compatible sRGB view is recreated");
+        CHECK(tex_get(h2.serial) != srgb, "all serials naming the old view move in place");
+        CHECK(!serial_table_holds((__bridge void *)raw) && serial_table_holds((__bridge void *)root), "held counts follow in-place view replacements");
+        mtl_sub_commit(); mtl_drain(); mtl_tex_release(&h); mtl_tex_release(&h2);
+    }
+    if (p1444_tex_on()) {
+    // A retired descriptor whose storage is taken over by another texture must not re-create a texture or force an un-noted pool rebuild.
+    mtl_sub_begin();
+    uint8_t mem_buf[65536];
+    pool_t tpool = {.magic=MAGIC('P','O','O','L'), .flags=NVN_MEMORY_POOL_FLAGS_CPU_NO_ACCESS | NVN_MEMORY_POOL_FLAGS_GPU_CACHED, .mem=mem_buf, .size=sizeof mem_buf};
+    tex_t r1 = a, r2 = a;
+    r1.pool = r2.pool = &tpool; r1.off = r2.off = 0; r1.mem = r2.mem = mem_buf;
+    r1.serial = 99601; r2.serial = 99602;
+    mtl_tex_init(&r1); mtl_tex_init(&r2);
+    id<MTLTexture> r1_tex = tex_mtl(&r1);
+    CHECK(r1_tex != nil && tex_mtl(&r2) == r1_tex, "initial pool-backed textures share storage");
+    mtl_reg_tex(951, &r1, NULL); mtl_reg_tex(952, &r2, NULL);
+    mtl_tex_release(&r1); mtl_tex_release(&r2);
+    os_unfair_lock_lock(&g_rmu);
+    CHECK(tex_by_id(951) == r1_tex && g_treg[951].view != NULL && !g_treg[952].view, "retired descriptor 951 holds a shared view while 952 has none");
+    __unsafe_unretained id<MTLBuffer> pbuf = nil;
+    uint64_t gpu0 = pool_gpu(0, MTLTextureType2D, NVN_DPF_FLOAT, 0, &pbuf);
+    CHECK(gpu0 != 0 && pbuf != nil, "initial bindless pool table built");
+    id<MTLBuffer> old_pool = pbuf;
+    const uint64_t *old_ids = (const void *)((const uint8_t *)old_pool.contents + DMSH_POOL_HEAD);
+    uint64_t old_rid = old_ids[951];
+    CHECK(old_rid && old_rid != old_ids[*(const uint32_t *)old_pool.contents], "old table names the retired descriptor's backing");
+    os_unfair_lock_unlock(&g_rmu);
+    g_fence += alias_idle_limit() + 2;
+    tex_t rep = r1; rep.serial = 99603; rep.d.width = 8; rep.d.height = 8; nvn_tex_layout(&rep.d, &rep.L);
+    mtl_tex_init(&rep);
+    uint64_t reg_before = g_reg_gen;
+    id<MTLTexture> rep_tex = tex_mtl(&rep);
+    CHECK(rep_tex != nil && rep_tex != r1_tex && !alias_has(r1_tex) && alias_has(rep_tex), "new texture takes over storage from the retired one");
+    os_unfair_lock_lock(&g_rmu);
+    uint64_t gpu1 = pool_gpu(0, MTLTextureType2D, NVN_DPF_FLOAT, 0, &pbuf);
+    CHECK(gpu1 != 0 && g_reg_gen > reg_before, "storage takeover invalidates the bindless pool before cache lookup");
+    CHECK(g_treg[951].gone && !g_treg[951].view && tex_by_id(951) == nil, "swept retired descriptor is marked gone and does not resurrect");
+    const uint64_t *new_ids = (const void *)((const uint8_t *)pbuf.contents + DMSH_POOL_HEAD);
+    CHECK(pbuf != old_pool && new_ids[951] == new_ids[*(const uint32_t *)pbuf.contents], "new table gives the evicted descriptor the dummy");
+    CHECK(old_ids[951] == old_rid, "earlier encoded draws keep their original table contents");
+    CHECK(tex_by_id(952) == nil && g_treg[952].gone && alias_has(rep_tex), "unviewed retired descriptor over taken storage does not evict the replacement");
+    os_unfair_lock_unlock(&g_rmu);
+    mtl_tex_release(&rep); mtl_alias_drop_pool(&tpool);
+    mtl_sub_commit(); mtl_drain();
+    }
     printf("texture upgrade aliases: %d checks, %d failed\n", checks, failed);
     return failed != 0;
 } }

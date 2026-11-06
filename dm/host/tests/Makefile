@@ -375,3 +375,16 @@ coverage:
 	rm -rf $(B)/cov/prof
 	LLVM_PROFILE_FILE="$(call cov_profile,$(B)/cov)" $(MAKE) -i B=$(B)/cov SAN="$(COV_FLAGS)" run
 	@$(call cov_export,$(B)/cov)
+
+$(B)/t_gpu_stop: t_gpu_stop.c ../hle_lifecycle.c ../hle.h ../dm.h $(GAME_H) | $(B)
+	$(CLANG) -O1 -g -Wall -fblocks $(GINC) -o $@ t_gpu_stop.c
+.PHONY: check_gpu_stop
+check_gpu_stop: $(B)/t_gpu_stop
+	$(B)/t_gpu_stop
+
+$(B)/t_front_screen: t_front_screen.m ../front_screen.h | $(B)
+	$(CLANG) -O1 -g -fobjc-arc -Wall -Werror -I.. -o $@ t_front_screen.m -framework Foundation
+.PHONY: front-screen
+front-screen: $(B)/t_front_screen
+	$(B)/t_front_screen
+run: front-screen

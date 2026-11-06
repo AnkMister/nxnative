@@ -67,6 +67,41 @@ def precise(msl): return re.sub(r'\bfast::(min|max|clamp)\(', r'precise::\1(', m
 # one threadgroup array the calling functions declare besides the scratch, passed as one more argument; with no such array FlagADirect is ignored and A goes through the block.
 # On the NDVE networks of Ocarina of Time's movies (14 dispatches a frame) the frame's compute went from 26.7 to 18.9 ms on an M4 (8 GPU cores)
 # (shaders.md, HMMA chains keep their matrices in the SIMD-group)
+HMMA_LEGACY_BODY = '''{
+    threadgroup uint* s = &%(scr)s[uint(%(blk)s)];
+    threadgroup half* h = (threadgroup half*)s;
+    const int f = int(%(fl)s), k = (f >> 8) * 2;
+    const bool areuse = f & 1, cslot = f & 2, dslot = f & 4, czero = f & 8, adirect = %(adirect)s;
+    uint g = uint(%(lane)s) >> 2, t = uint(%(lane)s) & 3;
+    if (!areuse && !adirect) { s[g * 8 + t] = uint(%(a0)s); s[(g + 8) * 8 + t] = uint(%(a1)s); s[g * 8 + 4 + t] = uint(%(a2)s); s[(g + 8) * 8 + 4 + t] = uint(%(a3)s); }
+    s[128 + g * 8 + t] = uint(%(b0)s); s[128 + g * 8 + 4 + t] = uint(%(b1)s);
+    if (!cslot && !czero) { s[192 + g * 4 + t] = uint(%(acc0)s); s[192 + (g + 8) * 4 + t] = uint(%(acc1)s); }
+    simdgroup_barrier(mem_flags::mem_threadgroup);
+    if (!areuse && adirect) {
+        threadgroup half* x = %(shm_base)s + (int(simd_broadcast(uint(%(aaddr)s), ushort(0))) >> 1);
+        const ulong st = ulong(uint(%(astr)s) >> 1); const bool tr = f & 32;
+        simdgroup_load(am[0], x + (int(%(ao0)s) >> 1), st, ulong2(0, 0), tr); simdgroup_load(am[1], x + (int(%(ao2)s) >> 1), st, ulong2(0, 0), tr);
+        simdgroup_load(am[2], x + (int(%(ao1)s) >> 1), st, ulong2(0, 0), tr); simdgroup_load(am[3], x + (int(%(ao3)s) >> 1), st, ulong2(0, 0), tr);
+    } else if (!areuse) {
+        simdgroup_load(am[0], h, 16, ulong2(0, 0)); simdgroup_load(am[1], h, 16, ulong2(8, 0)); simdgroup_load(am[2], h, 16, ulong2(0, 8)); simdgroup_load(am[3], h, 16, ulong2(8, 8));
+    }
+    simdgroup_half8x8 b0, b1;
+    simdgroup_load(b0, h + 256, 16, ulong2(0, 0), true); simdgroup_load(b1, h + 256, 16, ulong2(8, 0), true);
+    if (czero) { simdgroup_multiply(acc[k], am[0], b0); simdgroup_multiply(acc[k + 1], am[2], b0); }
+    else {
+        if (!cslot) { simdgroup_load(acc[k], h + 384, 8, ulong2(0, 0)); simdgroup_load(acc[k + 1], h + 384, 8, ulong2(0, 8)); }
+        simdgroup_multiply_accumulate(acc[k], am[0], b0, acc[k]); simdgroup_multiply_accumulate(acc[k + 1], am[2], b0, acc[k + 1]);
+    }
+    simdgroup_multiply_accumulate(acc[k], am[1], b1, acc[k]); simdgroup_multiply_accumulate(acc[k + 1], am[3], b1, acc[k + 1]);
+    if (dslot) { simdgroup_barrier(mem_flags::mem_threadgroup); %(d1)s = 0; return 0; }
+    simdgroup_store(acc[k], h + 384, 8, ulong2(0, 0)); simdgroup_store(acc[k + 1], h + 384, 8, ulong2(0, 8));
+    simdgroup_barrier(mem_flags::mem_threadgroup);
+    uint d0 = s[192 + g * 4 + t], d1 = s[192 + (g + 8) * 4 + t];
+    simdgroup_barrier(mem_flags::mem_threadgroup);
+    %(d1)s = as_type<%(dt)s>(d1);
+    return as_type<%(rt)s>(d0);
+}'''
+
 HMMA_BODY = '''{
     threadgroup uint* s = &%(scr)s[uint(%(blk)s)];
     threadgroup half* h = (threadgroup half*)s;
@@ -118,6 +153,7 @@ def block_end(src, start):   # the index of the brace closing the block opened a
         if depth == 0: return i
     raise ValueError('dmsh_hmma16816_f16: block not closed')
 def hmma_msl(msl):
+    if os.environ.get('DMSH_HMMA_CHAIN') != '1': return hmma_legacy_msl(msl)
     m = re.search(r'\n(\w+) dmsh_hmma16816_f16\(([^)]*)\)\n\{', msl)
     if not m: return msl
     params = split_params(m.group(2))
@@ -273,6 +309,31 @@ def gather_offsets(msl):
     msl = ''.join(out)
     k = msl.index('\n', msl.index('using namespace metal;')) + 1
     return msl[:k] + GATHER4 + msl[k:]
+def hmma_legacy_msl(msl):
+    m = re.search(r'\n(\w+) dmsh_hmma16816_f16\(([^)]*)\)\n\{', msl)
+    if not m: return msl
+    params, depth, cur = [], 0, ''   # commas inside template arguments (spvUnsafeArray<uint, N>) do not separate parameters
+    for ch in m.group(2) + ',':
+        depth += {'<': 1, '>': -1}.get(ch, 0)
+        if ch == ',' and depth == 0: params.append(cur.strip()); cur = ''
+        else: cur += ch
+    scr = [x for x in params if x.startswith('threadgroup ')]
+    plain = [x for x in params if not x.startswith('threadgroup ')]
+    if len(scr) != 1 or len(plain) != 11: raise ValueError('dmsh_hmma16816_f16: unexpected parameters ' + m.group(2)[:200])
+    def group1(pattern, text, how=re.search):   # the first group of a match the helper's signature must have
+        found = how(pattern, text)
+        if not found: raise ValueError('dmsh_hmma16816_f16: unexpected parameter ' + text[:100])
+        return found.group(1)
+    name = lambda x: group1(r'(\w+)$', x)
+    names = [name(x) for x in plain]
+    dt = group1(r'thread (\w+)&', plain[10], re.match)
+    v = dict(zip(['lane', 'blk', 'a0', 'a1', 'a2', 'a3', 'b0', 'b1', 'acc0', 'acc1', 'd1'], names), scr=name(scr[0]), dt=dt, rt=m.group(1))
+    start = m.end() - 1; depth = 0
+    for i in range(start, len(msl)):
+        depth += {'{': 1, '}': -1}.get(msl[i], 0)
+        if depth == 0: break
+    else: raise ValueError('dmsh_hmma16816_f16: body not closed')
+    return msl[:start] + HMMA_LEGACY_BODY % v + msl[i + 1:]
 # Border colours: Maxwell's sampler takes any RGBA border colour, Metal's only transparent black, opaque black or opaque white, and the host's sampler gets the nearest of them
 # (nvn_border.h). A filtered sample is linear in the border colour, r = Σ w·texel + w_border·B, so two samples through samplers that differ only in their border colour give the rest:
 # with Metal colours Bn (the sampler) and Bw (its twin), r = s_n + (s_w - s_n)·k, k = (B - Bn) / (Bw - Bn) per channel. Each sampler member a shader samples gets a twin member
@@ -1184,7 +1245,7 @@ def build_keys(want, locations, pairs):
     return sorted(set(want) | {ps for vs in want for ps in pairs.get(vs, ()) if ps in locations}) if want else sorted(locations)
 
 def vs_pad(key, src):
-    """Give a vertex shader the outputs its paired pixel shaders read but it does not write, with the value (0,0,0,1).
+    """Give a vertex or mesh shader the outputs its paired pixel shaders read but it does not write, with the value (0,0,0,1).
     Maxwell attributes are untyped 32-bit slots, and a pixel shader reading a location the vertex shader did not write only gets a default; Ryujinx also fills them with (0,0,0,1) when it links stages. Here every shader is translated
     offline on its own without knowing what the next stage reads, and Metal requires every pixel shader input to be a vertex output: 331 of 9043 pairs failed to link and their draws were skipped
     (over 10,000 "Fragment input(s) user(locnN) ... not written by vertex shader" in one iPhone session after the opening course). Returns (new source, padded locations); pairs whose pixel MSL cannot be read are skipped."""
@@ -1193,8 +1254,16 @@ def vs_pad(key, src):
         data = output('mac', ps + '_b.metal')   # finished before this vertex shader (fin's phases), so staged in the cache by now
         if data is not None: want |= {int(x) for x in re.findall(r'\[\[user\(locn(\d+)\)', data.decode())}
     miss = sorted(want - {int(x) for x in re.findall(r'\[\[user\(locn(\d+)\)', src)})
+    if not miss: return src, []
+    mi = src.find('struct dm_vertex_t {\n')
+    if mi >= 0:
+        mj = src.find('};\n', mi)
+        if mj < 0 or 'dm_out.set_vertex(n, v);' not in src: return src, []
+        src = src[:mj] + ''.join(f'    float4 dm_pad{l} [[user(locn{l})]];\n' for l in miss) + src[mj:]
+        init = ''.join(f'        v.dm_pad{l} = float4(0.0, 0.0, 0.0, 1.0);\n' for l in miss)
+        return src.replace('        dm_out.set_vertex(n, v);\n', init + '        dm_out.set_vertex(n, v);\n'), miss
     i = src.find('struct main0_out\n{\n'); j = src.find('\n};', i); k = src.find('main0_out out = {};')
-    if not miss or i < 0 or j < 0 or k < 0: return src, []
+    if i < 0 or j < 0 or k < 0: return src, []
     src = src[:j] + ''.join(f'\n    float4 dm_pad{l} [[user(locn{l})]];' for l in miss) + src[j:]
     k = src.find('main0_out out = {};') + len('main0_out out = {};')
     return src[:k] + ''.join(f'\n    out.dm_pad{l} = float4(0.0, 0.0, 0.0, 1.0);' for l in miss) + src[k:], miss
@@ -1576,7 +1645,7 @@ def finish(key, w, j, c1):
     pad = []
     if j['stage'] == 'vs':   # outputs start as (0,0,0,1) (see vs_init); no point size beside a layer output (see vs_layer); the base instance from Metal (see vs_base_instance)
         src = vs_base_instance(vs_layer(vs_init(src))); open(msl, 'w').write(src)
-    if j['stage'] == 'vs' and PAIRS.get(key):   # outputs the pixel shader reads but the vertex shader does not write get (0,0,0,1) (see vs_pad)
+    if (j['stage'] == 'vs' or (mesh and mesh['kind'] == 'ms')) and PAIRS.get(key):   # outputs the pixel shader reads but the vertex or mesh shader does not write get (0,0,0,1) (see vs_pad)
         src, pad = vs_pad(key, src)
         if pad: open(msl, 'w').write(src)
     lay = None; discard = False
@@ -1594,6 +1663,8 @@ def finish(key, w, j, c1):
     fu, fmask = fs_uint(src) if j['stage'] == 'ps' else (None, 0)   # the integer-output entry points (see fs_uint); the analysis below uses the source with only main0
     fd = fs_dual(src) if j['stage'] == 'ps' and key in DUAL_WANT else None   # the dual-source entry point (see fs_dual), from the source with only main0
     if fu or fd: plain = src; open(msl, 'w').write((fu or src) + (fd or ''))
+    final = open(msl).read(); rr = dmsh_wide.raw_ranges(final)   # raw global memory lookups reuse the range they last chose (see dmsh_wide.py raw_ranges)
+    if rr is not final: open(msl, 'w').write(rr)
     side, lost = {}, []
     def compile_targets():   # the selected targets from the same MSL (MSL identical to one compiled before takes that library, dmsh_mtlcache.py)
         if j['stage'] == 'ps': side.clear(); side.update(ps_libraries(key, msl, open(msl).read())); return
@@ -1603,7 +1674,7 @@ def finish(key, w, j, c1):
     except subprocess.CalledProcessError as e:
         if not lay and not fu and not fd: return 'metal failed', str(e)[:160], None
         lost = [name for name, extra in (('layer', lay), ('integer output', fu), ('dual source', fd)) if extra]   # kept in the reflection, as a cache hit compiles nothing: every build reports it (shader_regressions.report_losses)
-        open(msl, 'w').write(plain); lay = fu = fd = None   # the layer, integer-output and dual-source entry points are extras: a library that does not build with them is built without
+        open(msl, 'w').write(dmsh_wide.raw_ranges(plain)); lay = fu = fd = None   # the layer, integer-output and dual-source entry points are extras: a library that does not build with them is built without
         try: compile_targets()
         except subprocess.CalledProcessError as e: return 'metal failed', str(e)[:160], None
     clone(msl, os.path.join(out, key + '_b.metal'))

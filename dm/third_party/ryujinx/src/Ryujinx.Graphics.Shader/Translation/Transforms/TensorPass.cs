@@ -29,7 +29,8 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
         public const int Slots = 8;          // accumulator slots, two 8 x 8 matrices each
 
         // lane, block, A (4), B (2), C (2), flags, LDSM address, A's four offsets, row stride
-        public const int HmmaInArguments = 17;
+        public static bool ChainsEnabled => Environment.GetEnvironmentVariable("DMSH_HMMA_CHAIN") == "1";
+        public static int HmmaInArguments => ChainsEnabled ? 17 : 10;
 
         // DMSH_TENSOR_TRACE=1 (dmsh_xlate on one job): why each HMMA that loads its A does not load it where an LDSM read it
         private static readonly bool Trace = Environment.GetEnvironmentVariable("DMSH_TENSOR_TRACE") == "1";
@@ -55,6 +56,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
         // Before any other transform: the flags of each MatrixMultiplyAdd, appended to its sources
         public static void Prepare(TransformContext context)
         {
+            if (!ChainsEnabled) return;
             Uniformity uniformity = null;
 
             foreach (BasicBlock block in context.Blocks)
@@ -115,10 +117,12 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
                 }
 
                 bool[] busy = new bool[Slots];
+                busy[Slots - 1] = true; // Keep the temporary outside live accumulator chains.
 
                 for (int i = 0; i < n; i++)
                 {
                     Operation op = mmas[i];
+                    slot[i] = Slots - 1;
 
                     if (prev[i] >= 0)
                     {
@@ -146,7 +150,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Transforms
                         busy[slot[i]] = false;
                     }
 
-                    int flags = 0;
+                    int flags = slot[i] << 8;
 
                     if (prev[i] >= 0)
                     {

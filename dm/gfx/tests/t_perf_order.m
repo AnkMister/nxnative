@@ -9,7 +9,7 @@
 static int test_budget_active;
 static struct {
     uint64_t now, event_elapsed, event_ms, event_fence;
-    int event_calls, event_success, cond_calls;
+    int event_calls, event_success, event_feedback, cond_calls;
     int64_t cond_remaining;
 } test_budget;
 static uint64_t test_clock_gettime_nsec_np(clockid_t clock) {
@@ -28,6 +28,7 @@ static int test_pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mu
         - (int64_t)(test_budget.now + 1000000000000ull);
     return ETIMEDOUT;
 }
+static void test_feedback_complete(uint64_t fence);
 @interface WaitBudgetEvent : NSObject
 - (BOOL)waitUntilSignaledValue:(uint64_t)value timeoutMS:(uint64_t)milliseconds;
 @end
@@ -37,6 +38,7 @@ static int test_pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mu
     test_budget.event_fence = value;
     test_budget.event_ms = milliseconds;
     test_budget.now += test_budget.event_elapsed;
+    if (test_budget.event_feedback) test_feedback_complete(value);
     return test_budget.event_success;
 }
 @end
@@ -47,6 +49,7 @@ static int test_pthread_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mu
 #undef pthread_cond_timedwait
 #undef clock_gettime
 #undef clock_gettime_nsec_np
+static void test_feedback_complete(uint64_t fence) { g_done = fence; }
 void *front_metal_layer(void) { return NULL; }
 module_t *module_of(const void *p) { (void)p; return NULL; }
 module_t *g_mod; int g_nmod;
@@ -215,9 +218,9 @@ static void wait_budgets(void) {
         {"zero timeout", 0, 0, 0, 0, 0},
         {"sub-ms timeout", 999999, 0, 0, 0, 0},
         {"one ms exhausted", 1000000, 1000000, 1, 0, 0},
-        {"infinite sentinel keeps one hour per stage", UINT64_MAX, hour, 3600000, hour, 1},
-        {"finite hour plus 20 ms retains 20 ms", hour + 20000000, hour, 3600000, 20000000, 1},
-        {"finite two hours keeps fallback hour clamp", 2 * hour + 20000000, hour, 3600000, hour, 1},
+        {"infinite wait rechecks feedback after 100 ms", UINT64_MAX, 100000000, 100, hour, 1},
+        {"finite hour preserves remaining budget", hour + 20000000, 100000000, 100, hour - 80000000, 1},
+        {"finite two hours keeps fallback hour clamp", 2 * hour + 20000000, 100000000, 100, hour, 1},
     };
     int sites[] = {WS_SYNC, WS_SYNC_NEWEST, WS_ACQ};
     for (unsigned si = 0; si < sizeof sites / sizeof *sites; si++) {
@@ -253,6 +256,10 @@ static void wait_budgets(void) {
         CHECK("CPU event is visible before successful return", event == 47 && g_done == 1
             && g_postr[1].claimed && !g_postr[1].ops);
         CHECK("successful early wait skips feedback wait", test_budget.event_calls == 1 && !test_budget.cond_calls);
+        g_done = 0;
+        test_budget = (typeof(test_budget)){.now = 1999750000, .event_elapsed = 100000000, .event_feedback = 1};
+        CHECK("feedback completion without event signal succeeds", mtl_wait_at(1, 5000000000ull, WS_SYNC));
+        CHECK("feedback is checked after 100 ms without another wait", test_budget.event_ms == 100 && !test_budget.cond_calls);
     }
     test_budget_active = 0; memset(&test_budget, 0, sizeof test_budget);
     g_ev = saved_event; g_done = saved_done; g_fence = saved_fence; g_postr[1] = saved_post;

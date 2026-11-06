@@ -14,13 +14,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 TOOLS = Path(__file__).resolve().parents[1] / 'tools'
-NAMES = {'hmma_msl', 'split_params', 'block_end', 'HMMA_BODY', 'HMMA_ARGS', 'HMMA_CALL', 'TG_ARRAY'}
+NAMES = {'hmma_msl', 'hmma_legacy_msl', 'HMMA_LEGACY_BODY', 'split_params', 'block_end', 'HMMA_BODY', 'HMMA_ARGS', 'HMMA_CALL', 'TG_ARRAY'}
 tree = ast.parse((TOOLS / 'dmsh_build.py').read_text())
 selected = [n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name in NAMES)
             or (isinstance(n, ast.Assign) and any(getattr(t, 'id', None) in NAMES for t in n.targets))]
-scope = {'re': re}
+scope = {'re': re, 'os': os}
 exec(compile(ast.Module(body=selected, type_ignores=[]), str(TOOLS / 'dmsh_build.py'), 'exec'), scope)
 hmma_msl = scope['hmma_msl']
 
@@ -215,9 +216,33 @@ def compile_and_run(test, msl, runner):
         r = subprocess.run([str(d / 'run'), str(d / 'h.metallib')], capture_output=True, text=True)
         if r.returncode == 2: test.skipTest(r.stdout.strip())
         test.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        print(r.stdout.strip(), flush=True)
 
 
+@patch.dict(os.environ, DMSH_HMMA_CHAIN="1")
 class HmmaRewrite(unittest.TestCase):
+    def test_default_keeps_ordinary_helper_and_tensor_flag_is_independent(self):
+        legacy_helper = HELPER
+        for n in range(20, 27):
+            legacy_helper = legacy_helper.replace(f'thread const int& _{n}, ', '')
+        legacy_kernel = KERNEL.replace('c0, c1, z, z, z, z, z, z, z, d1, scr)', 'c0, c1, d1, scr)')
+        for tensor in ('0', '1'):
+            with self.subTest(tensor=tensor), patch.dict(os.environ, DMSH_HMMA_CHAIN='0', DMSH_HMMA_TENSOR=tensor):
+                out = hmma_msl(HEAD + legacy_helper + legacy_kernel)
+                self.assertIn('simdgroup_half8x8 a00, a01, a10, a11', out)
+                self.assertNotIn('dm_acc', out)
+                self.assertNotIn('adirect', out)
+
+    def test_readable_tile_compile_does_not_depend_on_hmma_flags(self):
+        fetch = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'fetch_finish')
+        assign = next(n for n in ast.walk(fetch) if isinstance(n, ast.Assign) and any(getattr(t, 'id', None) == 'flib' for t in n.targets))
+        expression = compile(ast.Expression(assign.value), 'fetch-library-selection', 'eval')
+        for chain in ('0', '1'):
+            for tensor in ('0', '1'):
+                with self.subTest(chain=chain, tensor=tensor), patch.dict(os.environ, DMSH_HMMA_CHAIN=chain, DMSH_HMMA_TENSOR=tensor):
+                    scope = dict(os=os, out='out', key='shader', TARGETS={'mac'})
+                    self.assertEqual(eval(expression, scope), os.path.join('out', 'shader_bf.metallib'))
+
     def test_body_replaced_with_its_arguments(self):
         out = hmma_msl(HEAD + HELPER + KERNEL)
         body = out[out.index('int dmsh_hmma16816_f16('):out.index('kernel void check')]
@@ -261,6 +286,7 @@ class HmmaRewrite(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which('xcrun') and shutil.which('clang'), 'needs Xcode')
+@patch.dict(os.environ, DMSH_HMMA_CHAIN="1")
 class HmmaOnGpu(unittest.TestCase):
     def test_matches_reference(self):
         compile_and_run(self, hmma_msl(HEAD + HELPER + KERNEL), RUNNER)
@@ -268,12 +294,20 @@ class HmmaOnGpu(unittest.TestCase):
     def test_flagged_run_matches_reference(self):
         compile_and_run(self, hmma_msl(HEAD + HELPER + SEQ_KERNEL), SEQ_RUNNER)
 
+    def test_standalone_call_preserves_an_inflight_chain(self):
+        middle = """    int solo_flags = 8 | 1 | 7 << 8, solo1;
+    int solo0 = dmsh_hmma16816_f16(l, blk, a00, a01, a02, a03, b20, b21, z, z, solo_flags, z, z, z, z, z, z, solo1, scr);
+"""
+        src = SEQ_KERNEL.replace('    int d2 = ', middle + '    int d2 = ')
+        compile_and_run(self, hmma_msl(HEAD + HELPER + src), SEQ_RUNNER)
+
 
 def inst(hi, lo): return struct.pack('<QQ', lo, hi)
 def waiting(i): return (i[0] | 0x3f << 52, i[1])   # waits on every scoreboard (control bits 116..121)
 
 
 @unittest.skipUnless(os.environ.get('DMSH_TEST_XLATE'), 'set DMSH_TEST_XLATE to the offline translator')
+@patch.dict(os.environ, DMSH_HMMA_CHAIN="1")
 class TranslatorFlags(unittest.TestCase):
     """R2 = thread x * 16 (local size 32: the lane), LDSM.16.M88.4 R36, [R2]: rows 16 bytes apart, matrix m at 128 m. HMMA R46 = R36..39 x R4 + 0, then HMMA R46 = R36..39 x R6 +
     R46, whose result is stored: the first gets C = 0, A from where the LDSM read it, D left in slot 0; the second A kept, C from slot 0, D to the registers.
@@ -287,8 +321,10 @@ class TranslatorFlags(unittest.TestCase):
     STS1 = (0x000fe8000000c800, 0x00000c2f09008388)   # STS.U32 [R9 * 16 + 12], R47: D's two words, as a network stores them
     EXIT = (0x000fea0003800000, 0x000000000000794d)
 
-    def test_chain_reuse_and_direct_a(self):
-        code = b''.join(inst(*waiting(i)) for i in (self.S2R, self.IMAD, self.LDSM, self.HMMA0, self.HMMA1, self.STS, self.STS1)) + inst(*self.EXIT)
+    def translated(self, instructions=None):
+        if instructions is None:
+            instructions = (self.S2R, self.IMAD, self.LDSM, self.HMMA0, self.HMMA1, self.STS, self.STS1)
+        code = b''.join(inst(*waiting(i)) for i in instructions) + inst(*self.EXIT)
         with tempfile.TemporaryDirectory(prefix='tensor_') as d:
             work = Path(d); (work / 'k.bin').write_bytes(code)
             job = [dict(key='k', stage='cs', arch='sm86', code=str(work / 'k.bin'), tex={}, img={}, attr={}, fout={}, local=[32, 1, 1], debug=True, nvn2_cs=[0, 0, 3, 0x40, 0], shared=0x1000)]
@@ -299,7 +335,10 @@ class TranslatorFlags(unittest.TestCase):
             dmsh_geometry.flatten_sets(work / 'k.spv')
             r = subprocess.run([str(TOOLS / 'spirv_cross_bin/spirv-cross'), '--msl', '--msl-version', '20300', str(work / 'k.spv')], capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stderr)
-        msl = r.stdout[r.stdout.index('kernel void main0'):]
+        return r.stdout[r.stdout.index('kernel void main0'):]
+
+    def test_chain_reuse_and_direct_a(self):
+        msl = self.translated()
         consts = dict(re.findall(r'int (_\d+) = (-?\d+);', msl))
         calls = [[a.strip() for a in c.split(',')] for c in re.findall(r'dmsh_hmma16816_f16\(([^()]*)\)', msl)]
         self.assertEqual(len(calls), 2)
@@ -310,6 +349,54 @@ class TranslatorFlags(unittest.TestCase):
         root = lambda a: root(copies[a]) if a in copies else a
         self.assertEqual(root(calls[0][11]), root(calls[1][11]))                                                        # the LDSM's row address
         self.assertRegex(msl, r'int %s = as_type<int>\(\w+\) \* 16;' % root(calls[0][11]))                              # R2
+
+
+    def test_standalone_call_does_not_overwrite_an_inflight_chain(self):
+        # An independent HMMA between a chain's producer and consumer. Both of
+        # its result words stay observable through stores, so it cannot be DCE'd.
+        solo = (self.HMMA0[0], (self.HMMA0[1] & ~(0xff << 16 | 0xff << 32)) | 50 << 16 | 8 << 32)
+        store0 = (self.STS[0], (self.STS[1] & ~(0xff << 32)) | 50 << 32)
+        store1 = (self.STS1[0], (self.STS1[1] & ~(0xff << 32)) | 51 << 32)
+        msl = self.translated((self.S2R, self.IMAD, self.LDSM, self.HMMA0, solo, self.HMMA1, self.STS, self.STS1, store0, store1))
+        consts = dict(re.findall(r'int (_\d+) = (-?\d+);', msl))
+        calls = [[a.strip() for a in c.split(',')] for c in re.findall(r'dmsh_hmma16816_f16\(([^()]*)\)', msl)]
+        self.assertEqual(len(calls), 3)
+        flags = [int(consts.get(c[10], c[10])) for c in calls]
+        self.assertTrue(flags[0] & 4)
+        self.assertTrue(flags[2] & 2)
+        self.assertEqual(flags[0] >> 8, flags[2] >> 8)
+        self.assertEqual(flags[1] >> 8, 7)   # reserved temporary slot, outside all live chains
+        self.assertNotEqual(flags[0] >> 8, flags[1] >> 8)
+
+    def test_slot_exhaustion_materializes_the_overflow_chain(self):
+        starts, ends, stores = [], [], []
+        for i in range(8):
+            rd, rb = 46 + 2 * i, 4 + 2 * i
+            lo = (self.HMMA0[1] & ~(0xff << 16 | 0xff << 32)) | rd << 16 | rb << 32
+            starts.append((self.HMMA0[0], lo))
+            ends.append(((self.HMMA1[0] & ~0xff) | rd, lo))
+            stores += [(self.STS[0], (self.STS[1] & ~(0xff << 32)) | rd << 32),
+                       (self.STS1[0], (self.STS1[1] & ~(0xff << 32)) | (rd + 1) << 32)]
+        msl = self.translated([self.S2R, self.IMAD, self.LDSM, *starts, *ends, *stores])
+        consts = dict(re.findall(r'int (_\d+) = (-?\d+);', msl))
+        calls = [[a.strip() for a in c.split(',')] for c in re.findall(r'dmsh_hmma16816_f16\(([^()]*)\)', msl)]
+        self.assertEqual(len(calls), 16)
+        flags = [int(consts.get(c[10], c[10])) for c in calls]
+        for i in range(7):
+            self.assertTrue(flags[i] & 4)
+            self.assertTrue(flags[8 + i] & 2)
+            self.assertEqual(flags[i] >> 8, i)
+            self.assertEqual(flags[8 + i] >> 8, i)
+        for i in (7, 15):
+            self.assertFalse(flags[i] & (2 | 4))
+            self.assertEqual(flags[i] >> 8, 7)
+
+    def test_default_uses_the_ordinary_helper_abi(self):
+        with patch.dict(os.environ, DMSH_HMMA_CHAIN='0'):
+            msl = self.translated()
+        calls = re.findall(r'dmsh_hmma16816_f16\(([^()]*)\)', msl)
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(len(c.split(',')) == 12 for c in calls))
 
 
 if __name__ == '__main__':

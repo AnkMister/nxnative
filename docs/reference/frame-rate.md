@@ -462,3 +462,10 @@ Frame pacing: the host's frame step, engine frame limiters, present intervals an
 - **Fix:** `dmsh_build.py` `pool_arrays`: a fragment shader whose only store is the mark gets `[[early_fragment_tests]]`. One that discards, writes depth, stencil or a sample mask, or stores anything itself keeps its test where it was; there the mark costs the shading. A chain change.
 - **Check:** `python3 dm/tools/tests/test_dmsh_pool_arrays.py`. On the same route, the game's own controller then held its main pass at 1536x864, four times the pixels, at the same GPU time.
 - **Found on:** [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md): 56 of the 258 fragment programs of a frame in Kokiri Forest carry the mark, 3 of them with a discard.
+
+### GPU completion without an event signal
+
+- **Symptom:** a failed GPU command can report completion while a game thread keeps waiting for its event signal.
+- **Cause:** Metal feedback and event signaling are separate completion paths.
+- **Fix:** community commit `039a3905` caps the initial event wait at 100 ms, then checks feedback. The existing remaining-budget calculation prevents a second full timeout. This changes the wait path rather than extending its timeout.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md). `t_perf_order` covers finite and infinite budgets.

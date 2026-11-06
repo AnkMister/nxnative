@@ -24,6 +24,7 @@ MSL_FILES = ('*.metallib', '*.json', '*.tsv')   # what the host reads from msl/ 
 # read beside DM_NVN_SHMAP; any of them may be absent (a Vulkan or GL game has no c1_full.tsv). The shader pairs are the pipeline prebuild's (nvn_mtl.m pso_prebuild): without them the
 # app makes no pulling bases, a hybrid draw has no stand-in and a new pipeline compiles on the submit thread (build_ipa.sh copies them into the IPA the same way)
 TABLES = ('shader_map.tsv', 'pso_manifest.tsv', 'c1_full.tsv', 'cb_extent.tsv', 'shader_pairs.tsv', 'pso_pairs.tsv')
+AOT_PSO_FILES = ('aot.json', 'aot-preflight.json', 'aot-refused.*.json', 'aot-import-refused.json')
 PSO_FILES = ('*.mtl4a', 'prebuilt.tsv', 'rest_pairs.tsv', 'archive.tsv')   # what the app takes of pso_offline.py's output folder
 EXE = 'nxnative'   # the launcher's file name (Contents/MacOS/nxnative)
 ICON_SIZES = (16, 32, 128, 256, 512)
@@ -213,10 +214,14 @@ def selected_inputs(a):
             raise SystemExit(f'no rewriter fixups for {p}')
     msls = msl_inputs(a.msl)
     if not msls: raise SystemExit(f'no shader libraries at {a.msl}')
-    pso = sorted({p for pat in PSO_FILES for p in Path(a.pso).glob(pat) if not detritus(p.name)}) if a.pso else []
+    pso_patterns = PSO_FILES + (AOT_PSO_FILES if os.environ.get('DM_AOT') == '1' else ())
+    pso = sorted({p for pat in pso_patterns for p in Path(a.pso).glob(pat) if not detritus(p.name)}) if a.pso else []
     if a.pso and (not any(p.suffix == '.mtl4a' for p in pso) or not (Path(a.pso) / 'prebuilt.tsv').is_file()):
         raise SystemExit(f'no pipeline archive with its prebuilt.tsv in {a.pso}')
     tables = [Path(a.tables) / n for n in TABLES if (Path(a.tables) / n).is_file()]
+    learned = Path(a.pso) / 'pso_manifest.tsv' if a.pso else None
+    if learned and learned.is_file():
+        tables = [p for p in tables if p.name != 'pso_manifest.tsv'] + [learned]
     pairs = Path(a.pso_pairs) if a.pso_pairs and not any(p.name == 'pso_pairs.tsv' for p in tables) else None
     fonts = sorted(p for p in Path(a.font).glob('*.ttf') if not detritus(p.name))
     files = [Path(a.host)] + mods + msls + pso + tables + fonts + ([pairs] if pairs else [])

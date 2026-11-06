@@ -238,6 +238,18 @@ class Build(unittest.TestCase):
                 self.assertEqual((self.out / 'prebuilt.tsv').read_text(), po.stamp(chain, True, (self.prof / 'shader_pairs.tsv').read_bytes()))
                 self.assertIn(str(moved), (self.work / 'bases.mtl4-json').read_text())
 
+    def test_reuse_removes_obsolete_split_parts(self):
+        self.main()
+        obsolete = self.out / 'applegpu_g18p.01.mtl4a'
+        other = self.out / 'applegpu_g18x.01.mtl4a'
+        obsolete.write_bytes(b'old part'); other.write_bytes(b'other architecture')
+        calls = len(self.calls)
+        self.main()
+        self.assertEqual(len(self.calls), calls)
+        self.assertFalse(obsolete.exists())
+        self.assertFalse(other.exists())
+        self.assertTrue((self.out / 'applegpu_g18p.mtl4a').exists())
+
     def test_metadata_only_changes_reuse_but_refresh_runtime_lists(self):
         self.main()
         (self.lib / 'inputs.tsv').write_text('game\tX\ninputs\tnew-profile\n')

@@ -487,9 +487,21 @@ static void cut_boundary_case(void) {
     g_stat_draw += (uint64_t)cut_draws(); sub_cut();
     CHECK(g_cb != cb0 && g_seg == 2, "with nothing running: a commit");
     clear(MTLClearColorMake(0, 0, 1, 1)); rp_end();
+    seg_clk *clock = g_sclk; if (clock) atomic_fetch_add(&clock->refs, 1);
     CHECK(mtl_wait(mtl_sub_commit(), 5000000000ull), "the segments completed");
     uint64_t r0[2], r1[2]; memcpy(r0, rep.contents, 16); memcpy(r1, (uint8_t *)rep.contents + 16, 16);
-    CHECK(r0[1] && r1[1] > r0[1], "two reports in one command buffer read two times");
+    NSData *d0 = clock ? [g_ts_heap resolveCounterRange:NSMakeRange(clock->b[0], 1)] : nil;
+    NSData *d1 = clock ? [g_ts_heap resolveCounterRange:NSMakeRange(clock->b[1], 1)] : nil;
+    const MTL4TimestampHeapEntry *e0 = d0.bytes, *e1 = d1.bytes;
+    uint64_t t0 = e0 && d0.length >= sizeof *e0 ? e0->timestamp : 0, t1 = e1 && d1.length >= sizeof *e1 ? e1->timestamp : 0;
+    CHECK(clock && clock->b[0] != clock->b[1] && t0 && t1 > t0, "two segment boundaries in one command buffer record distinct GPU times");
+    // Without the host, guest_ns is the zero-valued weak stub: conversion from
+    // the heap to the guest clock is unavailable and reports use CLOCK_MONOTONIC.
+    // Its 1-us resolution on macOS can give adjacent report writes equal ticks.
+    int ordered = r0[1] && (guest_ns() ? r1[1] > r0[1] : r1[1] >= r0[1]);
+    if (!ordered) fprintf(stderr, "feedback clocks guest=%llu reports=%llu,%llu heap=%llu,%llu\n", (unsigned long long)guest_ns(), (unsigned long long)r0[1], (unsigned long long)r1[1], (unsigned long long)t0, (unsigned long long)t1);
+    CHECK(ordered, "timestamp reports preserve order, including the no-guest-clock fallback");
+    seg_clk_put(clock);
 }
 int main(int argc, char **argv) { @autoreleasepool {
     setenv("DM_NVN_TBDR", "0", 1); setenv("DM_NVN_GPU_TS", "segment", 1);

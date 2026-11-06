@@ -75,12 +75,27 @@ From an empty save: at about 45 s `A` (title), `A` (New Game), then the movie. F
 - The "Navi" name label in the Great Deku Tree scene was missing on an earlier chain and has not been checked since. Not played yet: the Deku Tree dungeon, combat, later areas. Sound opens with no red line; movies and speech were not listened to. Physics issues reported in PR 1299 were not seen on this route (walking, the ladder, the camera).
 - No iOS shader build or iPhone run has been done. Its memory use makes an iPhone unlikely as it stands.
 
+## Community source harvest
+
+The `oot-next2` branch adds general texture storage ranges, packaged-holder validation, null-safe getters, obsolete chunk retirement, indirect mesh recording, mesh output padding and point topology, plus the missing Ampere global compare-and-swap opcode. `DM_NVN_DISPATCH_OVERLAP=1` is optional and off by default. Pool heaps, guest texture release and alias retirement keep their existing opt-in controls. The existing `DM_UPSCALER=metalfx` path remains the sole optional NDSR replacement.
+
+The source-built translator and chain header must accompany this host. Full shader libraries and gameplay acceptance remain open because an isolated rebuild lacks disk headroom. The community's title-movie 60 fps result and upstream's Kokiri Forest 60 fps result were measured on other Macs and are not measurements of this branch on an M4 Max.
+
 ## Found on this game
 
 - [A control section's words read as a BAHS entry](../../../docs/reference/shaders.md#a-control-sections-words-read-as-a-bahs-entry): six map rows that were no shaders, one of them failing the build; `tera_common` gave its variation pairs once its row was gone.
 - [Freeing a memory pool during a texture ID walk](../../../docs/reference/nvn-objects.md#freeing-a-memory-pool-during-a-texture-id-walk): the `-[NvPkg buffer]: unrecognized selector` crash after a save or a scene change.
 - [HMMA chains keep their matrices in the SIMD-group](../../../docs/reference/shaders.md#hmma-chains-keep-their-matrices-in-the-simd-group): the NDVE movie networks behind the title and the opening, 14.8 → 11.4 ms of compute a frame on this M6.
 - [Raw global memory lookups that start from their last entry](../../../docs/reference/shaders.md#raw-global-memory-lookups-that-start-from-their-last-entry): the foliage, vertex and compute shaders read structures word by word through loaded addresses; about 2 ms less GPU a frame at the spawn point.
+- [Raw global memory lookups that reuse their last range](../../../docs/reference/shaders.md#raw-global-memory-lookups-that-reuse-their-last-range): the foliage, vertex and compute shaders read structures word by word through loaded addresses, each word with its own lookup of the GMEM map.
+- [MetalFX spatial scaling requires an explicit fence under validation](../../../docs/reference/rendering.md#metalfx-spatial-scaling-requires-an-explicit-fence-under-validation): synthetic HDR/scaling integration checks.
+
+- [Shared texture upgrades preserve every registered view](../../../docs/reference/nvn-objects.md#shared-texture-upgrades-preserve-every-registered-view): fork regression coverage for the two review P1 cases and cached-table retirement.
+
+- [HMMA chain reuse (opt-in, synthetic verification)](../../../docs/reference/shaders.md#hmma-chains-keep-their-matrices-in-the-simd-group)
+
+- [An upscaler's colour read from its code](../../../docs/reference/rendering.md#an-upscalers-colour-read-from-its-code): `agl_ndsr_vr.pck` variants with no curve or power can use the opt-in `DM_UPSCALER=metalfx` replacement. Current local validation covers synthetic GPU fixtures; gameplay image acceptance remains open.
+
 - [The GPU idles with the next command buffer already committed](../../../docs/reference/frame-rate.md#the-gpu-idles-with-the-next-command-buffer-already-committed): the 25-40 ms frames.
 - [Pool tables and readback buffers made anew each frame](../../../docs/reference/memory.md#pool-tables-and-readback-buffers-made-anew-each-frame): about 1,500 residency changes per 300 frames.
 - [Pool shaders taken as depth readers](../../../docs/reference/rendering.md#pool-shaders-taken-as-depth-readers): about 80 extra passes a frame, and half the frames over budget.
@@ -105,3 +120,11 @@ From an empty save: at about 45 s `A` (title), `A` (New Game), then the movie. F
 - [Image atomics on a 32-bit colour texture](../../../docs/reference/shaders.md#image-atomics-on-a-32-bit-colour-texture)
 - [A host's own store in a fragment shader moves its depth test](../../../docs/reference/frame-rate.md#a-hosts-own-store-in-a-fragment-shader-moves-its-depth-test)
 - [Dead-code removal dropped a coordinate of a multi-output instruction](../../../docs/reference/shaders.md#dead-code-removal-dropped-a-coordinate-of-a-multi-output-instruction)
+
+- [GPU writes tracked by texture storage](../../../docs/reference/nvn-objects.md#gpu-writes-tracked-by-texture-storage): byte-range ownership and packaged texture validation.
+- [Consecutive compute dispatches without game barriers](../../../docs/reference/rendering.md#consecutive-compute-dispatches-without-game-barriers): optional overlap and indirect mesh recording.
+- [Mesh outputs required by paired pixel shaders](../../../docs/reference/shaders.md#mesh-outputs-required-by-paired-pixel-shaders): mesh padding, point topology and the matching archive probe.
+- [Whole-pool mappings retire obsolete chunks](../../../docs/reference/memory.md#whole-pool-mappings-retire-obsolete-chunks): deferred chunk cleanup.
+- [GPU completion without an event signal](../../../docs/reference/frame-rate.md#gpu-completion-without-an-event-signal): feedback recheck with the existing wait budget.
+
+- [Global compare and swap on Ampere](../../../docs/reference/shaders.md#global-compare-and-swap-on-ampere): the missing `0x3a9` opcode.

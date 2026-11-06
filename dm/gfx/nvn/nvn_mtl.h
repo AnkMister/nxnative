@@ -2,6 +2,8 @@
 // Ordering convention (to avoid repeating the GO_MAP_SHARE corrupted-picture mistake of the x86 route): every visible effect of "GPU completion" (sync object ready, event values, counters)
 // happens only after the Metal command buffer has actually completed; CPU-side waits look only at the completed value of the MTLSharedEvent.
 #pragma once
+// Emergency CPU-owned teardown; deliberately never drains GPU work.
+void mtl_safe_gpu_release(void);
 #include <stdint.h>
 #include <stddef.h>
 
@@ -20,7 +22,7 @@ void mtl_pool_del(const void *mem);
 void mtl_alias_drop_pool(const void *pool);
 // physical memory pool Finalize: the shared placement sparse tiles of its memory go back once no texture maps them (sp_release)
 void mtl_sp_phys_gone(const void *mem, uint64_t size);
-void mtl_pool_gpu_written(const void *pool);   // the GPU writes this pool: its uncompressed textures are no longer taken from storage (tex_cpu_content)
+void mtl_tex_gpu_written(const void *pool, const void *mem, uint64_t size);   // the GPU writes this storage of the pool (a texture's; mem NULL or size 0: the whole pool): the uncompressed textures over it are no longer taken from storage (tex_cpu_content)
 int mtl_addr(uint64_t addr, uint64_t len, void **buf, uint64_t *off);   // 1 on success; buf is a (__bridge) id<MTLBuffer>
 
 typedef struct {

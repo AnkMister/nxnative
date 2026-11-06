@@ -2692,7 +2692,7 @@ def mac_gpu_arch(work, env, logs):
     return arch
 
 
-def mac_pso(py, repo, work, lib, g, gpus, env, logs):
+def mac_pso(py, repo, work, lib, g, gpus, env, logs, host=None):
     """PLATFORM 'mac-app', an NVN game with shader pairs: its pipeline archive made offline for this Mac's GPU (dm/gfx/tools/pso_offline.py --platform macos, metal-tt), which the app carries as
     Resources/pso and the launcher hands to the host as DM_PSO_BUNDLE, as the iOS app does (docs/development.md, The pipeline archive made offline): the app's first start builds no base,
     and the bases (about 615 MB for Breath of the Wild) do not go into the player's ~/Library/Application Support. gpus: --gpu / PSO_GPUS (empty: this Mac's GPU; none: no archive, the app
@@ -2709,14 +2709,30 @@ def mac_pso(py, repo, work, lib, g, gpus, env, logs):
     PROG.add(1); PROG.stage('Pipeline archive', step=f'{arch} (metal-tt, minutes when its inputs changed)')
     out = work / 'pso/mac'
     cmd = [py, repo / 'dm/gfx/tools/pso_offline.py', '--game', g.id, '--msl', lib, '--out', out, '--work', work / 'pso/mac-work', '--gpu', arch, '--platform', 'macos']
+    if env.get('DM_AOT') == '1':
+        support = Path.home() / 'Library/Application Support/nxnative' / g.id
+        seen = Path(env.get('DM_PSO_SEEN') or support / 'pso_seen.jsonl')
+        user = Path(env.get('DM_PSO_USER') or support / 'pso_user.tsv')
+        cmd += ['--aot', '--shader-map', g.table('shader_map.tsv')]
+        if host: cmd += ['--host', host]
+        if seen.is_file(): cmd += ['--seen', seen]
+        if user.is_file():
+            if not host: raise BuildError('native pipeline census requires the matching Mac host')
+            cmd += ['--user', user]
+        for name, path in (('DM_PSO_SEEN', seen), ('DM_PSO_USER', user)):
+            if env.get(name) and not path.is_file(): raise BuildError(f'{name} census does not exist: {path}')
+        if env.get('DM_AOT_REBASE_SEEN') == '1': cmd += ['--rebase-seen']
     if not g.table('pso_pairs.tsv').is_file() and (work / 'shader/pso_pairs.tsv').is_file():   # the split's copy, as the app gets it (--pso-pairs)
         cmd += ['--pairs', g.table('shader_pairs.tsv'), '--pairs', work / 'shader/pso_pairs.tsv']
     if run(cmd, logs / 'pso_offline_mac.log', env=env, fatal=False):   # an optimization: the app builds the bases on its first start without it
+        if env.get('DM_AOT') == '1' and env.get('DM_AOT_STRICT') == '1':
+            raise BuildError(f'strict AOT pipeline archive failed: {logs / "pso_offline_mac.log"}; no app is packed')
         shutil.rmtree(out, ignore_errors=True)
         PROG.end('failed, the app is packed without one', warn=True)
         say(f'[RED] pipeline archive: pso_offline.py failed (see {logs / "pso_offline_mac.log"}); the app is packed without one and builds its pipeline bases on its first start (--gpu none skips this step)')
         return None
     if not any(out.glob('*.mtl4a')):   # no pair (a header-only table, #338), or every eligible pair declares function constants (the host specializes them on the device, rest_pairs.tsv)
+        if env.get('DM_AOT') == '1' and env.get('DM_AOT_STRICT') == '1': raise BuildError('strict AOT produced no pipeline archive; no app is packed')
         PROG.end('no base to bundle'); say('pipeline archive: none (no shader pair, or every eligible one has function constants): the app builds what it needs on its first start'); return None
     PROG.end(f'{arch}, {amount(tree_size(out)[1], "B")}')
     return out
@@ -2733,7 +2749,7 @@ def mac_app(py, repo, out, app, work, game, patched, host, font, msl, aoc, gfx, 
     The save and the log go to the player's Library, keyed by the folder's title ID (app); a new app replaces the old one only when it is complete. programs: a game of several programs, the others' files
     (other_programs), which go in beside the first's as one app. control: the control.nacp that lists the game's languages (languages_control), by default the packed version's"""
     lib = msl / (f'b-{chain_of(repo)}' if gfx == 'nvn' else 'vk' if gfx == 'vulkan' else 'gl')
-    pso = mac_pso(py, repo, work, lib, g, gpus, env, logs) if gfx == 'nvn' and g.table('shader_pairs.tsv').is_file() else None   # a stage of its own, before the app's
+    pso = mac_pso(py, repo, work, lib, g, gpus, env, logs, host=host) if gfx == 'nvn' and g.table('shader_pairs.tsv').is_file() else None   # a stage of its own, before the app's
     PROG.stage('Mac app', step='starting')
     # The launcher settings the IPA carries (dm/games/settings.py), without the iPhone's own switches: the app's settings window and Mac front ends show them (docs/frontends.md)
     settings = work / 'app/launcher.json'; settings.parent.mkdir(parents=True, exist_ok=True)
