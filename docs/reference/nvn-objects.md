@@ -754,11 +754,4 @@ Games read this count as a position in their own command memory and size their h
 - **Symptom:** GPU allocations retain chunk buffers after a whole pool is mapped, and texture pool table rebuilds repeatedly allocate and register buffers.
 - **Cause:** Whole-pool promotion leaves the old chunk mappings alive. Both incremental pool patches and full table rebuilds allocate a fresh table despite completed submissions making older tables reusable.
 - **Fix:** `DM_NVN_RETIRE_CHUNKS=1` ports #1417 and retires redundant chunks behind their GPU fences. It preserves address-marked raw-pool selection. `DM_NVN_POOL_TABLE_REUSE=1` ports #1428 and retains up to 64 fence-protected spare buffers for both table paths; known incompatible texture types are skipped before resolving their views. The existing descriptor-class filter remains. Both flags default off.
-- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#second-host-source-harvest-open). Mac tests `t_pool_retire` and `t_pool_table` remain open.
-
-### Wide writes collide with unrelated uniform pages
-
-- **Symptom:** Deferred uniform updates close render passes even when the outstanding GPU writes concern unrelated memory.
-- **Cause:** Expanding wide writes into the cross-submission page hash creates conservative collisions.
-- **Fix:** `DM_NVN_WIDE_INTERVALS=1` ports #1320 and retains wide writes as intervals using the existing storage-write threshold. Up to 128 live intervals are tracked; overflow remains conservative. The default preserves the previous threshold and 32-slot policy. The existing #1390 storage ranges remain unchanged.
-- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#second-host-source-harvest-open), as a source candidate. Mac `t_sbw` and gameplay validation remain open.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#second-host-harvest-scope-four-items-open). Mac tests `t_pool_retire` and `t_pool_table` remain open.

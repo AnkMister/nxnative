@@ -447,20 +447,15 @@ Found on this game: the [raw lookup grouping extension](../../../docs/reference/
 accepts the heavy mesh programs' read-only pool table under `DMSH_WIDE_GROUP=1`.
 Keep this off until matching host/shader builds pass image comparison.
 
-## Second host source harvest (open)
+## Second host harvest scope: four items (open)
 
-The second Brent host harvest is source-integrated and defaults off. Mac builds,
-Metal tests and gameplay acceptance remain open. No translator binaries or shader
-inputs changed. The NDVE bilinear replacement and mip removal were skipped to
-preserve image quality. Movie-clock frame dropping is opt-in and preserves pixels
-while discarding overdue pictures to keep sound and playback synchronized.
+Only #1434, #1332, #1417 and #1428 belong to this branch's revised harvest.
+All four are opt-in and await Mac build, Metal fixtures and gameplay acceptance.
+They preserve image quality and the branch's existing GPU safety fixes.
+Other glass and Mac agents own every other round-two item.
 
 Found on this game: [SDK 22 imports](../../../docs/reference/services.md#sdk-22-service-imports-without-host-takeovers),
-[AV1 decode and playback clocks](../../../docs/reference/audio.md#av1-decoding-and-movie-presentation-clocks),
-[chunk and table buffer lifetimes](../../../docs/reference/nvn-objects.md#redundant-chunk-mappings-and-repeated-pool-table-allocations),
-[wide write intervals](../../../docs/reference/nvn-objects.md#wide-writes-collide-with-unrelated-uniform-pages),
-[idle retirement](../../../docs/reference/memory.md#retired-pool-buffers-accumulate-while-no-submissions-complete),
-[revoked GPU access](../../../docs/reference/rendering.md#revoked-gpu-access-leaves-the-game-running-without-pictures),
-and [Spotlight output folders](../../../docs/reference/packing.md#spotlight-indexes-shader-build-outputs).
-The candidate verdicts and Mac acceptance checklist are in
-[the harvest report](../../../docs/oot-notes/brent2-cloud.md).
+[chunk and pool table lifetimes](../../../docs/reference/nvn-objects.md#redundant-chunk-mappings-and-repeated-pool-table-allocations),
+and [revoked GPU access](../../../docs/reference/rendering.md#revoked-gpu-access-leaves-the-game-running-without-pictures).
+The [scoped report](../../../docs/oot-notes/oot-brent2-cloud.md) records the
+source audit, commits, flags and remaining Mac checks.

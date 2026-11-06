@@ -498,10 +498,3 @@ DM_ALIAS_SIZE remains an explicit override. The duplicate gated Brent copy is
 removed on this variant. The optional source-harvest controls still gate other
 Brent experiments. The upstream provisional heap-accounting repair is also kept
 without a second gated copy.
-
-### Retired pool buffers accumulate while no submissions complete
-
-- **Symptom:** GPU allocated memory grows while an unfocused game stops submitting, and the game may fail to resume.
-- **Cause:** Streaming threads retire buffers behind a future submission fence even when no submission is being encoded, and feedback cannot drain the queue while no work completes.
-- **Fix:** `DM_NVN_IDLE_RETIRE=1` ports #1392. Retirements outside an open submission wait only for committed work, and the guard timer drains completed releases while idle. Guard accounting includes pending resident resources through the branch's existing `g_res_bytes`. The branch keeps its own linear deferred cleanup, memory guard and `DM_SAFE_GPU` policy. The new flag defaults off. `DM_CTL` accepts `focus <n>` for a controlled focus test.
-- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#second-host-source-harvest-open). Mac `t_res_guard`, focus switching and memory measurements remain open.

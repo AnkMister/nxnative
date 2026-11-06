@@ -55,14 +55,11 @@ recipe explicitly enables reviewed correctness/stability and srgb. Complete
 pipeline coverage and image/gameplay acceptance remain parent gates. No game,
 full shader build, push or PR ran. Final results and cleanup are in docs/oot-notes.
 
-## Second Brent host harvest
+## Revised second host harvest scope
 
-Audited the requested round-two host/runtime sources against oot-hyper-main and
-origin/main. Ported missing SDK, AV1, pool lifetime, revoked GPU and packing
-changes behind default-off flags. The already-upstream crop correction stays
-on. Preserved our stable fixes and skipped NDVE replacement, mip removal and
-the Mac agent's poolstat/texstat work. Independent review found and fixed AV1
-lock ordering and stale shader-directory selection. The same-interpreter tools
-comparison has no new failure names; Mac builds and gameplay remain open.
-The source table, commit list, Linux evidence and Mac checklist are in
-[the harvest report](docs/oot-notes/brent2-cloud.md).
+The revised brief assigns only #1434, #1332, #1417 and #1428 to this branch.
+Retained those four source ports. Removed the earlier AV1, crop, wide-write,
+idle-retirement, focus-control and noindex ports, their follow-up fixes and
+their documentation. A cleanup commit preserves the published branch history.
+All other glass and Mac agents retain ownership of the other items.
+The current report is [oot-brent2-cloud.md](docs/oot-notes/oot-brent2-cloud.md).

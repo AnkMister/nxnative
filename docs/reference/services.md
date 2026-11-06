@@ -1078,4 +1078,4 @@ Most service calls can be found before they crash, before the first boot or the 
 - **Symptom:** Opening the Ocarina note aborts through an unserved hid service (#1433). Other SDK 22 imports can enter unserved font, parental-control and resolver services.
 - **Cause:** The host takes over older forms of these calls but does not register the SDK 22 forms.
 - **Fix:** The source port of #1434 adds five forced takeovers. `DM_SDK22_SERVICES=1` enables their registration; the default leaves the original SDK path intact. Font loading uses the existing stand-in fonts, the controller reports no Switch 2 actuator, sensor-fusion shutdown does nothing, parental-control permission is false and address resolution returns EAI_FAIL.
-- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#second-host-source-harvest-open). Mac gameplay verification remains open.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#second-host-harvest-scope-four-items-open). Mac gameplay verification remains open.

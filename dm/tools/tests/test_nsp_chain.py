@@ -29,14 +29,6 @@ class Base(unittest.TestCase):
             cm.__enter__(); self.addCleanup(cm.__exit__, None, None, None)
 
 
-class Temporaries(unittest.TestCase):
-    def test_noindex_is_explicitly_enabled(self):
-        for value, want in ((None, 'tmp'), ('0', 'tmp'), ('1', 'tmp.noindex')):
-            with mock.patch.dict(os.environ, {}, clear=True):
-                if value is not None: os.environ['DM_BUILD_NOINDEX'] = value
-                self.assertEqual(nsp.noindex_folder('tmp'), want)
-
-
 class Header(Base):
     def setUp(self):   # a repository whose chain tools are the real ones (linked) and whose header is its own
         super().setUp()
@@ -159,34 +151,6 @@ class TableDifference(unittest.TestCase):   # the row the build error names when
 
     def test_order_only(self):
         self.assertEqual(nsp.table_difference('t.tsv', b'a\nb\n', b'b\na\n'), 't.tsv: the same rows in another order')
-
-
-class Spotlight(Base):   # the build folder's shader folder is named .noindex, which Spotlight leaves out; a folder from before moves there with what it holds
-    def test_legacy_name_does_not_move_itself(self):
-        old = self.tmp / 'shader'; old.mkdir()
-        nsp.move_to_noindex(self.tmp, 'shader', 'shader')
-        self.assertTrue(old.is_dir()); self.assertEqual(self.said, [])
-
-    def test_a_folder_from_before_moves_with_its_times(self):   # the steps' keys read names, sizes and times: a moved shader folder is reused, not built again
-        old = self.tmp / 'shader'; (old / 'cache').mkdir(parents=True)
-        key = old / 'mac-b-0123456789ab.key'; key.write_text('key\nnote\n'); os.utime(key, ns=(1_000_000_000, 2_000_000_000))
-        nsp.move_to_noindex(self.tmp, 'shader', 'shader.noindex')
-        new = self.tmp / 'shader.noindex'
-        self.assertFalse(old.exists()); self.assertTrue((new / 'cache').is_dir())
-        self.assertEqual(((new / key.name).read_text(), (new / key.name).stat().st_mtime_ns), ('key\nnote\n', 2_000_000_000))
-        self.assertEqual(len(self.said), 1); self.assertTrue(self.said[0].startswith(f'moved {old} to {new}'))
-
-    def test_the_new_folder_wins_and_the_old_one_stays(self):   # a build of an older checkout made shader/ again: nothing is deleted, a line names it
-        for name in ('shader', 'shader.noindex'): (self.tmp / name).mkdir(); (self.tmp / name / 'mark').write_text(name)
-        nsp.move_to_noindex(self.tmp, 'shader', 'shader.noindex')
-        for name in ('shader', 'shader.noindex'): self.assertEqual((self.tmp / name / 'mark').read_text(), name)
-        self.assertEqual(len(self.said), 1); self.assertTrue(self.said[0].startswith(f'[NOTE] {self.tmp / "shader"} is no longer read'))
-
-    def test_nothing_to_move(self):
-        nsp.move_to_noindex(self.tmp, 'shader', 'shader.noindex')   # a new build folder
-        (self.tmp / 'elsewhere').mkdir(); (self.tmp / 'shader').symlink_to(self.tmp / 'elsewhere')
-        nsp.move_to_noindex(self.tmp, 'shader', 'shader.noindex')   # a link is someone's own arrangement
-        self.assertFalse((self.tmp / 'shader.noindex').exists()); self.assertTrue((self.tmp / 'shader').is_symlink()); self.assertEqual(self.said, [])
 
 
 if __name__ == '__main__':
