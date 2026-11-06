@@ -6024,7 +6024,9 @@ void mtl_set_tex_pool_n(int n) { g_tpool_n = n; }
 // creation takes over aliases, invalidates the whole table, and the next walk repeats it.
 // Existing backing, CPU uploads, live objects and command-record snapshots still resolve.
 static id<MTLTexture> treg_tex(const treg_t *r) {   // Caller holds g_rmu
-    if (r->gone) return nil;
+    // Pool finalization keeps already-made storage for a live descriptor.
+    // An alias-swept retired descriptor stays empty, even if its serial returns.
+    if (r->gone) return r->retired ? nil : tex_made(&r->t);
     if (p1444_tex_on() && r->retired && !tex_from_storage(&r->t) && !tex_cpu_content(&r->t)) {
         alias_key k; memset(&k, 0, sizeof k); k.pool = (uint64_t)(uintptr_t)r->t.pool; k.off = r->t.off; k.d = r->t.d; k.d.flags &= ~NVN_TEXTURE_FLAGS_IMAGE;
         pthread_mutex_lock(&g_smu); int held = nvn_hm_get(&g_alias, &k) != NULL;
