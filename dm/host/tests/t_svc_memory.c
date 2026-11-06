@@ -58,9 +58,11 @@ module_t *module_of(const void *p) {
 #ifdef TEST_REAL_DIRTY
 #include "../../gfx/nvn/nvn_dirty.h"
 static void (*write_prepare)(void *, size_t);
+static void (*read_prepare)(const void *, size_t);
 static int (*fault_hook)(void *, int, void *);
 void dm_fault_hook_register(int (*fn)(void *, int, void *)) { fault_hook = fn; }
 void dm_guest_write_prep_register(void (*fn)(void *, size_t)) { write_prepare = fn; }
+void dm_guest_read_prep_register(void (*fn)(const void *, size_t)) { read_prepare = fn; }
 static void memory_fault(int sig, siginfo_t *info, void *ctx) {
     if (fault_hook && fault_hook(info->si_addr, 1, ctx)) return;
     _exit(128 + sig);
@@ -78,6 +80,14 @@ void dm_guest_write_prepare(void *addr, size_t size) {
         assert(!mprotect((void *)readonly_base, readonly_size, PROT_READ | PROT_WRITE));
         readonly_size = 0;
     }
+}
+
+void dm_guest_read_prepare(const void *addr, size_t size) {
+#ifdef TEST_REAL_DIRTY
+    if (read_prepare) read_prepare(addr, size);
+#else
+    (void)addr; (void)size;
+#endif
 }
 
 static int fail_protect, fail_mmap;

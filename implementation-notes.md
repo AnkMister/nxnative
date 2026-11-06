@@ -88,3 +88,12 @@ records generated translator source/feed/cache/publish roots and worktree build
 outputs. Known task roots are cleaned only after ownership, tracked-file and
 open-file checks pass. Source, Git, evidence, protected inputs, unknown paths
 and other agents' artifacts are preserved.
+
+## Final oot-hyper checkpoint
+
+The [verification record](docs/oot-notes/VERIFICATION.md) reports green full tools,
+Python/native graphics and the host build. Crop/quality/integer attachment tests
+pass together under Metal validation. Memory and audio/clock/FS fixtures pass.
+Tool lock matches; regenerating the default header leaves no change.
+The remaining compile-counter/offline coverage gate belongs to oot-aot; no play
+package or gameplay acceptance is claimed. The upstream-main comparison follows.

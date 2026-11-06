@@ -215,10 +215,12 @@ class RawLoadQuads(unittest.TestCase):
         import ast
         tree = ast.parse((Path(__file__).resolve().parents[1] / 'tools' / 'dmsh_build.py').read_text())
         fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'finish')
-        start = next(i for i, n in enumerate(fn.body) if isinstance(n, ast.Assign) and
-                     isinstance(n.value, ast.Call) and getattr(n.value.func, 'attr', '') == 'wide_loads') + 1
-        stop = next(i for i in range(start, len(fn.body)) if isinstance(fn.body[i], ast.Assign) and
-                    isinstance(fn.body[i].value, ast.Call) and getattr(fn.body[i].value.func, 'id', '') == 'border_emu')
+        def pass_name(call):
+            if not isinstance(call, ast.Call): return ''
+            func = call.args[0] if getattr(call.func, 'id', '') == 'stage_pass' else call.func
+            return getattr(func, 'attr', '') or getattr(func, 'id', '')
+        start = next(i for i, n in enumerate(fn.body) if isinstance(n, ast.Assign) and pass_name(n.value) == 'wide_loads') + 1
+        stop = next(i for i in range(start, len(fn.body)) if isinstance(fn.body[i], ast.Assign) and pass_name(fn.body[i].value) == 'border_emu')
         code = compile(ast.Module(body=fn.body[start:stop], type_ignores=[]), 'quad-build-path', 'exec')
         for flag in (None, '0', 'invalid'):
             with patch.dict(os.environ, {}, clear=True), patch('builtins.open', side_effect=AssertionError('default entered quad asset path')):
