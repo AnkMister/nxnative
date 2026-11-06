@@ -551,8 +551,8 @@ def main(argv=None):
         complete = saved.get('limit') == PACK_LIMIT and bool(saved.get('parts')) and all((out / name).is_file() and (out / name).stat().st_size == size for name, size in saved['parts'].items())
         if complete and dst.is_file() and kf.is_file() and kf.read_text().strip() == key:
             rejected_archs[arch] = json.loads(rejected_file.read_text()) if rejected_file.is_file() else []
-            for old in out.glob(f'{arch}*.mtl4a'):   # this branch publishes one archive per architecture, so leftover split parts are obsolete
-                if old.stem.split('.')[0] == arch and old != dst: old.unlink()
+            for old in out.glob(f'{arch}*.mtl4a'):   # parts of an older build absent from the saved manifest are obsolete
+                if old.stem.split('.')[0] == arch and old.name not in saved['parts']: old.unlink()
             print(f'pso_offline: {arch}: reused ({dst.stat().st_size / 2**20:.0f} MB)'); continue
         kf.unlink(missing_ok=True)
         (out / 'prebuilt.tsv').unlink(missing_ok=True)
