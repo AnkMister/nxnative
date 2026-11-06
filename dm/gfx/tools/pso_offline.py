@@ -18,8 +18,9 @@
 #   archive.tsv      what was built: architectures, OS minimum, toolchain, bases (for people and logs; the host does not read it)
 # Each archive is made again only when its compiler inputs change (key.<arch> in the work folder): the complete pipeline configuration without library locations,
 # the referenced libraries' bytes, architecture, platform, minimum OS and metal-tt version. Chain/profile stamps are validated and refreshed independently.
-# More bases than --batch-size are compiled in sequential groups (batches.<arch>/<index>/ in the work folder, each cached by its own inputs) and merged with metal-pack: one metal-tt on
+# More bases than --batch-size are compiled in bounded groups (batches.<arch>/<index>/ in the work folder, each cached by its own inputs) and merged with metal-pack: one metal-tt on
 # Super Mario Odyssey's 32,864 bases runs an 8 GB Mac out of paging space (docs/reference/shaders.md, Bounded groups for the offline pipeline compiler). The output is the same single file.
+# DM_PSO_J: independent cached batch workers; DM_METAL_PACK_THREADS: merge threads (both default 1).
 # Usage: pso_offline.py --msl <b-<chain> folder> --out <folder> --work <folder> [--game <id>] [--pairs <shader_pairs.tsv> [--pairs <pso_pairs.tsv>]] [--gpu g18p[,g17p]]
 #          [--depth gl|zero] [--platform ios|macos] [--os-min 27.0] [--script-only] [--batch-size N]
 #   --game: the profile (DM_GAMES_DIR as for game.py) whose shader_pairs.tsv and pso_pairs.tsv are the pairs, and whose depth_mode key the depth mode, unless --pairs / --depth say;
@@ -28,6 +29,7 @@
 #   --os-min: the archives' system (default: for iOS the SDK's major version, e.g. 27.0; for macOS the major version this Mac runs, since the Mac app is built for the Mac that builds it).
 #   A device opens only an archive of its own major version (macOS 27.2 refused archives made for 26.0 and 26.6 and opened those for 27.0 and 27.2), and builds the bases itself
 #   otherwise: the SDK's version on a Mac whose system is older than its Xcode's SDK (macOS 26.6 with Xcode 27.1) left that Mac without them (GitHub issue #673)
+import concurrent.futures as cf
 import argparse, filecmp, hashlib, json, os, shutil, struct, subprocess, sys, time
 from pathlib import Path
 
@@ -281,20 +283,30 @@ def compile_batches(lib_dir, bases, work, part, arch, platform, osmin, toolchain
     On M2, merged archives passed archive-only lookups of two synthetic pipelines and all 32,864 Odyssey bases.
     Other workloads and compiler versions can have different resource use.
     """
-    pieces = []; total = (len(bases) + batch_size - 1) // batch_size
+    total = (len(bases) + batch_size - 1) // batch_size
     for old in (work / f'batches.{arch}').glob('[0-9]*'):   # the groups of a longer list than this one
         if int(old.name) > total: shutil.rmtree(old)
-    for index, start in enumerate(range(0, len(bases), batch_size), 1):
+    workers = int(os.environ.get('DM_PSO_J', '1'))
+    pack_threads = int(os.environ.get('DM_METAL_PACK_THREADS', '1'))
+    if workers < 1 or pack_threads < 1: raise ValueError('archive worker counts must be positive')
+    def build_group(item):
+        index, start = item
         group = bases[start:start + batch_size]
         print(f'pso_offline: {arch}: batch {index}/{total}: {len(group)} bases, compiling or checking cache', flush=True)
         piece, reused = compile_batch(lib_dir, group, work / f'batches.{arch}' / f'{index:05d}', arch, platform, osmin, toolchain)
-        pieces.append(piece)
         print(f'pso_offline: {arch}: batch {index}/{total}: ready ({"reused" if reused else "compiled"})', flush=True)
+        return piece
+    groups = enumerate(range(0, len(bases), batch_size), 1)
+    if workers == 1:
+        pieces = list(map(build_group, groups))
+    else:
+        with cf.ThreadPoolExecutor(max_workers=workers) as pool:
+            pieces = list(pool.map(build_group, groups))
     part.unlink(missing_ok=True)
     need, free = max(2 << 30, sum(p.stat().st_size for p in pieces)), shutil.disk_usage(work).free
     if free < need: sys.exit(f'[RED] pso_offline: {free / 2**30:.1f} GB free before merging; need at least {need / 2**30:.1f} GB')
     print(f'pso_offline: {arch}: merging {total} batches', flush=True)
-    cmd = ['xcrun', '-sdk', sdk(platform), 'metal-pack', '-nthreads', '1', *map(str, pieces), '-o', str(part)]
+    cmd = ['xcrun', '-sdk', sdk(platform), 'metal-pack', '-nthreads', str(pack_threads), *map(str, pieces), '-o', str(part)]
     log_path = work / f'metal-pack.{arch}.log'
     with log_path.open('w') as log:
         r = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, env=dict(os.environ, TMPDIR=str(work)))
@@ -315,7 +327,7 @@ def main(argv=None):
     ap.add_argument('--platform', choices=('ios', 'macos'), default='ios')
     ap.add_argument('--os-min', help='minimum OS of the archives (default: iOS, the SDK\'s major version; macOS, this Mac\'s)')
     ap.add_argument('--script-only', action='store_true', help='write the script and the stamp, run no metal-tt')
-    ap.add_argument('--batch-size', type=int, default=BATCH, help=f'compile sequential groups of at most N bases and merge with metal-pack, when there are more (default {BATCH}; 0: one compiler invocation)')
+    ap.add_argument('--batch-size', type=int, default=BATCH, help=f'compile groups of at most N bases and merge with metal-pack, when there are more (default {BATCH}; 0: one compiler invocation)')
     ap.add_argument('--aot', action='store_true', default=os.getenv('DM_AOT') == '1', help='expanded compute/mesh/layer/helper coverage and exact learned descriptors (opt-in)')
     ap.add_argument('--seen', action='append', default=[], help='per-game pso_seen.jsonl, repeatable; stale entries fail visibly')
     ap.add_argument('--shader-map', help='program-source evidence for native mesh combinations (default: profile shader_map.tsv)')

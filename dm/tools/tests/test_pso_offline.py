@@ -17,6 +17,7 @@ import sys
 import tempfile
 import unittest
 import tracemalloc
+import threading
 from unittest import mock
 
 REPO = Path(__file__).resolve().parents[3]
@@ -416,6 +417,25 @@ class Build(unittest.TestCase):
             self.main('--os-min', '27.0')
             self.assertEqual(observed, before, 'the normal packer must reuse the complete merged archive')
             self.assertIn('bases\t5\n', (self.out/'archive.tsv').read_text())
+
+    def test_parallel_batches_overlap_and_merge_in_input_order(self):
+        bases = [('v_bp', f'vertex{i}', 'f_b', 'main0') for i in range(4)]
+        barrier = threading.Barrier(2)
+        original = po.compile_batch
+        def build(*args):
+            barrier.wait(timeout=10)
+            return original(*args)
+        runner, observed = self.batched_runner()
+        with mock.patch.dict(os.environ, DM_PSO_J='2', DM_METAL_PACK_THREADS='16'), mock.patch.object(self, 'fake_run', runner), mock.patch.object(po, 'plan', return_value=(bases, [], {})), mock.patch.object(po, 'compile_batch', build):
+            self.main('--batch-size', '2', '--os-min', '27.0')
+        self.assertEqual(observed[-1], ('merge', 2))
+        pieces = self.work / 'batches.applegpu_g18p'
+        self.assertEqual((self.out / 'applegpu_g18p.mtl4a').read_bytes(), b''.join((pieces / f'{i:05d}/applegpu_g18p.mtl4a').read_bytes() for i in (1, 2)))
+        # Every finished batch remains reusable even when concurrency changes.
+        with mock.patch.object(self, 'fake_run', runner), mock.patch.object(po, 'plan', return_value=(bases, [], {})):
+            before = list(observed)
+            self.main('--os-min', '27.0')
+            self.assertEqual(observed, before)
 
     def test_batch_failure_preserves_completed_work_and_publishes_nothing(self):
         bases = [('v_bp', f'vertex{i}', 'f_b', 'main0') for i in range(5)]

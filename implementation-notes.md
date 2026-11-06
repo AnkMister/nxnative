@@ -65,3 +65,8 @@ Use the existing Python and .NET; install nothing. No game launch or env install
 Play flags produce chain `992d6981956f`; bundled tools pass the lock check.
 Four shader workers and four rewrite workers follow the recipe. Disable heap/region
 launch probes explicitly. Build/runtime environment and evidence remain external.
+
+User requested full build speed: J=16 and make -j16. The offline planner now
+accepts opt-in DM_PSO_J and DM_METAL_PACK_THREADS (both default 1), enabling
+independent cached archive batches and the final merge to use 16 workers.
+No shader semantics or runtime settings change.
