@@ -62,3 +62,5 @@ Scope: glass-oot-brent2-movie.md. Baseline a14fb78c. Source brent-oot-combined-n
 NDVE #1331 (b6367705, 76c20edb, 943b0bea) skipped: bilinear replacement discards the game reconstruction, conflicting with visual-quality priority. No shader chain or stable GPU changes touched.
 
 AV1 d234d4f6 port: DM_AV1_PARALLEL=1 enables delayed decoding; default retains synchronous behavior. Serialize submission/reset using decode lock before buffer lock, avoiding the source patch's unlock-before-decode-lock window. Mac runtime verification remains open.
+
+AV1 3b588ca6 port: DM_CV_LATE=1 opts into skipping overdue pictures; no pixel resampling. Default retains all pictures. Temporal completeness is traded for synchronization only when opted in.
