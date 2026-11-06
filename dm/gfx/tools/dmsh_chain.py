@@ -34,8 +34,8 @@ XLATE_DIR = os.path.dirname(os.environ.get('XLATE', os.path.join(HERE, 'dmsh_xla
 SPIRV_CROSS = os.environ.get('SPIRV_CROSS', os.path.join(HERE, 'spirv_cross_bin/spirv-cross'))
 
 def options():
-    return 'debug=%s reduced=%s raw_load_quads=%s storage_runs=%s cbuf_reuse=%s oot_visual=%s border_split=%s wide_group=%s' % (
-        os.environ.get('XLATE_DEBUG', '1') != '0', os.environ.get('XLATE_REDUCED', '1') == '1', raw_load_quads(), storage_runs(), cbuf_reuse(), os.environ.get('DMSH_OOT_VISUAL') == '1', os.environ.get('DM_NVN_BORDER_SPLIT') == '1', wide_group())
+    return 'debug=%s reduced=%s raw_load_quads=%s storage_runs=%s cbuf_reuse=%s oot_visual=%s border_split=%s wide_group=%s hmma_tensor=%s' % (
+        os.environ.get('XLATE_DEBUG', '1') != '0', os.environ.get('XLATE_REDUCED', '1') == '1', raw_load_quads(), storage_runs(), cbuf_reuse(), os.environ.get('DMSH_OOT_VISUAL') == '1', os.environ.get('DM_NVN_BORDER_SPLIT') == '1', wide_group(), os.environ.get('DMSH_HMMA_TENSOR') == '1')
 
 
 def raw_load_quads():
