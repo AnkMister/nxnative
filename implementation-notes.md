@@ -351,3 +351,4 @@ separate from this task.
 | PR | Upstream head | Verdict | Critical review / adaptation |
 |---|---|---|---|
 | [#1391](https://github.com/seedds/nxnative/pull/1391) | `5122c24de6ecb24291a5fb0812e6b48ca6cb92fb` | adapted | Retain `g_ghost_active` in alias release and eviction holder sets from #1299. Upstream only refuses additions at 100% and can still submit after refusal; the safety-net commit must close that gap and reserve desktop headroom. |
+| [#1382](https://github.com/seedds/nxnative/pull/1382) | `c87cc8cdc9c23aaa6ba40d963078be3eb4f840b4` | adapted | Keep stack's serial/program helper beside shader recording. Per-command-buffer shader lists aid diagnosis; they do not identify one guilty shader conclusively. Fake hang test passes 12 checks in each encoding mode. |
