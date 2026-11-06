@@ -1530,3 +1530,9 @@ Digimon Story Cyber Sleuth: Complete Edition (Media.Vision's MVGL engine, SDK 6.
 - **Cause:** the host inserts a full barrier even when NVN supplied none between consecutive dispatches.
 - **Fix:** `DM_NVN_DISPATCH_OVERLAP=1` opts into the scheduling from community commit `5208584a`. The default remains off. A game barrier, host dispatch, copy, fill or inline update preserves ordering. The indirect mesh recorder also handles the native indirect draw method, from `168290c6`, so enabling the encode thread can record these draws.
 - **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md). Synthetic tests check barrier placement and mesh command replay. Frame rate and image acceptance on the combined branch remain open.
+### A dynamic-resolution ceiling set after the game chooses its scale
+
+- **Symptom:** a game has dynamic resolution but the host's Render scale setting cannot lower its ceiling.
+- **Cause:** the game's own final scale selection is in its binary and never reads the host's scale state.
+- **Fix:** a build-checked profile stub caps the final stored scale with the existing `DM_RENDER_SCALE` state word. A game-selected scale below the ceiling remains below it. A ceiling of 1.0 or an unset state preserves the original store. The stub preserves the source value, scratch registers and condition flags, and the rewriter advertises `RENDER_SCALE` for the existing launcher setting.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#render-scale-ceiling), update v131072. Its final scale store follows both dynamic and fixed-mode selection at `main+0x31d3f48`. The shader libraries are reused. The behavior of other engine versions remains unverified.
