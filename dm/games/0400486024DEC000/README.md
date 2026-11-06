@@ -446,3 +446,8 @@ brightness in gameplay remain unverified.
 Found on this game: the [raw lookup grouping extension](../../../docs/reference/shaders.md#adjacent-raw-global-memory-reads)
 accepts the heavy mesh programs' read-only pool table under `DMSH_WIDE_GROUP=1`.
 Keep this off until matching host/shader builds pass image comparison.
+
+Found on this game (current, experimental): [pool buffers retained while no
+submission follows](../../../docs/reference/memory.md#pool-buffers-retained-while-no-submission-follows).
+`DM_NVN_IDLE_RETIRE=1` enables the PR #1392 port; Mac focus-loss and resume
+validation remains open. It preserves the existing GPU safety policy.

@@ -241,6 +241,10 @@ static void safe_gpu_commit3(id<MTLCommandBuffer>);
 static void safe_gpu_wait3(id<MTLCommandBuffer>);
 #include "nvn_rec.h"   // deferred encoding (DM_NVN_ENC_THREAD)
 static NSHashTable *g_res_objects;
+static _Atomic int g_idle_retire = -1;
+static uint64_t g_pool_retire_fence;   // reserved at submission begin under g_mu, kept through commit
+static int idle_retire_on(void) { if (g_idle_retire < 0) { const char *e = getenv("DM_NVN_IDLE_RETIRE"); g_idle_retire = e && !strcmp(e, "1"); } return g_idle_retire; }
+static _Atomic uint64_t g_guard_set;   // last commit; opt-in idle retirement also counts additions pending commit
 static int g_res_grew;   // the changes the next commit carries include an addition (g_res_dirty, under g_res_mu)
 static _Atomic unsigned g_image_heap_n, g_big_n;   // g_big_n: large pools in chunks, whose buffers overlap (BIG_MIN)
 static inline MTL4VisibilityOptions resource_vis(void) { return MTL4VisibilityOptionDevice | (g_image_heap_n || g_big_n ? MTL4VisibilityOptionResourceAlias : 0); }
@@ -261,6 +265,7 @@ static void res_add_at(id<MTLAllocation> allocation, int line) { @autoreleasepoo
     [g_res_objects addObject:r];
     atomic_fetch_add(&g_res_bytes, (uint64_t)r.allocatedSize);
     g_res_dirty = g_res_grew = 1;
+    if (idle_retire_on()) atomic_fetch_add_explicit(&g_guard_set, r.allocatedSize, memory_order_relaxed);
     pthread_mutex_unlock(&g_res_mu);
 } }
 static void res_remove(id<MTLAllocation> r) { @autoreleasepool {
@@ -304,9 +309,8 @@ static void res_check(id r, const char *what, int reg) {
 enum { GUARD_OK, GUARD_EVICT, GUARD_STOP, GUARD_WALL, GUARD_EVERY = 30, GUARD_TICKS = 10 };   // the evictions are at least GUARD_EVERY frames apart; the timer stops the game after GUARD_TICKS ticks over the stop level
 static struct { uint64_t evict, stop, wall; } g_guard;   // bytes, all 0 with the guard off: the eviction level, the stop level, the size no commit grows past
 static _Atomic int g_guard_lv;   // the highest level met since the submit thread last looked (guard_act)
-static _Atomic uint64_t g_guard_set;   // the residency set's size at the last commit: the timer does not read the set, whose lock a stuck commit holds
 static int guard_level(uint64_t used) { return !g_guard.stop ? GUARD_OK : used >= g_guard.wall ? GUARD_WALL : used >= g_guard.stop ? GUARD_STOP : used >= g_guard.evict ? GUARD_EVICT : GUARD_OK; }
-static uint64_t guard_used(uint64_t set) { return MAX(set, (uint64_t)g_dev.currentAllocatedSize); }
+static uint64_t guard_used(uint64_t set) { return MAX(idle_retire_on() ? atomic_load_explicit(&g_guard_set, memory_order_relaxed) : set, (uint64_t)g_dev.currentAllocatedSize); }
 static void guard_raise(int lv) { int cur = atomic_load(&g_guard_lv); while (lv > cur && !atomic_compare_exchange_weak(&g_guard_lv, &cur, lv)) {} }
 static void guard_act(uint64_t fence);
 #include "nvn_safe_gpu.inc"
@@ -315,7 +319,7 @@ static void res_commit(void) {
     if (!safe_gpu_preflight()) { pthread_mutex_unlock(&g_res_mu); return; }
     if (g_res_dirty) {
         uint64_t set = g_res.allocatedSize, used = guard_used(set); int lv = guard_level(used);
-        atomic_store_explicit(&g_guard_set, set, memory_order_relaxed);
+        if (!idle_retire_on()) atomic_store_explicit(&g_guard_set, set, memory_order_relaxed);
         if (lv) guard_raise(lv);
         if (lv == GUARD_WALL && g_res_grew) {
             if (safe_gpu_on()) safe_gpu_trip("residency commit exceeds the safe GPU cap");   // removals alone always go through: they are what brings the set down
@@ -323,6 +327,7 @@ static void res_commit(void) {
             pthread_mutex_unlock(&g_res_mu); return;
         }
         uint64_t t0 = clock_gettime_nsec_np(CLOCK_UPTIME_RAW); [g_res commit]; g_res_dirty = g_res_grew = 0; g_rs_commits++; g_rs_commit_ns += clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - t0;
+        if (idle_retire_on()) atomic_store_explicit(&g_guard_set, g_res.allocatedSize, memory_order_relaxed);
     }
     pthread_mutex_unlock(&g_res_mu);
 }
@@ -388,16 +393,16 @@ static pthread_mutex_t g_deferred_mu = PTHREAD_MUTEX_INITIALIZER;
 //   defer_obj_unref   = only the reference I hold is no longer wanted, the object itself may still be in use (the view cache of a texture ID may hold the base texture itself): only drop the reference, leave the residency set alone.
 // Previously only the former existed: when the view cache was invalidated, a texture that 'is still the current storage of some serial' was also removed from the residency set. Invalidation used to happen only when the base texture was really replaced, so it was never hit;
 // after the transparency chain's in-place composite swapped the storage of two textures, each of the two live textures was removed once this way, and afterwards they are used as attachments and sampled every frame as usual - the GPU accesses non-resident memory.
-static void defer_obj_release_ex(id obj, int keep_resident) {
+static void defer_obj_at(id obj, int keep_resident, uint64_t fence) {
     if (!obj) return;
-    NvDeferredRelease *d = [NvDeferredRelease new]; d->object = obj; d->fence = g_fence + 1; d->keep_resident = keep_resident;
+    NvDeferredRelease *d = [NvDeferredRelease new]; d->object = obj; d->fence = fence; d->keep_resident = keep_resident;
     pthread_mutex_lock(&g_deferred_mu);
     if (!g_deferred) g_deferred = [NSMutableArray array];
     [g_deferred addObject:d];
     pthread_mutex_unlock(&g_deferred_mu);
 }
-static void defer_obj_release(id obj) { defer_obj_release_ex(obj, 0); }
-static void defer_obj_unref(id obj) { defer_obj_release_ex(obj, 1); }
+static void defer_obj_release(id obj) { defer_obj_at(obj, 0, g_fence + 1); }
+static void defer_obj_unref(id obj) { defer_obj_at(obj, 1, g_fence + 1); }
 // Its own autorelease pool: mtl_sub_begin drains before it pushes the submission's pool, on the guest submit thread, whose implicit pool is never drained. The weak-table lookups and the residency-set removal
 // autorelease the retired object, so whatever that thread drained (instead of the completion handler, which wins the race only when the CPU is idle) stayed alive for good: in Metroid Dread every
 // re-upload of its map mask kept the old texture and its 32 MB upload staging block, and GPU memory grew by several GB within minutes under CPU load.
@@ -427,6 +432,19 @@ static void defer_drain(void) { @autoreleasepool {
         d->object = nil;
     }
 } }
+
+// Out-of-focus streaming can retire pools without submitting another fence.
+// A blocked residency commit must never block the safety watchdog's timer.
+static _Atomic int g_idle_draining;
+static void defer_idle(void) {
+    if (!idle_retire_on() || atomic_load(&g_done) < g_fence) return;
+    if (atomic_exchange(&g_idle_draining, 1)) return;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{ @autoreleasepool {
+        pthread_mutex_lock(&g_deferred_mu); NSUInteger n = g_deferred.count; pthread_mutex_unlock(&g_deferred_mu);
+        if (n) { defer_drain(); res_commit(); }
+        atomic_store(&g_idle_draining, 0);
+    } });
+}
 
 // A profile list of shader keys the host asks the next shader build for (bf_want.tsv, dual_want.tsv): each key appended once to the file the environment names. A shader's key is
 // its 16 hex digits, with or without the route suffix (NvShader keys are "<key>_b"), as dmsh_build.py reads the list
@@ -490,6 +508,7 @@ static void guard_stop(uint64_t used) {
 static void guard_tick(void) {
     safe_gpu_tick();
     if (atomic_load(&g_safe_stopped)) return;
+    if (idle_retire_on()) defer_idle();
     static unsigned over;
     uint64_t used = guard_used(atomic_load_explicit(&g_guard_set, memory_order_relaxed)); int lv = guard_level(used);
     if (lv) guard_raise(lv);
@@ -509,13 +528,12 @@ static void guard_init(void) {
         if (lim && lim < g_safe_limit) g_safe_limit = lim;
         g_guard.wall = g_guard.stop = g_safe_limit; g_guard.evict = g_safe_limit / 7 * 6;
         MLOG("DM_SAFE_GPU=1: GPU cap %llu MiB (70%% of recommended maximum), system wired cap %llu MiB; first GPU error stops this process", (unsigned long long)(g_safe_limit >> 20), (unsigned long long)(g_safe_wired_limit >> 20));
-    } else {
-        if ((e && !lim) || !ws) return;
+    } else if (ws && !(e && !lim)) {
         g_guard.wall = MAX(ws, lim); g_guard.stop = lim ? lim : ws / 100 * 95; g_guard.evict = g_guard.stop / 95 * 80;
 #if TARGET_OS_IPHONE
     if (!lim) g_guard.stop = g_guard.wall = UINT64_MAX;
 #endif
-    }
+    } else if (!idle_retire_on()) return;
     static dispatch_source_t timer;
     timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0));
     dispatch_source_set_timer(timer, dispatch_time(DISPATCH_TIME_NOW, 100 * NSEC_PER_MSEC), 100 * NSEC_PER_MSEC, 20 * NSEC_PER_MSEC);
@@ -790,16 +808,17 @@ void mtl_pool_del(const void *mem) {
     // Its own autorelease pool: this runs on the guest thread that finalizes the pool, whose implicit pool never drains, and adding to the weak table g_dead_pools left the buffer
     // autoreleased there, so every finalized pool buffer stayed alive for good (Ghost Trick: Phantom Detective, 125 buffers and 6.6 GB of GPU allocations 300 frames into the boot, 0 with the pool)
     @autoreleasepool {
+    uint64_t retire = idle_retire_on() ? g_pool_retire_fence : g_fence + 1;
     int bg = -1; for (int k = 0; k < g_nbig; k++) if (g_big[k].mem == mem) bg = k;
     for (int i = 0; i < g_npool; i++)
-        if (g_pools[i].key == mem) { id<MTLBuffer> b = g_pools[i].buf; [g_keep removeObject:b]; defer_obj_release(b); if (g_pools[i].res) g_pool_res_n--;
+        if (g_pools[i].key == mem) { id<MTLBuffer> b = g_pools[i].buf; [g_keep removeObject:b]; defer_obj_at(b, 0, retire); if (g_pools[i].res) g_pool_res_n--;
             if (!g_dead_pools) g_dead_pools = [NSHashTable weakObjectsHashTable];
             [g_dead_pools addObject:b]; g_pools[i] = g_pools[--g_npool]; g_pidx_ok = 0; g_plast = -1; atomic_fetch_add(&g_pool_gen, 1);
             if (i < g_npool) big_moved(i);   // the entry moved into this place
             if (bg < 0) break;   // a large pool has an entry per chunk
             i--; }
     if (bg >= 0) {
-        for (id<MTLBuffer> b in g_big[bg].old) defer_obj_release(b);
+        for (id<MTLBuffer> b in g_big[bg].old) defer_obj_at(b, 0, retire);
         free(g_big[bg].chunk); g_big[bg] = g_big[--g_nbig]; g_pidx_ok = 0; g_plast = -1; atomic_fetch_add(&g_pool_gen, 1); atomic_fetch_sub(&g_big_n, 1);
     }
     }
@@ -1080,6 +1099,7 @@ void mtl_prepare(void) {
 }
 static void sub_cut_begin(void); static void dd_tick(void); static void up_trim(void);
 void mtl_sub_begin(void) {
+    if (idle_retire_on()) { pthread_mutex_lock(&g_mu); g_pool_retire_fence = g_fence + 1; pthread_mutex_unlock(&g_mu); }
     if (nvn_eco_same_on()) atomic_fetch_add(&g_eco_work, 1);
     mtl_init(); g_sub_serial++; g_seg = 0; seg_clk_put(g_sclk); g_sclk = NULL; g_rc_npend = 0; g_rc_skip = 0;
     sub_cut_begin();

@@ -153,6 +153,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - a GPU hang or ignored submission is followed by more failed submissions, or a residency burst leaves too little wired memory for the desktop. → [Fail-stop GPU safety for a Mac shared with other apps](../reference/memory.md#fail-stop-gpu-safety-for-a-mac-shared-with-other-apps)
 - a CPU-written texture occupies both swizzled guest memory and a private Metal texture after upload. → [Cold uploaded guest texture copies (Mac experiment)](../reference/memory.md#cold-uploaded-guest-texture-copies-mac-experiment)
 - upload staging stays allocated after the game stops uploading textures. → [Upload staging retained after loading (Mac experiment)](../reference/memory.md#upload-staging-retained-after-loading-mac-experiment)
+- Ocarina of Time stops submitting out of focus while streaming threads keep replacing virtual-pool runs. GPU allocation and swap grow despite a flat residency set. → [Pool buffers retained while no submission follows](../reference/memory.md#pool-buffers-retained-while-no-submission-follows)
 
 ## Threads
 
