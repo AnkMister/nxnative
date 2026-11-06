@@ -60,7 +60,11 @@ settings in the candidate's environment file:
 
 ```text
 DM_SAFE_GPU=1
-DM_AOT=1
+DM_AOT=0
+DM_AOT_STRICT=0
+DM_PSO_LEARN=1
+DM_NVN_SERIAL_HELD=1
+DM_NVN_MESH_PREDICT=1
 DM_OOT_BRENT=1
 DM_SDK22_SERVICES=1
 DM_OPMODE=1
@@ -74,10 +78,13 @@ DM_QUALITY=off
 DM_OOT_RENDER_RES=off
 ```
 
-`DM_AOT=1` must also be used while packing the candidate's offline pipelines.
-Runtime `DM_AOT=1` cannot fill an incomplete archive without compiler fallback.
-Check the AOT logs for gameplay compiler entries. `DM_AOT_STRICT=1` diagnoses
-such entries but still compiles fallback pipelines. Preserve the integrated
+Use `DM_AOT=1 DM_AOT_STRICT=1` while packing the candidate's offline pipelines.
+Play keeps AOT off after live cutscene freezes in the old exact-miss path.
+The archive-only repair needs controlled acceptance before runtime AOT is
+enabled again. Descriptor learning stays on. Mesh prediction preserves every
+draw; an unfinished cold pipeline still waits. Check the AOT logs for gameplay
+compiler entries. Runtime strict mode diagnoses entries rather than banning
+fallback compilation. Preserve the integrated
 build's other shader and correctness flags; the list above is the service,
 pacing and display part of that recipe.
 
@@ -231,11 +238,14 @@ The [BAHS record-boundary finding](../../../docs/reference/shaders.md#a-bahs-sca
 
 ## Found on this game
 
+- Open visual lead: [texture dimension mismatch evidence](../../../docs/reference/shaders.md#a-texture-dimension-warning-does-not-establish-a-bad-translated-instruction), slot 7 of `9b310b3349825e9a_b`. Its SASS explicitly encodes 2DArray; whether the mismatched conditional sample executes remains unproved.
+- Current, unverified worker path: [native task/mesh pipeline waits](../../../docs/reference/shaders.md#native-task-and-mesh-pipelines-wait-on-the-submit-thread). The user chose preservation of every draw. Prediction and native startup manifests prepare known states; a genuinely cold draw can still wait.
+
 - Resolved in the opt-in idle-retirement path: [retired large-pool buffer ownership](../../../docs/reference/memory.md#retired-large-pool-buffers-still-owned-after-their-fence). The native fixture exposed stale strong and autoreleased array ownership; gameplay acceptance remains open.
 
 - Current, opt-in: [storage takeover serial lookup cost](../../../docs/reference/rendering.md#storage-takeover-serial-lookup-cost). PR #1439's count lookup is ported with texture-view ancestor protection. `DM_NVN_SERIAL_HELD=1` enables it; visual and cutscene performance acceptance are open. No gameplay was run for the port.
 
-- [Unverified NVN2 indirect mesh records](../../../docs/reference/rendering.md#unverified-nvn2-indirect-mesh-records). Current: two-word SDK consumption proven; producer and field order remain open. Keep the experimental flag off for play.
+- [Unverified NVN2 indirect mesh records](../../../docs/reference/rendering.md#unverified-nvn2-indirect-mesh-records). Current: two-word SDK consumption proven; producer and field order remain open. The user selected `DM_NVN_MESH_INDIRECT=1` with the count cap and refusal path for the candidate play build.
 - Current source ports, gameplay acceptance open: [depth-writing pool draws](../../../docs/reference/rendering.md#pool-shaders-that-write-depth-taken-as-depth-readers) use `DM_NVN_FB_DSELF=1`; [commit-time raw pool tables](../../../docs/reference/shaders.md#raw-pool-table-words-that-predate-the-pools) use `DM_NVN_GMEM_COMMIT=1`. Both default off.
 - Current source ports, gameplay acceptance open: [retired pool descriptors](../../../docs/reference/nvn-objects.md#finalized-textures-made-again-by-pool-tables) keep live shared storage under the existing opt-in policy. [Pool and texture diagnostics](../../../docs/reference/memory.md#what-fills-a-switch-2-games-gpu-working-set-ocarina-of-time-on-an-ipad) run on explicit `DM_CTL` commands.
 - Current shader metadata: the corrected NDSR split adds `d17eefaff4f0bc23`, `1fdc85178b60f6ce` and `92918e9b7e2f89a4`. Re-split prepared inputs before rebuilding shaders because subsequent numeric indices change. The corrected splitter remains under `DMSH_OOT_VISUAL=1`.
@@ -245,6 +255,7 @@ The [BAHS record-boundary finding](../../../docs/reference/shaders.md#a-bahs-sca
 - Open experiment: [visual source ports](../../../docs/reference/shaders.md#ocarina-visual-source-ports-experimental) are default-off on `oot-visual`. Ten extracted v131072 targets now translate and compile on the M4 Max, including the foliage, output-payload task, float-reduction, SMAA and deep-expression compute targets. Numeric GPU and focused host fixtures pass. The Open entries below describe the earlier runtime findings; visual/gameplay acceptance remains open.
 
 - Open: [pipeline creation after offline translation](../../../docs/reference/shaders.md#pipeline-creation-remains-after-offline-shader-translation) has opt-in archive coverage and descriptor learning. Synthetic fixtures pass; no gameplay zero-compile or image result is established.
+- Current, verification paused: [exact AOT misses and packed-library learning](../../../docs/reference/shaders.md#exact-aot-misses-bypass-hybrid-pipelines-and-packed-libraries-lose-learning). A captured session has only three JSON descriptors but 7,387 native TSV rows. Keep runtime AOT off and `DM_NVN_SERIAL_HELD=1`; the new recorder/import and archive-miss repairs are source-only until integrated checks resume.
 
 - Open experiment: [absolute direct-present cadence](../../../docs/reference/frame-rate.md#absolute-cadence-experiment-for-direct-presentation) is available with `DM_PRESENT_ABSOLUTE=1` on the Mac. It is off by default and has no gameplay latency result yet.
 

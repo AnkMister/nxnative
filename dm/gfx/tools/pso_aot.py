@@ -2,6 +2,7 @@
 uses their SDK names. Libraries and identities contain no machine paths."""
 import collections
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -74,7 +75,8 @@ def configuration(row, fd, enum):
     return 'render_pipeline_descriptors', out
 
 
-def validate(row, chain):
+def validate(row, chain, rebase=False):
+    if rebase and row.get('chain') != chain: row = dict(row, chain=chain)
     if row.get('version') != 1 or row.get('chain') != chain or row.get('class') not in ('compute', 'render', 'mesh'):
         raise ValueError('unsupported descriptor version, chain or class')
     needed = {'compute': 'compute', 'render': 'vertex', 'mesh': 'mesh'}[row['class']]
@@ -82,8 +84,20 @@ def validate(row, chain):
     for k in FUNCTIONS:
         if k in row:
             ref = row[k]
-            if not isinstance(ref, list) or len(ref) != 2 or not all(isinstance(s, str) and s for s in ref): raise ValueError('invalid function identity')
+            if not isinstance(ref, list) or len(ref) not in (2, 3) or not all(isinstance(s, str) and s for s in ref[:2]): raise ValueError('invalid function identity')
             if any(x in ref[0] for x in ('/', '\\', '..')): raise ValueError('library identity contains a path')
+            if len(ref) == 3:
+                if not isinstance(ref[2], list): raise ValueError('invalid function constants')
+                indices = set()
+                for c in ref[2]:
+                    if not isinstance(c, list) or len(c) != 3: raise ValueError('invalid constant')
+                    i, typ, value = c
+                    if type(i) is not int or not 0 <= i <= 65535 or i in indices: raise ValueError('invalid/duplicate constant index')
+                    if typ == 'bool': valid = type(value) is bool
+                    elif typ == 'int': valid = type(value) is int and -(1 << 31) <= value < (1 << 31)
+                    else: valid = False
+                    if not valid: raise ValueError('unsupported constant type/value')
+                    indices.add(i)
     if row['class'] != 'compute':
         if len(row['colors']) != 8 or any(len(c) != 9 for c in row['colors']): raise ValueError('invalid color state')
         if row['class'] == 'render' and (len(row['attrs']) != len(row['layouts']) or len(row['attrs']) > 31): raise ValueError('invalid vertex layout')
@@ -140,7 +154,7 @@ def mesh_interface_matches(mesh, mesh_entry, fragment, fragment_entry):
     return outputs is not None and inputs is not None and all(outputs.get(loc) == kind for loc, kind in inputs.items())
 
 
-def plan(root, chain, seen, functions, host_dir, shader_map=None, zero=False):
+def plan(root, chain, seen, functions, host_dir, shader_map=None, zero=False, rebase_seen=False):
     """Every successful compute; explicit program-source mesh combinations; learned exact states.
     Do not guess a cross-product of unrelated task/mesh/fragment functions."""
     global HOST_DIR
@@ -208,17 +222,62 @@ def plan(root, chain, seen, functions, host_dir, shader_map=None, zero=False):
         for n, line in enumerate(Path(path).read_text().splitlines(), 1):
             if not line.strip(): continue
             try:
-                row = validate(json.loads(line), chain)
+                row = validate(json.loads(line), chain, rebase_seen)
                 for k in FUNCTIONS:
                     if k not in row: continue
-                    lib, entry = row[k]
+                    lib, entry = row[k][:2]
                     fn = functions(library_path(root, lib))
-                    if entry not in fn or fn[entry]: raise ValueError('function missing or has constants')
+                    if entry not in fn or (fn[entry] and len(row[k]) != 3): raise ValueError('function missing or constant values not captured')
                 rows.append(row)
             except (ValueError, KeyError, TypeError, OSError) as e:
                 raise ValueError(f'{Path(path).name}:{n}: invalid/stale pso_seen: {e}') from e
     rows = list({json.dumps(r, sort_keys=True, separators=(',', ':')): r for r in rows}.values())
     return rows, dict(gaps)
+
+
+def tool_env(root, shader_map, mode, source, output, zero=False, arch=None):
+    if not shader_map: raise ValueError('AOT host tool requires --shader-map (or --game)')
+    chain = Path(root).name.removesuffix('.img')
+    if not chain.startswith('b-'): raise ValueError('AOT host tool requires a b-<chain> library')
+    env = dict(os.environ, DM_AOT='1', DM_AOT_TOOL=mode, DM_AOT_INPUT=str(source), DM_AOT_OUTPUT=str(output),
+               DM_AOT_CHAIN=chain[2:],
+               DM_NVN_SHMAP=str(Path(shader_map).resolve()), DM_MSL_DIR=str(Path(root).resolve().parent),
+               DM_PSO_ARCHIVE='off', DM_PSO_BUNDLE='off', DM_PSO_MANIFEST='off',
+               DM_PSO_PREBUILD_DEPTH='zero' if zero else 'gl')
+    # The tool exits before any guest loading. Never inherit a separate tool mode.
+    for key in ('DM_PRELOAD', 'DM_OODLE_JOB', 'DM_PSO_PREBUILD', 'DM_AOT_ARCH'): env.pop(key, None)
+    if arch: env['DM_AOT_ARCH'] = arch
+    return env
+
+
+def import_user(host, root, shader_map, paths, work, zero=False):
+    """Decode native TSV keys through this build's real descriptor producers."""
+    if not host or not shader_map: raise ValueError('--user requires --host and --shader-map (or --game)')
+    result = []
+    for n, source in enumerate(paths):
+        output = Path(work) / f'pso-import-{n}.jsonl'
+        log = Path(work) / f'pso-import-{n}.log'
+        env = tool_env(root, shader_map, 'import', Path(source).resolve(), output.resolve(), zero)
+        with log.open('w') as f:
+            r = subprocess.run([str(Path(host).resolve())], env=env, stdout=f, stderr=subprocess.STDOUT)
+        if r.returncode or not output.is_file(): raise ValueError(f'PSO import failed: {log}')
+        result.append(output)
+    return result
+
+
+def has_constants(row):
+    return isinstance(row, dict) and any(len(row[k]) == 3 for k in FUNCTIONS if k in row)
+
+
+def manifest(profile, users):
+    """Keep learned native states in the startup prepare list even with DM_AOT=0."""
+    seen = set(); rows = ['# Profile and observed pipeline states; prepared before the first frame.']
+    for path in [profile, *users]:
+        if not path or not Path(path).is_file(): continue
+        for line in Path(path).read_text().splitlines():
+            if line and not line.startswith('#') and line not in seen:
+                seen.add(line); rows.append(line)
+    return '\n'.join(rows) + '\n'
 
 
 def prepare_helpers(work, platform):

@@ -7,8 +7,14 @@ DM_ANISO	player	`0` (default) keeps the game's anisotropy; whole numbers `1` to 
 DM_AOC_DIR	path	Folder of add-on content: one numbered subfolder per DLC index holding that DLC's RomFS, reported by `aoc` and mounted read-only; the app, the Mac launcher and the NSP script set it when the build has DLC
 DM_AOC_OWNED	switch	`0` reports no add-on content even when `DM_AOC_DIR` has some, for runs without the DLC
 DM_AOT	player	Enable expanded offline pipeline archives, startup prewarm and descriptor learning; default off.
+DM_AOT_ARCH	diagnostic	Build-time AOT compiler target check; refuses a GPU architecture different from the local Mac.
+DM_AOT_CHAIN	diagnostic	Build-time descriptor tool's required planner chain; refuses a host built for a different chain
+DM_AOT_INPUT	path	Input census TSV or exact descriptor JSON for the descriptor-only AOT host tool.
 DM_AOT_LOG_SECONDS	diagnostic	Cumulative startup/gameplay compiler and archive summary interval; default 5 seconds.
+DM_AOT_OUTPUT	path	Output JSONL or pipeline archive for the build-time AOT host tool.
+DM_AOT_REBASE_SEEN	switch	Explicitly rebase an old-chain JSON census after function validation during offline packing; default off.
 DM_AOT_STRICT	diagnostic	Log gameplay compiler API entries as RED; reports gaps but still compiles fallback pipelines.
+DM_AOT_TOOL	diagnostic	Build-time host mode import or compile; exits before loading guest code. Requires DM_AOT=1.
 DM_APP_DM	path	Set by the iOS app of a game of several programs: the running program's `dm/p<N>` folder, where the settings screen finds its `launcher.json`
 DM_APP_VERSION	switch	Overrides the IPA's version in `build_ipa.sh`; by default it is the packed game's display version from its control data (the update's when one is packed)
 DM_AUDIO	switch	`1` plays audio through Core Audio, `0` uses the silent sink; real output is the default on iOS, the silent sink on the Mac (the Mac launcher sets `1`)
@@ -132,6 +138,7 @@ DM_NVN_ALLOCPROF	diagnostic	`=1` charges Metal allocation growth to each replaye
 DM_NVN_API	switch	`=<major>.<minor>` overrides the NVN API version `nvnDeviceGetInteger` reports (by default decided by the SDK version or the profile's `device_api`: 55.15 for SDK 11 and later, 53.313 before)
 DM_NVN_ATTPROF	diagnostic	`=1` logs per-frame nominal draw-pass attachment bytes by serial, mip, slice and plane, plus pass ends, copy/uniform splits and feedback splits by cause; helper passes and physical DRAM compression are not counted
 DM_NVN_BARRIER	switch	How draw passes are ordered: `full` (default) waits for all earlier GPU work, `game` only for the previous pass's fragment stage unless the game set a barrier, `ab` alternates with the `DM_AB` phases
+DM_NVN_BCRT	switch	Opt-in NEW plain BC1/BC4 color-target shadows and lossy GPU encoding; source default off, visual acceptance pending.
 DM_NVN_BF_WANT	path	`=<file>`: appends the key of each fragment shader whose passes could not be merged for lack of a readable-tile version to that file, once per key
 DM_NVN_BLIT_ORDER	diagnostic	`0` drops the barriers between dependent operations in the copy encoder, which reproduces the fountain's vertical stripes in Mario Wonder
 DM_NVN_BORDER_SPLIT	switch	Build and runtime opt-in: `1` builds optional plain `_bn` pixel libraries and selects them only without correcting samplers; default `_b`/`_bx` always correct. Missing optional assets keep `_b`. The build value enters the shader chain/key.
@@ -151,6 +158,7 @@ DM_NVN_DEFER_AB	diagnostic	`=1` keeps the deferred pass merging (with `DM_NVN_TB
 DM_NVN_DEPTHOVR	diagnostic	`=<fragment shader key prefix>,…`: those draws compare depth with `ALWAYS`; with `DM_NVN_HILITE`, tells "the depth test rejects every fragment" from "nothing rasterizes"
 DM_NVN_DIRECT_UPLOAD	switch	0 disables bounded direct RGBA16F array uploads and keeps staged copies; on by default for supported non-sparse textures.
 DM_NVN_DIRTYCHECK	diagnostic	`=1` fully hashes pool content on every use to find changes the dirty-page tracking missed
+DM_NVN_DISPATCH_CLAMP	switch	Clamp GPU-written indirect compute dimensions and total work; off unless explicitly 1 or implied by DM_NVN_P1444_TEX, explicit 0 disables.
 DM_NVN_DISPATCH_OWN	switch	`=1` gives every compute dispatch a compute encoder of its own with full barriers, as before (by default dispatches share the copy encoder); `DM_NVN_PASSGPU` does the same
 DM_NVN_DUAL_WANT	path	`=<file>`: appends the key of each pixel shader a pipeline blends with its output 1 as the second source, while it has no dual-source entry point, to that file, once per key (the profile's `dual_want.tsv`)
 DM_NVN_ENC_LABEL	diagnostic	`=1` labels every render encoder `p<pass in frame> <width>x<height> <first 8 digits of the first draw's fragment key> d<draws>` for Instruments traces
@@ -190,8 +198,11 @@ DM_NVN_LOADPROBE	diagnostic	`=1`, `2` or `3`: attachments whose load is skipped 
 DM_NVN_LOG	diagnostic	`=1` logs the creation of NVN objects
 DM_NVN_MAGSCAN	diagnostic	`=<fs key>[:every[:phase]]`: device self-check that reads each pass's colour attachments every `every` frames (default 30) and logs `[mag]` lines for solid magenta 16×16 blocks or non-finite pixels
 DM_NVN_MESH_INDIRECT	switch	`1` enables provisional NVN2 indirect mesh draws using {count, first}; logs the first eight records after completion; off by default because the NVN2 layout is unverified
+DM_NVN_MESH_PREDICT	switch	`=1` predicts native task/mesh pipelines on bounded workers and waits for exact results when needed, preserving every draw; default off
 DM_NVN_NANSCAN	diagnostic	`=1` scans stored float attachments at pass end for NaN/Inf; off by default; diagnostic GPU work and readbacks distort timing
 DM_NVN_NANSCAN_EVERY	diagnostic	With NANSCAN, sample every Nth presented-frame index (default 1; minimum 1)
+DM_NVN_P1444_STUTTER	switch	Opt-in PR1444 upload buffer and packaged texture cache ports with adapted sparse GPU upload; source default off.
+DM_NVN_P1444_TEX	switch	Opt-in PR1444 texture/view upgrades, per-serial alias invalidation and image/attachment handling; source default off.
 DM_NVN_PASSDUMP	diagnostic	`=<f>`, `<f1>-<f2>` or `every:<n>`: logs every render pass of those frames (attachments, clears, shader keys, bindings, draw state, presents) for the `tbdr_*.py` tools
 DM_NVN_PASSDUMP_ALL	diagnostic	`=1` makes `DM_NVN_PASSDUMP` record every draw and binding change, not only the first per pass and stage, including copies and inline uniform updates
 DM_NVN_PASSGPU	diagnostic	`=<file>` writes the GPU time of each render and compute pass from stage-boundary timestamp counters (off under Metal 4); also gives each dispatch its own encoder
@@ -314,6 +325,7 @@ DM_PSO_GPUS	switch	`build_ipa.sh`: the GPU architectures, comma-separated, to bu
 DM_PSO_HYBRID	switch	`0`: a draw whose pipeline is not built yet waits for it instead of drawing with its shader pair's pulling pipeline meanwhile (on by default with the Metal 4 path)
 DM_PSO_IOS_MIN	switch	`build_ipa.sh`: the minimum iOS version of the offline pipeline archives (default the SDK's major version); a device of another major version cannot open them and builds the bases itself
 DM_PSO_J	switch	`=<n>`: offline pipeline archive batch workers (default 1); each worker owns its cached batch folder
+DM_PSO_LEARN	diagnostic	Record portable final/base pipeline states and typed constants without enabling runtime AOT lookups; default off.
 DM_PSO_MANIFEST	path	The prewarm manifest to use instead of the profile's `pso_manifest.tsv`; `off` turns the prewarm off
 DM_PSO_MTL4	player	`0` builds render pipelines through the `MTLDevice` with no bases and no archive; `1` uses MTL4Compiler with the archive, hybrid pipelines and prebuild (default on on the Mac, the profile's `pso_mtl4` on iOS)
 DM_PSO_PAIRS	path	The prebuild's second shader pair table (default: `pso_pairs.tsv` beside the shader map)

@@ -1927,8 +1927,15 @@ The image measurements below are upstream reports, not a run of this branch.
 
 - **Symptom:** first-use stutter, render-base specialization, compute pipeline creation or native mesh draws omitted while their pipeline builds.
 - **Cause:** offline metallibs and render bases do not cover every final pipeline descriptor, compute kernel or native task/mesh combination.
-- **Fix:** opt-in `DM_AOT=1` adds offline compute, layer and mesh-base coverage, helper kernels, portable `pso_seen.jsonl` learning and archive-only startup loading. Always-on counters separate startup from gameplay. `DM_AOT_STRICT=1` logs gameplay compiler API entries as `[RED]` and keeps the fallback playable. Unknown final state and function constants remain open. The [coverage report](../analysis/oot-aot.md) describes packing, preflight and acceptance checks.
+- **Fix:** opt-in `DM_AOT=1` adds offline compute, layer and mesh-base coverage, helper kernels and archive-only startup loading. `DM_PSO_LEARN=1` records portable descriptors independently of runtime AOT. Always-on counters separate startup from gameplay. `DM_AOT_STRICT=1` logs gameplay compiler API entries as `[RED]` and keeps the fallback playable. Unobserved final state and constant values remain open. The [coverage report](../analysis/oot-aot.md) describes the original packing and acceptance checks; the current recorder and miss-path repair is below.
 - **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#found-on-this-game), static shader audit. Synthetic archives pass; complete game coverage and visual acceptance are unverified.
+
+### Exact AOT misses bypass hybrid pipelines and packed libraries lose learning
+
+- **Symptom:** cutscenes freeze with dozens of new pipelines, `AOT phase=gameplay class=render-specialization` and `base specialization` events, but `pso_seen.jsonl` has only host helpers despite a much larger `pso_user.tsv`.
+- **Cause:** packed-image `lib_from_file` returned a library without its portable label, so `aot_ref` rejected game functions. It also excluded specialized function descriptors entirely. Separately, `aot_lookup(compile=1)` compiled a whole exact pipeline before the existing base/hybrid miss path could run. An archived base with open color state still needs a separate format/blend specialization API request; an archived base is not an exact final state.
+- **Fix:** both library loaders assign the same label. Descriptor learning records final render/mesh/compute state and base misses, with typed integer/boolean function constants captured at their writers. It runs under `DM_PSO_LEARN=1` without enabling runtime AOT. Exact lookup is archive-only; misses reach the existing fallback machinery. Offline `--seen` and `--user --host` import JSON descriptors and native TSV keys through the rebuilt host's actual descriptor producers, before any guest load. Constant states use the local Mac compiler/serializer during the build. The learned TSV also seeds startup preparation. Source-only at present: new fixtures and integrated builds are paused. Ocarina's play default remains `DM_AOT=0`, with counted serial holds on.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#found-on-this-game), captured cutscene log and census mismatch. The user reported a much smoother host hotfix with AOT disabled; this combined fix has no runtime acceptance yet.
 
 ### Raw pool table words that predate the pools
 
@@ -1937,6 +1944,20 @@ The image measurements below are upstream reports, not a run of this branch.
 - **Fix:** the words are noted as they are encoded (`gmem_slot_note`) and, at each commit of the command buffer, whole or segment, pointed at a table of the pools as they are then (`gmem_commit_patch`). A new table is built when the pools changed, not refilled in place, as earlier segments may be reading the old one; the replaced one goes through the deferred release. The paired bitmap write log is replaced with a log sized to the new table. `DM_NVN_GMEM_COMMIT=1` enables this port; the default is unchanged. The idea is #1407's, which rewrites the words at commit in its own stack.
 - **Found on:** The Legend of Zelda: Ocarina of Time (`0400486024DEC000`, profile in PR #1299): on the author's stack, loading the outdoor save, 5,729 of 154,107 words held an older table than the current one by frame 5,100 and 2,582 held the current one behind the pools. Whether this is what is left of the hang in issue #1326, minutes after a clean table growth, is open.
 - **Check:** `t_gmem_words` (words noted, a pool made after them, an older table, a table that lags, a commit with no words).
+### Native task and mesh pipelines wait on the submit thread
+
+- **Symptom:** a frame hitches for one new task/mesh pipeline while the timing line reports no hybrid draws.
+- **Cause:** the correctness path builds the native mesh pipeline synchronously. A vertex pulling pipeline cannot replace a task/mesh program. Moving work to a worker cannot avoid waiting when the first draw arrives before its exact pipeline exists.
+- **Fix:** opt-in `DM_NVN_MESH_PREDICT=1` adds mesh keys to bounded command prediction and compiles admitted demand/prediction jobs on workers. The exact result is awaited when necessary; draws are never omitted. Offline exact mesh descriptors and accepted native manifest rows prepare known states. Queue exhaustion retains the correctness fallback. These source changes await native and gameplay validation.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#found-on-this-game): the live log identifies a 208 ms task/mesh compile with zero hybrid draws, and another taking 165 ms.
+
+### A texture dimension warning does not establish a bad translated instruction
+
+- **Symptom:** a shader declares a slot as 2DArray while the bound texture is 3D, possibly beside a white or hazy scene.
+- **Cause:** a bound slot may be sampled only on a conditional path. TEX/TLD instructions already provide explicit dimensions to the translator; query-only dimensions can require profile facts. A warning describes the binding, not proof that the mismatched sample executed.
+- **Fix:** inspect the instruction dimension and generated sample before changing facts. Log the bound extent, layers and mip count for unsupported view conversions. The Ocarina slot below is explicitly 2DArray in SASS, so forcing a Texture3D fact is unsupported. Establish actual sampling and the guest descriptor/view lifetime before choosing a conversion. The visual root cause remains open.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#found-on-this-game), shader `9b310b3349825e9a_b`, slot 7.
+
 ### One refused inferred AOT descriptor aborts the offline archive
 
 - **Symptom:** `metal-tt` reports fragment inputs not written by a mesh shader and the app is packed without any pipeline archive.

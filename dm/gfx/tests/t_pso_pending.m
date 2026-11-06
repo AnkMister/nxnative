@@ -80,6 +80,12 @@ static int g_checks, g_failed;
     if (error) *error = nil;
     return fail ? nil : (id<MTLRenderPipelineState>)result;
 }
+- (id<MTLRenderPipelineState>)newRenderPipelineStateWithMeshDescriptor:(MTLMeshRenderPipelineDescriptor *)descriptor options:(MTLPipelineOption)options reflection:(MTLRenderPipelineReflection **)reflection error:(NSError **)error {
+    (void)descriptor; (void)options; (void)reflection;
+    id<MTLRenderPipelineState> ps = [self newRenderPipelineStateWithDescriptor:nil error:error];
+    if (!ps && error) *error = [NSError errorWithDomain:@"mesh-fixture" code:1 userInfo:nil];
+    return ps;
+}
 - (BOOL)waitForEntered:(int)count timeoutMs:(int)timeoutMs {
     struct timespec end; clock_gettime(CLOCK_REALTIME, &end);
     end.tv_sec += timeoutMs / 1000; end.tv_nsec += (long)(timeoutMs % 1000) * 1000000L;
@@ -161,7 +167,7 @@ static int drain_queue(int timeout_ms) {
 static void reset_queue(void) {
     pthread_mutex_lock(&g_pp_mu);
     for (int i = 0; i < PSO_PEND_MAX; i++) {
-        g_pp[i].ps = nil; memset(&g_pp[i].k, 0, sizeof g_pp[i].k);
+        g_pp[i].ps = nil; g_pp[i].d = nil; g_pp[i].error = nil; g_pp[i].mesh = 0; memset(&g_pp[i].k, 0, sizeof g_pp[i].k);
         g_pp[i].used = g_pp[i].done = 0; g_pp[i].order = 0;
     }
     g_pp_kicked = g_pp_taken = 0;
@@ -353,15 +359,39 @@ static void test_prediction_restores_scissor(void) {
     g_exec_next = NULL;
 }
 
+static void test_mesh_worker_preserves_result_and_error(void) {
+    reset_queue();
+    GateDevice *dev = [[GateDevice alloc] initBlockingThrough:1 nilCall:0]; g_dev = (id<MTLDevice>)(id)dev;
+    pso_key k = make_key(900); MTLMeshRenderPipelineDescriptor *d = [MTLMeshRenderPipelineDescriptor new];
+    EXPECT_EQ("mesh prediction admitted", 1, pso_pend_mesh(&k, d, 1));
+    if (![dev waitForEntered:1 timeoutMs:5000]) { EXPECT_TRUE("mesh worker entered compiler", 0); [dev releaseAll]; drain_queue(5000); reset_queue(); return; }
+    EXPECT_TRUE("mesh compile stays off submit thread", ![dev callWasOnSubmitter:1]);
+    EXPECT_EQ("mesh demand reuses pending prediction", 0, pso_pend_mesh(&k, d, 0));
+    [dev releaseAll]; EXPECT_TRUE("mesh worker completes", pending_done(&k, 5000));
+    id<MTLRenderPipelineState> ps = nil; NSError *error = nil;
+    EXPECT_EQ("mesh take finds predicted result", 1, pso_pend_mesh_take(&k, &ps, &error));
+    EXPECT_TRUE("mesh draw receives exact worker result", ps == (id)[dev resultForCall:1] && !error);
+    EXPECT_EQ("mesh never compiles on submit thread", 0, [dev syncCalls]);
+    EXPECT_EQ("mesh result releases pending slot", -1, queue_index(&k));
+    reset_queue(); dev = [[GateDevice alloc] initBlockingThrough:0 nilCall:1]; g_dev = (id<MTLDevice>)(id)dev;
+    EXPECT_EQ("failed mesh demand is admitted", 1, pso_pend_mesh(&k, d, 0));
+    EXPECT_TRUE("failed mesh worker completes", pending_done(&k, 5000));
+    EXPECT_EQ("failed mesh result is consumed", 1, pso_pend_mesh_take(&k, &ps, &error));
+    EXPECT_TRUE("failed mesh preserves its error without a submit retry", !ps && [error.domain isEqual:@"mesh-fixture"] && [dev syncCalls] == 0);
+    reset_queue();
+}
+
 int main(void) {
     @autoreleasepool {
         setvbuf(stdout, NULL, _IONBF, 0);
+        setenv("DM_AOT", "0", 1); setenv("DM_PSO_LEARN", "0", 1);
         test_vs = [NvShader new]; test_fs = [NvShader new];
         snprintf(test_vs->key, sizeof test_vs->key, "pending-base-vs"); snprintf(test_fs->key, sizeof test_fs->key, "pending-base-fs");
         test_two_active_exact_take_and_release();
         test_full_table_reclaims_done_not_running();
         test_nil_prediction_falls_back_then_predicts();
         test_prediction_restores_scissor();
+        test_mesh_worker_preserves_result_and_error();
         printf("== %d PSO pending checks, %d failed ==\n", g_checks, g_failed);
         return g_failed != 0;
     }

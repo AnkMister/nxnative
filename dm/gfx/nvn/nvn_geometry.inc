@@ -561,7 +561,7 @@ static id<MTLFunction> mtk_nofrag(void) {   // the fragment function of a task /
         fn = aot_function(lib, @"dm_mesh_nofrag"); if (!fn) MLOG("[RED] task / mesh: the empty fragment function did not compile: %s", e.localizedDescription.UTF8String); });
     return fn;
 }
-static id<MTLRenderPipelineState> mtk_build(const pso_key *k, NvShader *ts, NvShader *ms, NvShader *fs, NSError **error) {
+static MTLMeshRenderPipelineDescriptor *mtk_desc(const pso_key *k, NvShader *ts, NvShader *ms, NvShader *fs) {
     MTLRenderPipelineDescriptor *d = pso_desc(k, nil, fs, nil, 0);
     if (!pso_ds_valid((uint32_t)d.depthAttachmentPixelFormat, (uint32_t)d.stencilAttachmentPixelFormat)) return nil;
     MTLMeshRenderPipelineDescriptor *m = [MTLMeshRenderPipelineDescriptor new];
@@ -570,7 +570,11 @@ static id<MTLRenderPipelineState> mtk_build(const pso_key *k, NvShader *ts, NvSh
     m.rasterSampleCount = d.rasterSampleCount; m.alphaToCoverageEnabled = d.alphaToCoverageEnabled;
     for (int i = 0; i < 8; i++) m.colorAttachments[i] = d.colorAttachments[i];
     m.depthAttachmentPixelFormat = d.depthAttachmentPixelFormat; m.stencilAttachmentPixelFormat = d.stencilAttachmentPixelFormat;
-    return aot_mesh(m, error);
+    return m;
+}
+static id<MTLRenderPipelineState> mtk_build(const pso_key *k, NvShader *ts, NvShader *ms, NvShader *fs, NSError **error) {
+    MTLMeshRenderPipelineDescriptor *m = mtk_desc(k, ts, ms, fs);
+    return m ? aot_mesh(m, error) : nil;
 }
 static void mtk_bind_key(pso_key *k, NvShader *ts, NvShader *ms, NvShader *fs) {
     k->vs = (__bridge void *)ms; k->fs = (__bridge void *)fs;
@@ -580,6 +584,11 @@ static void mtk_claim(pso_key *k, NvShader *ts, NvShader *ms, NvShader *fs, id<M
     mtk_bind_key(k, ts, ms, fs);
     id current = hm_get_id(&g_pso_mtk, k);
     if (!current || current == NSNull.null) hm_put_id(&g_pso_mtk, k, ps);
+}
+static int mtk_predict_kick(const pso_key *k, NvShader *ts, NvShader *ms, NvShader *fs) {
+    if (!mesh_predict_on() || !nvn_visual_on() || hm_get_id(&g_pso_mtk, k)) return 0;
+    pthread_mutex_lock(&g_pp_mu); int found = pso_pend_find(k) >= 0; pthread_mutex_unlock(&g_pp_mu);
+    return found ? 0 : pso_pend_mesh(k, mtk_desc(k, ts, ms, fs), 1);
 }
 static nvn_hmap g_pso_mtk_legacy = {.klen = sizeof(pso_key)}; static os_unfair_lock g_pso_mtk_legacy_lock = OS_UNFAIR_LOCK_INIT;
 static NSObject *g_pso_mtk_legacy_building;
@@ -600,11 +609,10 @@ static id<MTLRenderPipelineState> mtk_pso_legacy(NvProg *raster) {
     for (int i = 0; i < 8; i++) m.colorAttachments[i] = d.colorAttachments[i];
     m.depthAttachmentPixelFormat = d.depthAttachmentPixelFormat; m.stencilAttachmentPixelFormat = d.stencilAttachmentPixelFormat;
     if (dm_aot_on()) {
-        id loaded = aot_mesh(m, nil);
-        os_unfair_lock_lock(&g_pso_mtk_legacy_lock);
-        hm_put_id(&g_pso_mtk_legacy, &k, loaded ?: NSNull.null);
-        os_unfair_lock_unlock(&g_pso_mtk_legacy_lock);
-        return loaded;
+        NSDictionary *row = aot_render_row(m, 1); if (aot_learning()) aot_record(row);
+        pso4_init(); id loaded = aot_lookup(row, 0, nil);
+        if (loaded) { os_unfair_lock_lock(&g_pso_mtk_legacy_lock); hm_put_id(&g_pso_mtk_legacy, &k, loaded); os_unfair_lock_unlock(&g_pso_mtk_legacy_lock); return loaded; }
+        // Retain this legacy path's existing background policy on an AOT miss.
     }
     const char *tk = ts ? ts->key : "-", *mk = ms->key, *fk = fs ? fs->key : "-"; pso_key kk = k;
     dispatch_async(pp_bg_queue(), ^{
@@ -624,7 +632,18 @@ static id<MTLRenderPipelineState> mtk_pso(NvProg *raster) {
     id ps = hm_get_id(&g_pso_mtk, &k);
     if (ps) return ps == NSNull.null ? nil : ps;
     NSError *error = nil; uint64_t start = bp_now();
-    ps = mtk_build(&k, ts, ms, fs, &error);
+    int worker = 0;
+    if (mesh_predict_on()) {
+        // Queue the draw first, then overlap the remaining submission's likely
+        // pipelines. A true first use may still wait; geometry is preserved.
+        pthread_mutex_lock(&g_pp_mu); int at = pso_pend_find(&k), pending = at >= 0;
+        if (pending) g_pp[at].demand = 1;   // pin even a finished predicted result across the following prediction walk
+        pthread_mutex_unlock(&g_pp_mu);
+        if (!pending) pso_pend_mesh(&k, mtk_desc(&k, ts, ms, fs), 0);
+        if (g_pp_submit_mark != g_sub_serial) { g_pp_submit_mark = g_sub_serial; pso_predict_rest(); }
+        worker = pso_pend_mesh_take(&k, &ps, &error);
+    }
+    if (!worker) ps = mtk_build(&k, ts, ms, fs, &error);   // disabled or no pending slot: preserve the draw
     uint64_t elapsed = bp_now() - start;
     g_bp_pso_n++; g_bp_pso_ns += elapsed;
     const char *task = ts ? ts->key : "-";
@@ -638,8 +657,8 @@ static id<MTLRenderPipelineState> mtk_pso(NvProg *raster) {
     pso_skey sk; char hex[sizeof sk * 2 + 1];
     pso_skey_from(&k, ms, fs, 0, NULL, &sk); pso_skey_hex(&sk, hex);
     pso_record("M\t%s\t%s\n", task, hex); pso_user_record("M\t%s\t%s\n", task, hex);
-    MLOG("task / mesh pipeline: task %s mesh %s fragment %s, %.1f ms required at frame %llu", task, ms->key, fs ? fs->key : "-",
-         elapsed / 1e6, (unsigned long long)atomic_load(&g_cur_frame));
+    MLOG("task / mesh pipeline: task %s mesh %s fragment %s, %.1f ms required at frame %llu (%s)", task, ms->key, fs ? fs->key : "-",
+         elapsed / 1e6, (unsigned long long)atomic_load(&g_cur_frame), worker ? "worker result; wait includes prediction" : "submit compile");
     return ps;
 }
 static void mtk_encode(id<MTLRenderCommandEncoder> en_) {

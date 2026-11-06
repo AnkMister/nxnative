@@ -1,18 +1,13 @@
 // Exact, portable descriptors shared by the offline planner and startup loader.
-// Default off. Unknown function constants/diagnostic source stay on the old path.
+// Default off. Function constants are explicit typed values; never inferred.
 static os_unfair_lock g_aot_lock = OS_UNFAIR_LOCK_INIT;
 static NSMutableDictionary<NSData *, id> *g_aot_ps;
 static NSMutableSet<NSData *> *g_aot_seen;
 static NSData *aot_bytes(NSDictionary *j) { return [NSJSONSerialization dataWithJSONObject:j options:NSJSONWritingSortedKeys error:nil]; }
 static NSArray *aot_ref(id<MTLFunction> fn) {
     if (!fn) return nil;
-    os_unfair_lock_lock(&g_fn4_lock); id note = [g_fn4 objectForKey:fn]; os_unfair_lock_unlock(&g_fn4_lock);
-    if ([note isKindOfClass:NSArray.class]) return !fn.functionConstantsDictionary.count && [note[0] length] ? note : nil;
-    MTL4FunctionDescriptor *fd = fn4_of(fn);
-    if (![fd isKindOfClass:MTL4LibraryFunctionDescriptor.class]) return nil;
-    MTL4LibraryFunctionDescriptor *f = (id)fd;
-    if (!f.library.label.length || fn.functionConstantsDictionary.count) return nil;
-    return @[f.library.label, f.name];
+    os_unfair_lock_lock(&g_fn4_lock); NSArray *ref = [g_fn4_refs objectForKey:fn]; os_unfair_lock_unlock(&g_fn4_lock);
+    return ref;
 }
 static NSDictionary *aot_compute_row(id<MTLFunction> fn) {
     NSArray *f = aot_ref(fn); return f ? @{@"version": @1, @"chain": @(DMSH_CHAIN), @"class": @"compute", @"compute": f} : nil;
@@ -45,11 +40,32 @@ static NSDictionary *aot_render_row(id d, int mesh) {
     return j;
 }
 static MTL4FunctionDescriptor *aot_load_ref(NSArray *ref) {
-    if (ref.count != 2 || ![ref[0] isKindOfClass:NSString.class] || ![ref[1] isKindOfClass:NSString.class]) return nil;
-    NSString *name = ref[0]; if ([name containsString:@"/"] || [name containsString:@".."] || !name.length) return nil;
+    if (![ref isKindOfClass:NSArray.class] || (ref.count != 2 && ref.count != 3) || ![ref[0] isKindOfClass:NSString.class] || ![ref[1] isKindOfClass:NSString.class]) return nil;
+    NSString *name = ref[0]; if ([name containsString:@"/"] || [name containsString:@"\\"] || [name containsString:@".."] || !name.length) return nil;
     id<MTLLibrary> lib = [name hasPrefix:@"host:"] ? host_lib([name substringFromIndex:5].UTF8String, nil) : lib_from_file([g_msl_dir stringByAppendingPathComponent:[name stringByAppendingPathExtension:@"metallib"]], nil);
     if (!lib) return nil;
-    MTL4LibraryFunctionDescriptor *f = [MTL4LibraryFunctionDescriptor new]; f.library = lib; f.name = ref[1]; return f;
+    MTL4LibraryFunctionDescriptor *f = [MTL4LibraryFunctionDescriptor new]; f.library = lib; f.name = ref[1];
+    if (ref.count == 2) return f;
+    if (![ref[2] isKindOfClass:NSArray.class]) return nil;
+    id<MTLFunction> source = [lib newFunctionWithName:ref[1]]; if (!source) return nil;
+    NSMutableDictionary<NSNumber *, MTLFunctionConstant *> *declared = [NSMutableDictionary dictionary];
+    for (MTLFunctionConstant *c in source.functionConstantsDictionary.allValues) declared[@(c.index)] = c;
+    MTLFunctionConstantValues *cv = [MTLFunctionConstantValues new];
+    NSMutableSet *indices = [NSMutableSet set];
+    for (NSArray *c in ref[2]) {
+        if (![c isKindOfClass:NSArray.class] || c.count != 3 || ![c[0] isKindOfClass:NSNumber.class] ||
+            ![c[1] isKindOfClass:NSString.class] || ![c[2] isKindOfClass:NSNumber.class] || [c[0] integerValue] < 0 || [indices containsObject:c[0]]) return nil;
+        MTLFunctionConstant *definition = declared[c[0]]; if (!definition || definition.index > 65535) return nil;
+        [indices addObject:c[0]];
+        if ([c[1] isEqual:@"bool"] && definition.type == MTLDataTypeBool && CFGetTypeID((__bridge CFTypeRef)c[2]) == CFBooleanGetTypeID()) {
+            bool value = [c[2] boolValue]; [cv setConstantValue:&value type:MTLDataTypeBool atIndex:[c[0] unsignedIntegerValue]]; }
+        else if ([c[1] isEqual:@"int"] && definition.type == MTLDataTypeInt && [c[2] doubleValue] == [c[2] longLongValue] &&
+                 [c[2] longLongValue] >= INT32_MIN && [c[2] longLongValue] <= INT32_MAX && CFGetTypeID((__bridge CFTypeRef)c[2]) != CFBooleanGetTypeID()) {
+            int value = [c[2] intValue]; [cv setConstantValue:&value type:MTLDataTypeInt atIndex:[c[0] unsignedIntegerValue]]; }
+        else return nil;
+    }
+    for (MTLFunctionConstant *c in declared.allValues) if (c.required && ![indices containsObject:@(c.index)]) return nil;
+    MTL4SpecializedFunctionDescriptor *s = [MTL4SpecializedFunctionDescriptor new]; s.functionDescriptor = f; s.constantValues = cv; return s;
 }
 static MTL4PipelineDescriptor *aot_descriptor(NSDictionary *j) {
     if ([j[@"version"] intValue] != 1 || ![j[@"chain"] isEqual:@(DMSH_CHAIN)]) return nil;
@@ -95,15 +111,16 @@ static id aot_lookup(NSDictionary *j, int compile, NSError **error) {
         if (cs) ps = [a newComputePipelineStateWithDescriptor:(id)d error:nil]; else ps = [a newRenderPipelineStateWithDescriptor:d error:nil];
         if (ps) break;
     }
-    if (!ps && compile && g_comp4) {
-        dm_aot_event([j[@"class"] UTF8String], [[NSString alloc] initWithData:key encoding:NSUTF8StringEncoding], "exact archive miss", 1);
-        if (cs) ps = [g_comp4 newComputePipelineStateWithDescriptor:(id)d compilerTaskOptions:nil error:error]; else ps = [g_comp4 newRenderPipelineStateWithDescriptor:d compilerTaskOptions:nil error:error];
-    }
+    // Archive lookup only, including compile=1 callers retained for source
+    // compatibility. A miss falls through to the caller's existing hybrid or
+    // background path. Build-time compilation lives in nvn_aot_tool.inc.
     if (ps) { os_unfair_lock_lock(&g_aot_lock); if (!g_aot_ps) g_aot_ps = [NSMutableDictionary dictionary]; g_aot_ps[key] = ps; os_unfair_lock_unlock(&g_aot_lock); }
     return ps;
 }
 static void aot_record(NSDictionary *j) {
-    if (!dm_aot_on() || !j || [j[@"base"] boolValue]) return;
+    if (!aot_learning()) return;
+    if (!j) { static _Atomic uint64_t missing; uint64_t n = atomic_fetch_add(&missing, 1) + 1;
+        if (n <= 4 || !(n & (n - 1))) MLOG("[RED] AOT descriptor not replayable: missing portable library/entry/constants; census incomplete (%llu requests)", (unsigned long long)n); return; }
     NSData *key = aot_bytes(j); os_unfair_lock_lock(&g_aot_lock);
     const char *e = getenv("DM_PSO_SEEN"); NSString *user = pso_user_path(); NSString *path = e && *e ? @(e) : user ? [user.stringByDeletingLastPathComponent stringByAppendingPathComponent:@"pso_seen.jsonl"] : nil;
     if (!g_aot_seen) {
@@ -139,17 +156,17 @@ static void aot_prewarm(void) {
     MLOG("%sAOT startup archive-only prewarm: %lu descriptors, %u misses (no compiler fallback)", misses ? "[RED] " : "", (unsigned long)rows.count, (unsigned)misses);
 }
 static id<MTLComputePipelineState> aot_compute(id<MTLFunction> f, NSError **e) {
-    NSDictionary *j = aot_compute_row(f); if (dm_aot_on()) { pso4_init(); aot_record(j); id ps = aot_lookup(j, 1, e); if (ps) return ps; }
+    NSDictionary *j = aot_compute_row(f); if (aot_learning()) aot_record(j); if (dm_aot_on()) { pso4_init(); id ps = aot_lookup(j, 0, e); if (ps) return ps; }
     dm_aot_event("compute/helper", j ? [[NSString alloc] initWithData:aot_bytes(j) encoding:NSUTF8StringEncoding] : f.description, "device fallback", 1);
-    return [g_dev newComputePipelineStateWithFunction:f error:e];
+    return [g_dev newComputePipelineStateWithFunction:fn_dev(f) error:e];
 }
 static id<MTLRenderPipelineState> aot_render(MTLRenderPipelineDescriptor *d, NSError **e) {
-    NSDictionary *j = aot_render_row(d, 0); if (dm_aot_on()) { pso4_init(); aot_record(j); id ps = aot_lookup(j, 1, e); if (ps) return ps; }
+    NSDictionary *j = aot_render_row(d, 0); if (aot_learning()) aot_record(j); if (dm_aot_on()) { pso4_init(); id ps = aot_lookup(j, 0, e); if (ps) return ps; }
     dm_aot_event("render/helper", j ? [[NSString alloc] initWithData:aot_bytes(j) encoding:NSUTF8StringEncoding] : d.description, "device fallback", 1);
     return [g_dev newRenderPipelineStateWithDescriptor:d error:e];
 }
 static id<MTLRenderPipelineState> aot_mesh(MTLMeshRenderPipelineDescriptor *d, NSError **e) {
-    NSDictionary *j = aot_render_row(d, 1); if (dm_aot_on()) { pso4_init(); aot_record(j); id ps = aot_lookup(j, 1, e); if (ps) return ps; }
+    NSDictionary *j = aot_render_row(d, 1); if (aot_learning()) aot_record(j); if (dm_aot_on()) { pso4_init(); id ps = aot_lookup(j, 0, e); if (ps) return ps; }
     dm_aot_event("mesh", j ? [[NSString alloc] initWithData:aot_bytes(j) encoding:NSUTF8StringEncoding] : d.description, "device fallback", 1);
     return [g_dev newRenderPipelineStateWithMeshDescriptor:d options:MTLPipelineOptionNone reflection:nil error:e];
 }
@@ -157,6 +174,13 @@ static id<MTLRenderPipelineState> aot_mesh(MTLMeshRenderPipelineDescriptor *d, N
 // Used by the early deswizzle initialization as well as the regular prewarm.
 id<MTLComputePipelineState> dm_aot_helper_compute(id<MTLDevice> dev, id<MTLLibrary> lib, NSString *entry) {
     if (dev != g_dev) return nil;
-    pso4_init(); id<MTLFunction> f = aot_function(lib, entry);
-    NSDictionary *j = aot_compute_row(f); aot_record(j); return aot_lookup(j, 0, nil);
+    if (!dm_aot_on()) {
+        // The caller creates the function for its device fallback. Its known
+        // helper identity is sufficient for learning; avoid creating it twice.
+        NSDictionary *j = lib.label.length && entry.length ? @{@"version": @1, @"chain": @(DMSH_CHAIN), @"class": @"compute", @"compute": @[lib.label, entry]} : nil;
+        aot_record(j); return nil;
+    }
+    id<MTLFunction> f = aot_function(lib, entry);
+    NSDictionary *j = aot_compute_row(f); aot_record(j);
+    pso4_init(); return aot_lookup(j, 0, nil);
 }

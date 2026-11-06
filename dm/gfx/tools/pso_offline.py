@@ -8,8 +8,9 @@
 #   · left out as the host leaves them out (to the draws): a reflection of another chain version or none, a vertex shader with stage inputs and no pulling library, a vertex library that
 #     writes the layer (render_target_array_index), a pixel shader that reads the primitive ID (its reflection's raster.primitive_id: the host builds its pipelines whole, since
 #     through a base every primitive reads 0), a missing library or entry point
-#   · a pair whose functions declare function constants is left to the device (rest_pairs.tsv): the host specializes such functions with an empty set of values, and metal-tt makes
+#   · without --aot, a pair whose functions declare function constants is left to the device (rest_pairs.tsv): the host specializes such functions with an empty set of values, and metal-tt makes
 #     no specialized function from a library (applegpu-nt: "cannot find private metadata"), nor the function unspecialized ("cannot lower module with unresolved function constants")
+# --aot with --seen/--user captures exact final states and typed constants. Constant descriptors use the matching local Mac --host compiler/serializer instead of metal-tt.
 # Output folder (what the app bundles as pso/, the host's DM_PSO_BUNDLE):
 #   <arch>.mtl4a     one archive per GPU architecture (applegpu_g18p = A19 / A19 Pro); the host opens the one named after its device's architecture
 #   prebuilt.tsv     what the archives cover, in the host's stamp format (pso_prebuild): chain version, depth mode, the pair lists' size and SHA-256. The host skips its prebuild when
@@ -31,7 +32,6 @@
 #   otherwise: the SDK's version on a Mac whose system is older than its Xcode's SDK (macOS 26.6 with Xcode 27.1) left that Mac without them (GitHub issue #673)
 import concurrent.futures as cf
 import argparse, filecmp, hashlib, json, os, shutil, struct, subprocess, sys, time
-import concurrent.futures as cf
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'tools'))
@@ -39,6 +39,9 @@ import romfs, shader_lib   # the libraries may be one file (shader_lib.py), read
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pso_aot
 AOT_ENUMS = {}
+AOT_HOST = None
+AOT_SHADER_MAP = None
+AOT_ZERO = False
 
 LAYER = b'render_target_array_index'
 BATCH = 1000   # bases per metal-tt run: Odyssey's largest compiler lifetime footprint at this size was 2.065 GiB on an 8 GB M2
@@ -142,12 +145,16 @@ def plan(lib_dir, chain, pairs, zero, aot=False):
 
 def script(lib_dir, bases):
     """A Metal 4 pipelines script (metal4-pipelines-script(5), the .mtl4-json format metal-tt reads) with one render pipeline descriptor per base"""
-    libs, fns, pipes = {}, {}, []
-    def fd(lib, entry):
+    libs, fns, specs, pipes = {}, {}, {}, []
+    def fd(lib, entry, constants=None):
         if lib not in libs: libs[lib] = {'label': lib, 'path': str(pso_aot.library_path(lib_dir, lib).resolve())}
         label = f'{lib}.{entry}'
         if label not in fns: fns[label] = {'label': label, 'library': f'lib:{lib}', 'name': entry}
-        return f'fnd:{label}'
+        if constants is None: return f'fnd:{label}'
+        specialized = label + '.' + hashlib.sha256(json.dumps(constants, separators=(',', ':')).encode()).hexdigest()[:16]
+        specs[specialized] = {'label': specialized, 'function_descriptor': f'fnd:{label}', 'constant_values': [
+            {'id_type': 'FunctionConstantIndex', 'id': {'data': index}, 'value_type': 'ConstantBool' if typ == 'bool' else 'ConstantInt', 'value': {'data': int(value)}} for index, typ, value in constants]}
+        return f'fnd:{specialized}'
     extra = {}
     for row in bases:
         if isinstance(row, dict):
@@ -158,7 +165,8 @@ def script(lib_dir, bases):
                       'color_attachments': [dict.fromkeys(COLOUR, 'Unspecialized') for _ in range(8)],
                       **({'input_primitive_topology': 'Triangle'} if len(row) == 5 else {})})
     pipes.extend(extra.pop('render_pipeline_descriptors', []))
-    return {'libraries': list(libs.values()), 'function_descriptors': {'library_function_descriptors': list(fns.values())},
+    return {'libraries': list(libs.values()), 'function_descriptors': dict({'library_function_descriptors': list(fns.values())},
+            **({'specialized_function_descriptors': list(specs.values())} if specs else {})),
             'pipeline_descriptors': dict(extra, render_pipeline_descriptors=pipes)}
 
 
@@ -271,6 +279,11 @@ def compile_batch(lib_dir, bases, work, arch, platform, osmin, toolchain):
     configuration = script(lib_dir, bases)
     js = work / 'bases.mtl4-json'; write_script(js, configuration)
     key = archive_key(configuration, library_digest(lib_dir, bases), arch, platform, osmin, toolchain)
+    native = any(pso_aot.has_constants(row) for row in bases)
+    if native:
+        if platform != 'macos' or not AOT_HOST or not AOT_SHADER_MAP:
+            raise ValueError('function-constant archives require the local Mac --host and --shader-map (or --game)')
+        key = hashlib.sha256((key + hashlib.sha256(Path(AOT_HOST).read_bytes()).hexdigest()).encode()).hexdigest()
     del configuration
     dst, kf = work / f'{arch}.mtl4a', work / f'key.{arch}'
     if dst.is_file() and dst.stat().st_size and kf.is_file() and kf.read_text().strip() == key: return dst, True
@@ -280,6 +293,22 @@ def compile_batch(lib_dir, bases, work, arch, platform, osmin, toolchain):
         if saved['key'] == key: raise DescriptorRefused(saved['error'])
     kf.unlink(missing_ok=True)
     part = work / f'{arch}.mtl4a.partial'
+    if native:
+        # metal-tt has refused specialized library functions on this toolchain
+        # (private metadata/unresolved constants). Capture the exact MTL4 API
+        # descriptor at build time on its target Mac instead. No game is loaded.
+        rows = [row for b in bases for row in ([b] if isinstance(b, dict) else pso_aot.base_rows([b], shader_lib.name_of(lib_dir)[2:]))]
+        source = work / 'exact.json'; source.write_text(json.dumps(rows, sort_keys=True) + '\n')
+        env = pso_aot.tool_env(lib_dir, AOT_SHADER_MAP, 'compile', source.resolve(), part.resolve(), AOT_ZERO, arch)
+        log = work / f'native-compile.{arch}.log'
+        part.unlink(missing_ok=True)
+        with log.open('w') as f: r = subprocess.run([str(Path(AOT_HOST).resolve())], env=env, stdout=f, stderr=subprocess.STDOUT)
+        if r.returncode == 2:
+            audit = Path(str(part) + '.refused.json')
+            raise DescriptorRefused(audit.read_text() if audit.is_file() else log.read_text()[-2000:])
+        if r.returncode or not part.is_file():
+            raise RuntimeError(f'exact native archive failed (no states dropped): {log}')
+        os.replace(part, dst); kf.write_text(key + '\n'); return dst, False
     write_script(js, script(real_libraries(lib_dir, bases, work), bases))
     try:
         compile_archive(js, part, work, arch, platform, osmin, len(bases))
@@ -374,9 +403,12 @@ def main(argv=None):
     ap.add_argument('--batch-size', type=int, default=BATCH, help=f'compile groups of at most N bases and merge with metal-pack, when there are more (default {BATCH}; 0: one compiler invocation)')
     ap.add_argument('--aot', action='store_true', default=os.getenv('DM_AOT') == '1', help='expanded compute/mesh/layer/helper coverage and exact learned descriptors (opt-in)')
     ap.add_argument('--seen', action='append', default=[], help='per-game pso_seen.jsonl, repeatable; stale entries fail visibly')
+    ap.add_argument('--user', action='append', default=[], help='legacy pso_user.tsv, decoded by this build\'s --host before archive planning')
+    ap.add_argument('--host', help='matching source-built Mac dmhost; import and exact constant archive tool modes never load a game')
+    ap.add_argument('--rebase-seen', action='store_true', help='explicitly carry observed final state to this chain after function/library validation')
     ap.add_argument('--shader-map', help='program-source evidence for native mesh combinations (default: profile shader_map.tsv)')
     a = ap.parse_args(argv)
-    if a.seen and not a.aot: ap.error('--seen requires --aot')
+    if (a.seen or a.user or a.rebase_seen) and not a.aot: ap.error('--seen/--user/--rebase-seen require --aot')
     if a.batch_size < 0: ap.error('--batch-size must be zero or positive')
     if a.game:
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'games')); import game
@@ -399,23 +431,37 @@ def main(argv=None):
     bases, rest, left = plan(lib_dir, chain, pairs, zero, aot=a.aot)
     work.mkdir(parents=True, exist_ok=True); out.mkdir(parents=True, exist_ok=True)
     if a.aot:
-        global AOT_ENUMS
+        global AOT_ENUMS, AOT_HOST, AOT_SHADER_MAP, AOT_ZERO
         AOT_ENUMS = pso_aot.enums(a.platform)
+        AOT_HOST, AOT_SHADER_MAP, AOT_ZERO = a.host, a.shader_map, zero
         host_dir = pso_aot.prepare_helpers(work, a.platform)
         learned = a.seen or ([os.environ['DM_PSO_SEEN']] if os.environ.get('DM_PSO_SEEN') else [])
-        rows, gaps = pso_aot.plan(lib_dir, chain, learned, functions, host_dir, a.shader_map, zero)
+        imported = pso_aot.import_user(a.host, lib_dir, a.shader_map, a.user, work, zero) if a.user else []
+        rows, gaps = pso_aot.plan(lib_dir, chain, [*learned, *imported], functions, host_dir, a.shader_map, zero, a.rebase_seen)
+        refused_imports = [{**row, 'source': n} for n, path in enumerate(imported) for row in json.loads(Path(str(path) + '.refused.json').read_text())]
+        (out / 'aot-import-refused.json').write_text(json.dumps(refused_imports, indent=2) + '\n')
+        gaps['stale native rows'] = sum(r['stale'] for r in refused_imports)
+        gaps['unreplayable native rows'] = sum(not r['stale'] for r in refused_imports)
+        if os.environ.get('DM_AOT_STRICT') == '1' and gaps['unreplayable native rows']:
+            raise SystemExit('[RED] strict AOT: native states could not be replayed; see aot-import-refused.json (no app should be packed)')
+        if a.user:
+            profile = Path(a.shader_map).with_name('pso_manifest.tsv') if a.shader_map else None
+            (out / 'pso_manifest.tsv').write_text(pso_aot.manifest(profile, [str(path) + '.manifest.tsv' for path in imported]))
+        else: (out / 'pso_manifest.tsv').unlink(missing_ok=True)
         inventory = pso_aot.base_rows(bases, chain) + rows
         bases.extend(rows)
         (out / 'aot.json').write_text(json.dumps(inventory, sort_keys=True, separators=(',', ':')) + '\n')
         classes = {k: sum(r['class'] == k for r in rows) for k in ('compute', 'mesh', 'render')}
         report = {'format': 1, 'chain': chain, 'classes': classes, 'gaps': dict(gaps, **left), 'constant_pairs': len(rest),
                   'layer_bases': sum(isinstance(b, tuple) and len(b) == 5 for b in bases),
-                  'unknown': ['unobserved final render/mesh state', 'function-constant variants', 'diagnostic source', 'helper render state until learned'],
+                  'unknown': ['unobserved final render/mesh state', 'unobserved function-constant variants', 'diagnostic source', 'helper render state until learned'],
+                  'seen_files': len(learned), 'user_files': len(a.user), 'rebased_seen': a.rebase_seen,
+                  'constant_descriptors': sum(pso_aot.has_constants(row) for row in rows),
                   'render_bases': len(inventory) - len(rows), 'exact_learned_render': sum(r['class'] == 'render' and not r.get('base') for r in rows),
                   'complete': False, 'archive_verified': False}
         (out / 'aot-preflight.json').write_text(json.dumps(report, indent=2) + '\n')
     else:
-        for name in ('aot.json', 'aot-preflight.json'): (out / name).unlink(missing_ok=True)
+        for name in ('aot.json', 'aot-preflight.json', 'aot-import-refused.json', 'pso_manifest.tsv'): (out / name).unlink(missing_ok=True)
     js = work / 'bases.mtl4-json'   # metal-tt takes the format from the extension: .mtl4-json is Metal 4's (.mtlp-json is the Metal 3 format)
     configuration = script(lib_dir, bases)
     write_script(js, configuration)
@@ -429,6 +475,10 @@ def main(argv=None):
     osmin = a.os_min or os_min_default(a.platform); tv = tool_version(a.platform) if bases else 'not used (function constants only)'
     libraries = library_digest(lib_dir, bases)
     keys = {arch: archive_key(configuration, libraries, arch, a.platform, osmin, tv) for arch in archs}
+    if any(pso_aot.has_constants(row) for row in bases):
+        if not a.host or not a.shader_map or a.platform != 'macos': raise ValueError('captured function constants require --platform macos --host --shader-map (or --game)')
+        compiler = hashlib.sha256(Path(a.host).read_bytes()).hexdigest()
+        keys = {arch: hashlib.sha256((key + compiler).encode()).hexdigest() for arch, key in keys.items()}
     del configuration   # the compiler reads the script from disk
     rejected_archs = {}
     for arch, key in keys.items():
@@ -470,6 +520,8 @@ def main(argv=None):
         report['layer_bases'] = sum(row['class'] == 'render' and row.get('base', False) and row.get('topology') == 3 for row in kept)
         report['render_bases'] = sum(row['class'] == 'render' and row.get('base', False) for row in kept)
         (out / 'aot-preflight.json').write_text(json.dumps(report, indent=2) + '\n')
+        if os.environ.get('DM_AOT_STRICT') == '1' and any(not row.get('base') and identity(row) in denied for row in rows):
+            raise SystemExit('[RED] strict AOT: an exact descriptor was refused; see aot-preflight.json (no app should be packed)')
     for f in out.glob('*.mtl4a'):   # architectures no longer asked for
         if f.stem not in archs: f.unlink()
     (out / 'prebuilt.tsv').write_text(st)

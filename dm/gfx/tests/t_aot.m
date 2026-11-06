@@ -14,7 +14,7 @@ uint64_t now_ns(void) { return bp_now(); }
 - (MTL4PipelineDescriptor *)newRenderPipelineDescriptorForSpecialization { return desc; }
 @end
 int main(int argc, char **argv) { @autoreleasepool {
-    int tool = mtl_pso_aot_tool(); if (tool) return tool < 0;
+    int tool = mtl_pso_aot_tool(); if (tool) return tool < 0 ? -tool : 0;
     if (argc != 4) { fprintf(stderr, "usage: t_aot <libraries> <archive> <seen>\n"); return 2; }
     setenv("DM_AOT", "1", 1); setenv("DM_AOT_STRICT", "1", 1); setenv("DM_PSO_BUNDLE", argv[2], 1);
     setenv("DM_PSO_ARCHIVE", "off", 1); setenv("DM_PSO_SEEN", argv[3], 1);
@@ -64,6 +64,9 @@ int main(int argc, char **argv) { @autoreleasepool {
     qd.fragmentFunction = fn4_values(fn_spec(qlib, @"main0", cv, nil), @[@[@0,@"int",@7], @[@32,@"bool",@YES]]);
     qd.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA8Unorm; qd.vertexDescriptor = [MTLVertexDescriptor new];
     CHECK(aot_lookup(aot_render_row(qd, 0), 0, nil));
+    CHECK(!aot_load_ref(@[@"q_b",@"main0",@[@[@0,@"bool",@YES],@[@32,@"bool",@YES]]]));
+    CHECK(!aot_load_ref(@[@"q_b",@"main0",@[@[@99,@"int",@7],@[@32,@"bool",@YES]]]));
+    CHECK(!aot_load_ref(@[@"q_b",@"main0",@[]]));   // both constants are required
     fn4_values(qd.fragmentFunction, @[@[@0,@"int",@8], @[@32,@"bool",@YES]]);
     CHECK(!aot_lookup(aot_render_row(qd, 0), 1, nil)); CHECK(dm_aot_compiler_count(1) == 0);
 

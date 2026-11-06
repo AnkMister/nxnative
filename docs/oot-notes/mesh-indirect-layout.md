@@ -1,7 +1,9 @@
 # Indirect mesh record evidence
 
-Status: field order remains open. `DM_NVN_MESH_INDIRECT` stays off in the play
-recipe. The two-word NV layout is a diagnostic hypothesis, not an accepted ABI.
+Status: field order remains open. The user selected `DM_NVN_MESH_INDIRECT=1`
+for play after considering PR #1444's gameplay report. The source default stays
+off. The two-word interpretation remains a diagnostic hypothesis, with the
+existing cap, overflow refusal and host snapshot checks retained.
 
 ## Static guest evidence
 

@@ -81,7 +81,8 @@ uint64_t dm_aot_compiler_count(int gameplay) { return atomic_load(&aot_count[!!g
 __attribute__((weak)) id<MTLComputePipelineState> dm_aot_helper_compute(id<MTLDevice> dev, id<MTLLibrary> lib, NSString *entry) { (void)dev; (void)lib; (void)entry; return nil; }
 id<MTLComputePipelineState> host_msl_compute(id<MTLDevice> dev, id<MTLLibrary> lib, NSString *entry, NSError **e) {
     NSString *identity = [NSString stringWithFormat:@"%@/%@", lib.label, entry];
-    if (dm_aot_on()) { id<MTLComputePipelineState> ps = dm_aot_helper_compute(dev, lib, entry); if (ps) return ps; }
+    const char *learn = getenv("DM_PSO_LEARN");
+    if (dm_aot_on() || (learn && !strcmp(learn, "1"))) { id<MTLComputePipelineState> ps = dm_aot_helper_compute(dev, lib, entry); if (ps) return ps; }
     dm_aot_event("compute/helper", identity, "host archive miss/device fallback", 1);
     return [dev newComputePipelineStateWithFunction:[lib newFunctionWithName:entry] error:e];
 }

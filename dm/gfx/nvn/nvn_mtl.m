@@ -95,6 +95,7 @@ static void aot_prewarm(void);
 static id<MTLComputePipelineState> aot_compute(id<MTLFunction>, NSError **);
 static id<MTLRenderPipelineState> aot_render(MTLRenderPipelineDescriptor *, NSError **);
 static id<MTLRenderPipelineState> aot_mesh(MTLMeshRenderPipelineDescriptor *, NSError **);
+static int aot_learning(void) { const char *e = getenv("DM_PSO_LEARN"); return dm_aot_on() || (e && !strcmp(e, "1")); }
 static id<MTLDevice> g_dev;
 static id<MTLLibrary> aot_source(NSString *src, NSError **e) {
     dm_aot_event("library-source", src, "diagnostic source", 1);
@@ -5500,7 +5501,9 @@ static id<MTLLibrary> lib_from_file(NSString *path, NSError **err) {
             t_lib_layer = memmem(f.data, f.size, "render_target_array_index", 25) != NULL;
             void *base = f.base; size_t base_len = f.base_len;
             dispatch_data_t d = dispatch_data_create(f.data, f.size, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{ munmap(base, base_len); });
-            return [g_dev newLibraryWithData:d error:err];
+            id<MTLLibrary> lib = [g_dev newLibraryWithData:d error:err];
+            lib.label = path.lastPathComponent.stringByDeletingPathExtension;
+            return lib;
         }
         if (!x) errno = open_errno;
     }
@@ -5525,6 +5528,7 @@ void mtl_set_depth_zero(int on) {
 // DM_NVN_HILITE and DM_NVN_MAGSCAN) keeps the MTLDevice path
 static os_unfair_lock g_fn4_lock = OS_UNFAIR_LOCK_INIT;
 static NSMapTable *g_fn4;   // function → descriptor, or portable [library, entry] for task/mesh
+static NSMapTable *g_fn4_refs;   // function → [library, entry, optional typed constant values]
 static id<MTLFunction> fn4_note(id<MTLFunction> f, id<MTLLibrary> lib, NSString *name, MTLFunctionConstantValues *cv) {
     if (!f || !lib || !name) return f;
     int mesh = f.functionType == MTLFunctionTypeMesh || f.functionType == MTLFunctionTypeObject;
@@ -5535,6 +5539,20 @@ static id<MTLFunction> fn4_note(id<MTLFunction> f, id<MTLLibrary> lib, NSString 
     os_unfair_lock_lock(&g_fn4_lock);
     if (!g_fn4) g_fn4 = [[NSMapTable alloc] initWithKeyOptions:NSPointerFunctionsStrongMemory | NSPointerFunctionsObjectPointerPersonality valueOptions:NSPointerFunctionsStrongMemory capacity:0];   // by identity: a function made again from the same library and name (other constants: bf_fn) is another function
     [g_fn4 setObject:d forKey:f];
+    if (aot_learning() && lib.label.length && (cv || !f.functionConstantsDictionary.count)) {
+        if (!g_fn4_refs) g_fn4_refs = [[NSMapTable alloc] initWithKeyOptions:NSPointerFunctionsStrongMemory | NSPointerFunctionsObjectPointerPersonality valueOptions:NSPointerFunctionsStrongMemory capacity:0];
+        [g_fn4_refs setObject:cv ? @[lib.label, name, @[]] : @[lib.label, name] forKey:f];
+    }
+    os_unfair_lock_unlock(&g_fn4_lock);
+    return f;
+}
+// Constant values have no public getter. Preserve the values at their writers,
+// including an empty list (specialize with defaults), rather than guessing them.
+static id<MTLFunction> fn4_values(id<MTLFunction> f, NSArray *values) {
+    if (!f || !aot_learning()) return f;
+    os_unfair_lock_lock(&g_fn4_lock);
+    NSArray *ref = [g_fn4_refs objectForKey:f];
+    if (ref) [g_fn4_refs setObject:@[ref[0], ref[1], values] forKey:f];
     os_unfair_lock_unlock(&g_fn4_lock);
     return f;
 }
@@ -5544,7 +5562,7 @@ static MTL4FunctionDescriptor *fn4_of(id<MTLFunction> f) {
     return [d isKindOfClass:MTL4FunctionDescriptor.class] ? d : nil;
 }
 static id<MTLFunction> aot_function(id<MTLLibrary> lib, NSString *name) {
-    id<MTLFunction> f = [lib newFunctionWithName:name]; return dm_aot_on() ? fn4_note(f, lib, name, nil) : f;
+    id<MTLFunction> f = [lib newFunctionWithName:name]; return aot_learning() ? fn4_note(f, lib, name, nil) : f;
 }
 // A function that declares function constants, specialized with cv (an empty set keeps every default). On the Metal 4 path the pipeline's descriptor specializes it (fn4_note
 // records cv, and MTL4Compiler compiles it with the pipeline), so the MTLFunction stays unspecialized: its reflection and argument encoders are the same. MTLLibrary's
@@ -5586,6 +5604,8 @@ static id<MTLFunction> fn_dev(id<MTLFunction> f) {
         if (!lib || !name || !cv) return f;   // fn_spec notes all three
         NSError *e = nil; dev->fn = fn_lib_spec(lib, name, cv, &e);
         if (!dev->fn) { MLOG("[RED] function %s: specializing its function constants for an MTLDevice pipeline failed: %s", f.name.UTF8String, e.localizedDescription.UTF8String); return f; }
+        os_unfair_lock_lock(&g_fn4_lock); NSArray *ref = [g_fn4_refs objectForKey:f]; os_unfair_lock_unlock(&g_fn4_lock);
+        if (ref.count == 3) fn4_values(dev->fn, ref[2]);
         return dev->fn;
     }
 }
@@ -5682,7 +5702,7 @@ static NvShader *shader_load(NSString *pc, int stage, int layer) {
         if (!o->fn_m) MLOG("[RED] shader %s: no mixed integer-output entry point %s in its library", pc.UTF8String, [j[@"entry_m"] UTF8String]); }
     if (stage == 1 && j[@"entry_d"]) { o->fn_d = fn4_note([lib newFunctionWithName:j[@"entry_d"]], lib, j[@"entry_d"], nil); if (!o->fn_d) MLOG("[RED] shader %s: no dual-source entry point %s in its library", pc.UTF8String, [j[@"entry_d"] UTF8String]); }
     if (o->fn.functionConstantsDictionary.count) {   // a compute shader's pipelines are MTLDevice ones: it is specialized through its library (fn_spec otherwise)
-        NSError *fe = nil; MTLFunctionConstantValues *cv = [MTLFunctionConstantValues new]; id<MTLFunction> (*spec)(id<MTLLibrary>, NSString *, MTLFunctionConstantValues *, NSError **) = stage == 5 ? fn_lib_spec : fn_spec;
+        NSError *fe = nil; MTLFunctionConstantValues *cv = [MTLFunctionConstantValues new]; id<MTLFunction> (*spec)(id<MTLLibrary>, NSString *, MTLFunctionConstantValues *, NSError **) = stage == 5 && !dm_aot_on() ? fn_lib_spec : fn_spec;
         id<MTLFunction> f = spec(lib, entry, cv, &fe);
         if (f) o->fn = f; else MLOG("[RED] shader %s: specializing its function constants failed: %s", pc.UTF8String, fe.localizedDescription.UTF8String);
         if (o->fn_u) o->fn_u = spec(lib, j[@"entry_u"], cv, &fe);
@@ -6434,8 +6454,9 @@ static void tex_mis_note(NvShader *sh, int stage, int slot, int tid, id<MTLTextu
     char bt[96] = "";
     if (t.textureType == MTLTextureTypeTextureBuffer) snprintf(bt, sizeof bt, ", %lu elements at pool offset %lu, %lu past the linear-texture alignment", (unsigned long)t.width, (unsigned long)t.bufferOffset,
                                                                 (unsigned long)(t.bufferOffset % [g_dev minimumLinearTextureAlignmentForPixelFormat:t.pixelFormat]));
-    MLOG("[RED] texture type mismatch: shader %s (stage %d) declares slot %d as Metal type %lu, texture ID %d is type %lu (NVN target %d, format %#x, Metal format %lu%s); %s", sh->key, stage, slot,
-         (unsigned long)want, tid, (unsigned long)t.textureType, tt ? (int)tt->d.target : -1, tt ? (unsigned)tt->d.format : 0u, (unsigned long)t.pixelFormat, bt, outcome);
+    MLOG("[RED] texture type mismatch: shader %s (stage %d) declares slot %d as Metal type %lu, texture ID %d is type %lu (NVN target %d, format %#x, Metal format %lu%s; extent %lux%lux%lu, layers %lu, mips %lu); %s (binding observed; conditional sampling not established)", sh->key, stage, slot,
+         (unsigned long)want, tid, (unsigned long)t.textureType, tt ? (int)tt->d.target : -1, tt ? (unsigned)tt->d.format : 0u, (unsigned long)t.pixelFormat, bt,
+         (unsigned long)t.width, (unsigned long)t.height, (unsigned long)t.depth, (unsigned long)t.arrayLength, (unsigned long)t.mipmapLevelCount, outcome);
 }
 // Pixel class of a Metal format as a shader's texture type sees it (NVN_DPF_*): the Uint / Sint formats, everything else reads as float
 static int mtl_pf_dpf(MTLPixelFormat pf) {
@@ -7568,10 +7589,11 @@ static id<MTLFunction> lo_fn(NvShader *fs, id<MTLFunction> base, uint32_t target
     id<MTLFunction> f = nil; NSNumber *k = @(w << 8 | (targets & 0xff));
     if (fs->lfn_state == 1 && !(f = fs->lfn[k])) {
         MTLFunctionConstantValues *cv = [MTLFunctionConstantValues new];
-        for (int n = 0; n < 8; n++) { bool on = targets >> n & 1; [cv setConstantValue:&on type:MTLDataTypeBool atIndex:DMSH_LOGIC_FC + n]; }
+        NSMutableArray *values = [NSMutableArray array];
+        for (int n = 0; n < 8; n++) { bool on = targets >> n & 1; [cv setConstantValue:&on type:MTLDataTypeBool atIndex:DMSH_LOGIC_FC + n]; [values addObject:@[@(DMSH_LOGIC_FC + n), @"bool", @(on)]]; }
         NSString *name = [base.name stringByAppendingString:@"_l"];
-        dm_aot_event("function-specialization", [NSString stringWithFormat:@"%@/%@/%@", fs->llib.label, name, cv], "logic constants", 1);
-        f = fn4_note([fs->llib newFunctionWithName:name constantValues:cv error:&e], fs->llib, name, cv);
+        f = dm_aot_on() ? fn_spec(fs->llib, name, cv, &e) : fn_lib_spec(fs->llib, name, cv, &e);
+        fn4_values(f, values);
         if (!f) why = "no entry point";
         else if (fs->rf.nb && [f newArgumentEncoderWithBufferIndex:fs->rf.abi].encodedLength != fs->arg_len) { why = "its argument buffer differs from the base library's"; f = nil; }
         if (f) fs->lfn[k] = f; else fs->lfn_state = 2;
@@ -8090,7 +8112,11 @@ static id<MTLRenderPipelineState> pso_build_ex(MTLRenderPipelineDescriptor *d, N
         return nil;
     }
     pso4_init();
-    if (dm_aot_on()) { NSDictionary *j = aot_render_row(d, 0); aot_record(j); id ps = aot_lookup(j, compile, e); if (ps) return ps; }
+    NSDictionary *exact = aot_learning() ? aot_render_row(d, 0) : nil;
+    if (aot_learning()) aot_record(exact);
+    // Exact AOT misses must reach the ordinary base/hybrid machinery. A whole
+    // synchronous compile here bypassed stand-ins and froze cutscenes for seconds.
+    if (dm_aot_on()) { id ps = aot_lookup(exact, 0, e); if (ps) return ps; }
     int rast = d.rasterizationEnabled;
     // A pipeline specialized from a base with open colour state gives its fragment function 0 for [[primitive_id]], where one built whole gives the real IDs (macOS 27.2, Apple M6: 4 triangles of a draw
     // counted per ID, 16384 0 0 0 against 4096 each, whatever the vertex function). So a fragment shader that reads the ID gets a whole pipeline, with no base to share. Fire Emblem Fortune's Weave's
@@ -8101,6 +8127,11 @@ static id<MTLRenderPipelineState> pso_build_ex(MTLRenderPipelineDescriptor *d, N
     }
     MTL4RenderPipelineDescriptor *b = g_comp4 ? pso_desc4(d, rast) : nil;   // with rasterization off there is no colour state to leave open: the base is the pipeline
     if (!b) { if (!compile) return nil; g_pb_legacy++; return pso_build_dev(d, e); }
+    // Learn bases reached through shared or run archives too. Recording only a
+    // fresh compile lost them when the next build had no per-run archive.
+    if (exact) { NSMutableDictionary *row = [exact mutableCopy]; row[@"base"] = @YES;
+        if (rast) { NSMutableArray *colors = [NSMutableArray array]; for (int i = 0; i < 8; i++) [colors addObject:@[@-1,@-1,@-1,@-1,@-1,@-1,@-1,@-1,@-1]]; row[@"colors"] = colors; }
+        aot_record(row); }
     pbase_key bk; pbase_key_of(d, &bk);
     id<MTLRenderPipelineState> base = nil; PbaseBuild *job = nil; int owner = 0;
     for (;;) {
@@ -8172,7 +8203,7 @@ static id<MTLRenderPipelineState> pso_build_ex(MTLRenderPipelineDescriptor *d, N
     }
     MTL4RenderPipelineDescriptor *s = (id)special;
     for (int i = 0; i < 8; i++) pso_col4(s.colorAttachments[i], d.colorAttachments[i]);
-    dm_aot_event("render-specialization", d.description, "base specialization", 1);
+    dm_aot_event("render-specialization", exact ? [[NSString alloc] initWithData:aot_bytes(exact) encoding:NSUTF8StringEncoding] : d.description, "base specialization", 1);
     id<MTLRenderPipelineState> ps = [g_comp4 newRenderPipelineStateBySpecializationWithDescriptor:s pipeline:base error:e];
     if (ps) g_pb_spec++;
     g_pt_spec_ns += bp_now() - ts;
@@ -8235,10 +8266,16 @@ enum { PSO_PEND_ACTIVE = 2, PSO_PREDICT_BUDGET = 2 };
 // order: admission order (the oldest finished, untaken entry is reclaimed first); demand: a build a draw asked for while it draws with its pulling stand-in (hybrid pipelines),
 // outside the speculative limit; run: 0 queued, 1 taken by its worker; d: the descriptor while queued (a draw that would wait for a queued build makes the pipeline itself:
 // pso_pend_take); gen tells a slot's fills apart, so a worker whose slot was taken that way and filled again does nothing
-static struct { pso_key k; id<MTLRenderPipelineState> ps; MTLRenderPipelineDescriptor *d; int used, done, run, demand; uint32_t gen; uint64_t order; } g_pp[PSO_PEND_MAX];
+static struct { pso_key k; id<MTLRenderPipelineState> ps; MTLRenderPipelineDescriptor *d; NSError *error; int used, done, run, demand, mesh; uint32_t gen; uint64_t order; } g_pp[PSO_PEND_MAX];
 static pthread_mutex_t g_pp_mu = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t g_pp_cv = PTHREAD_COND_INITIALIZER;
 static uint64_t g_pp_submit_mark, g_pp_kicked, g_pp_taken, g_pp_stolen;   // Whether this submission has already been predicted (by submission serial); cumulative kicked / taken counts
 static void pso_predict_rest(void);
+static int mtk_predict_kick(const pso_key *k, NvShader *ts, NvShader *ms, NvShader *fs);
+static int mesh_predict_on(void) {
+    static int on = -1;
+    if (on < 0) { const char *e = getenv("DM_NVN_MESH_PREDICT"); on = e && !strcmp(e, "1"); }
+    return on;
+}
 static int pso_pend_find(const pso_key *k) { for (int i = 0; i < PSO_PEND_MAX; i++) if (g_pp[i].used && !memcmp(&g_pp[i].k, k, sizeof *k)) return i; return -1; }
 static int hybrid_on(void);
 // The queue of the builds hybrid draws asked for (the draw has a pulling stand-in, so nothing waits for them): serial queues at utility QoS, one per two performance cores, round
@@ -8264,12 +8301,12 @@ static int pso_pend_slot(const pso_key *k, int spec, uint32_t *gen) {
     for (int i = 0; i < PSO_PEND_MAX; i++) {
         if (!g_pp[i].used) { if (slot < 0) slot = i; }
         else if (!g_pp[i].done) active += !g_pp[i].demand;
-        else if (reclaim < 0 || g_pp[i].order < g_pp[reclaim].order) reclaim = i;
+        else if (!(g_pp[i].mesh && g_pp[i].demand) && (reclaim < 0 || g_pp[i].order < g_pp[reclaim].order)) reclaim = i;
     }
     if (spec && active >= eco_compile_workers(PSO_PEND_ACTIVE)) return -1;
     if (slot < 0) slot = reclaim;
     if (slot < 0) return -1;
-    g_pp[slot].k = *k; g_pp[slot].ps = nil; g_pp[slot].d = nil; g_pp[slot].done = g_pp[slot].run = 0; g_pp[slot].used = 1; g_pp[slot].demand = !spec;
+    g_pp[slot].k = *k; g_pp[slot].ps = nil; g_pp[slot].d = nil; g_pp[slot].error = nil; g_pp[slot].mesh = 0; g_pp[slot].done = g_pp[slot].run = 0; g_pp[slot].used = 1; g_pp[slot].demand = !spec;
     g_pp[slot].order = ++g_pp_kicked; *gen = ++g_pp[slot].gen;
     return slot;
 }
@@ -8283,6 +8320,34 @@ static void pso_pend_start(int slot, uint32_t gen, MTLRenderPipelineDescriptor *
         NSError *e = nil; id<MTLRenderPipelineState> ps = pso_build(d, &e);
         pthread_mutex_lock(&g_pp_mu); if (g_pp[slot].gen == gen) { g_pp[slot].ps = ps; g_pp[slot].done = 1; } pthread_cond_broadcast(&g_pp_cv); pthread_mutex_unlock(&g_pp_mu); g_pp_done_n++;
     });
+}
+// Native mesh pipelines cannot use a vertex pulling stand-in. Predict on the
+// same bounded worker pool, then preserve a cold draw by waiting for its exact
+// result. Never steal the compile onto the submit thread or omit the draw.
+static int pso_pend_mesh(const pso_key *k, MTLMeshRenderPipelineDescriptor *d, int spec) {
+    if (!d) return 0;
+    pthread_mutex_lock(&g_pp_mu); uint32_t gen = 0; int slot = pso_pend_slot(k, spec, &gen); if (slot >= 0) g_pp[slot].mesh = 1; pthread_mutex_unlock(&g_pp_mu);
+    if (slot < 0) return 0;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{ @autoreleasepool {
+        pthread_mutex_lock(&g_pp_mu);
+        int go = g_pp[slot].used && g_pp[slot].gen == gen && !g_pp[slot].run; if (go) g_pp[slot].run = 1;
+        pthread_mutex_unlock(&g_pp_mu);
+        if (!go) return;
+        NSError *error = nil; id<MTLRenderPipelineState> ps = aot_mesh(d, &error);
+        pthread_mutex_lock(&g_pp_mu);
+        if (g_pp[slot].gen == gen) { g_pp[slot].ps = ps; g_pp[slot].error = error; g_pp[slot].done = 1; }
+        pthread_cond_broadcast(&g_pp_cv); pthread_mutex_unlock(&g_pp_mu); g_pp_done_n++;
+    } });
+    return 1;
+}
+static int pso_pend_mesh_take(const pso_key *k, id<MTLRenderPipelineState> *ps, NSError **error) {
+    pthread_mutex_lock(&g_pp_mu); int at = pso_pend_find(k);
+    if (at >= 0) {
+        while (!g_pp[at].done) pthread_cond_wait(&g_pp_cv, &g_pp_mu);
+        *ps = g_pp[at].ps; if (error) *error = g_pp[at].error;
+        g_pp[at].ps = nil; g_pp[at].error = nil; g_pp[at].used = 0;
+    }
+    pthread_mutex_unlock(&g_pp_mu); return at >= 0;
 }
 static int pso_pend_kick(const pso_key *k, NvShader *vs, NvShader *fs) {   // Nonblocking admission of a speculative build: no speculative backlog in front of a demanded compile
     if (hm_get_id(&g_pso, k)) return 0;
@@ -10358,7 +10423,7 @@ static void pso_predict_rest_(void) {
     uint32_t cf[8]; memcpy(cf, g_pass.cfmt, sizeof cf); uint32_t df = g_pass.dfmt, sf = g_pass.sfmt, samples = g_pass.samples, dfull = df, sfull = sf; int kicked0 = (int)g_pp_kicked, draws = 0;
     fz_cursor cur = {.p = g_exec_next};
     // Collect likely attachment keys before alternatives, then admit only a small batch. Global dispatch and Metal do not promise compile order.
-    enum { QN = 160 }; static struct { pso_key k; void *vs, *fs; } qa[QN], qb[QN]; int na = 0, nb = 0;
+    enum { QN = 160 }; static struct { pso_key k; void *vs, *fs, *ts; int mesh; } qa[QN], qb[QN]; int na = 0, nb = 0;
     for (int guard = 0; guard < 200000 && na < QN; guard++) {
         const uint8_t *q; op_hdr hq; const void *aq;
         if (!fz_next(&cur, &q, &hq, &aq)) break;
@@ -10373,18 +10438,22 @@ static void pso_predict_rest_(void) {
         if (hq.op == OP_DRAW || hq.op == OP_DRAW_IDX) {
             if (S.rast_discard) continue;   // vertex work uses its own non-rasterizing pipeline, built on demand
             draws++;
-            __unsafe_unretained NvProg *pr = S.prog ? prog_get(S.prog) : nil; if (!pr || !pr->sh[0]) continue;
-            __unsafe_unretained NvShader *vs = pr->sh[0], *fs = pr->sh[1];
+            p_draw dw; int mesh = hq.op == OP_DRAW && draw_rec(aq, hq.size, &dw)->prim == DM_PRIM_MESH_TASKS;
+            if (mesh && (!mesh_predict_on() || !nvn_visual_on())) continue;
+            __unsafe_unretained NvProg *pr = S.prog ? prog_get(S.prog) : nil; if (!pr) continue;
+            __unsafe_unretained NvShader *vs = pr->sh[mesh ? 4 : 0], *fs = pr->sh[1], *ts = mesh ? pr->sh[3] : nil;
+            if (!vs || (mesh && (vs->mesh_kind != 2 || !vs->fn || (ts ? ts->mesh_kind != 1 || !ts->fn : !vs->mesh_notask)))) continue;
             const uint32_t dv[4] = {dfull, 0, 0, dfull}, sv[4] = {sfull, 0, sfull, 0};
             for (int v = 0; v < 4; v++) {
                 if (v && dv[v] == dv[0] && sv[v] == sv[0]) continue;
                 if (v == 2 && !sfull) continue; if (v == 3 && (!dfull || !sfull)) continue;
                 pso_key k; pso_key_fill(&k, vs, fs, cf, dv[v], sv[v], samples, 0);
-                if (hm_get_id(&g_pso, &k)) continue;
+                if (mesh) { memset(k.attr, 0, sizeof k.attr); memset(k.attr_hi, 0, sizeof k.attr_hi); memset(k.stream, 0, sizeof k.stream); k.fsfn = (__bridge void *)(ts ? ts->fn : vs->fn); }
+                else if (hm_get_id(&g_pso, &k)) continue;
                 int dup = 0; for (int i = 0; i < (v ? nb : na) && !dup; i++) dup = !memcmp(&(v ? qb : qa)[i].k, &k, sizeof k);
                 if (dup) continue;
-                if (!v && na < QN) { qa[na].k = k; qa[na].vs = (__bridge void *)vs; qa[na].fs = (__bridge void *)fs; na++; }
-                else if (v && nb < QN) { qb[nb].k = k; qb[nb].vs = (__bridge void *)vs; qb[nb].fs = (__bridge void *)fs; nb++; }
+                if (!v && na < QN) { qa[na].k = k; qa[na].vs = (__bridge void *)vs; qa[na].fs = (__bridge void *)fs; qa[na].ts = (__bridge void *)ts; qa[na].mesh = mesh; na++; }
+                else if (v && nb < QN) { qb[nb].k = k; qb[nb].vs = (__bridge void *)vs; qb[nb].fs = (__bridge void *)fs; qb[nb].ts = (__bridge void *)ts; qb[nb].mesh = mesh; nb++; }
             }
             continue;
         }
@@ -10398,6 +10467,7 @@ static void pso_predict_rest_(void) {
     int admitted = 0, hy = hybrid_on();
     for (int i = 0; i < na + nb && admitted < PSO_PREDICT_BUDGET; i++) {
         const pso_key *qk = i < na ? &qa[i].k : &qb[i - na].k; NvShader *qv = (__bridge NvShader *)(i < na ? qa[i].vs : qb[i - na].vs), *qf = (__bridge NvShader *)(i < na ? qa[i].fs : qb[i - na].fs);
+        if ((i < na ? qa[i].mesh : qb[i - na].mesh)) { NvShader *qt = (__bridge NvShader *)(i < na ? qa[i].ts : qb[i - na].ts); admitted += mtk_predict_kick(qk, qt, qv, qf); continue; }
         if (hy && !hm_get_id(&g_pso, qk) && hybrid_get(qk, qv, qf) != nil) continue;
         admitted += pso_pend_kick(qk, qv, qf);
     }
@@ -11346,11 +11416,12 @@ static id<MTLFunction> bf_fn_slow(NvShader *fs, const int *fx, uint8_t fbmask, c
     id<MTLFunction> f = g_bf_fn_cache[cacheKey];
     if (f) { os_unfair_lock_unlock(&g_fz_fn_lock); return (id)f == NSNull.null ? nil : f; }
     MTLFunctionConstantValues *cv = [MTLFunctionConstantValues new];
-    for (int i = 0; i < fs->rf.nfc; i++) { int v = fx[i]; [cv setConstantValue:&v type:MTLDataTypeInt atIndex:(NSUInteger)i]; }
-    for (int q = 0; q < 8; q++) { bool b = fbmask >> q & 1; [cv setConstantValue:&b type:MTLDataTypeBool atIndex:(NSUInteger)(32 + q)]; }
-    for (int j = 0; j < fs->rf.nfo; j++) for (int q = 0; q < 8; q++) { bool b = lmap[q] == fs->rf.fo_color[j]; [cv setConstantValue:&b type:MTLDataTypeBool atIndex:(NSUInteger)(64 + 8 * j + q)]; }
-    dm_aot_event("function-specialization", [NSString stringWithFormat:@"%@/main0/%@", lib.label, cv], "fragment constants", 1);
-    NSError *e = nil; f = fn4_note([lib newFunctionWithName:@"main0" constantValues:cv error:&e], lib, @"main0", cv);
+    NSMutableArray *values = [NSMutableArray array];
+    for (int i = 0; i < fs->rf.nfc; i++) { int v = fx[i]; [cv setConstantValue:&v type:MTLDataTypeInt atIndex:(NSUInteger)i]; [values addObject:@[@(i), @"int", @(v)]]; }
+    for (int q = 0; q < 8; q++) { bool b = fbmask >> q & 1; [cv setConstantValue:&b type:MTLDataTypeBool atIndex:(NSUInteger)(32 + q)]; [values addObject:@[@(32 + q), @"bool", @(b)]]; }
+    for (int j = 0; j < fs->rf.nfo; j++) for (int q = 0; q < 8; q++) { bool b = lmap[q] == fs->rf.fo_color[j]; [cv setConstantValue:&b type:MTLDataTypeBool atIndex:(NSUInteger)(64 + 8 * j + q)]; [values addObject:@[@(64 + 8 * j + q), @"bool", @(b)]]; }
+    NSError *e = nil; f = dm_aot_on() ? fn_spec(lib, @"main0", cv, &e) : fn_lib_spec(lib, @"main0", cv, &e);
+    fn4_values(f, values);
     if (!f) { MLOG("[RED] readable-tile version specialization failed %s (%s): %s", fs->key, k.UTF8String, e.localizedDescription.UTF8String); g_bf_fn_cache[cacheKey] = (id<MTLFunction>)NSNull.null; os_unfair_lock_unlock(&g_fz_fn_lock); return nil; }
     g_bf_fn_cache[cacheKey] = f; os_unfair_lock_unlock(&g_fz_fn_lock); return f;
 }
@@ -12272,6 +12343,7 @@ static int mdx_next(const p_draw *dw, const p_draw_idx *di) {
 #include "nvn_feedback.inc"
 
 #include "nvn_geometry.inc"
+#include "nvn_aot_tool.inc"
 static int geo_drawing(void) { return g_geo_program != nil || g_geo_mesh.on; }
 
 // Lazy clears. A set of targets that gets only clears before the game sets other targets used to open a pass just to land them (rp_flush), storing the cleared attachments, and the next

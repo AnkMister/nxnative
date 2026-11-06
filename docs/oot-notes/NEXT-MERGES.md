@@ -26,18 +26,22 @@ The full shader build, gameplay, display colour comparison and zero-play-compile
 acceptance remain separate work. The protected existing play package is untouched.
 
 The user selected SDK22 services, commit-time raw words, GPU-lost handling and
-serial-held lookup for play. Fresh builds use noindex. Keep mesh indirect, HDR,
+serial-held lookup for play. Fresh builds use noindex. On `oot-play-1444`,
+mesh indirect and the stutter cache are enabled in the play recipe. Keep HDR,
 resolution override and the remaining performance experiments off.
 The [play recipe](PLAY-BUILD.md) is the source for recommended settings.
 Future AOT changes must preserve final render state, packed-library loading and
 visible geometry. No lazy shader path is selected.
 
-## Follow-up candidate, PR #1444
+## Integrated source ports, PR #1444
 
 [PR #1444](https://github.com/seedds/nxnative/pull/1444), pinned at `e03bdc8f`,
-is not integrated. Its actual mesh/fragment variation pairs and point-topology
-support merit comparison with the current inference and triangle path. Texture
-view/heap ownership and cached large-pool uploads are other candidates. Several
-changes overlap this stack. The author's M5 Pro gameplay claims are not M4 Max
-or oot-play validation. Port only unique reviewed source changes in a later
-shader-chain revision, with image acceptance and a source translator rebuild.
+is ported on `oot-play-1444` above final `oot-play` `e8c3bc22` through four
+reviewed lane branches: `p1444-xlate` `7e1f6b6f`, `p1444-svc` `d3d2923e`,
+`p1444-stutter` `73914c12` and `p1444-tex` `604dca80`. The profile tables use
+the upstream records and actual mesh/fragment pairs; stricter local ALU,
+held-object, dynamic-map and interface checks remain. The new BC encoder is
+separate opt-in work absent from the PR. Its M5 Pro gameplay claims do not
+establish M4 Max acceptance. The integrated translator rebuild and verification
+remain paused. Runtime AOT defaults off after the live cutscene finding; offline
+packing imports both censuses and learning has its own switch.

@@ -731,6 +731,15 @@ Metal compiles each combination of shaders and pipeline settings for the GPU the
 - `pso_user.tsv` sits next to the save directory: `Documents/pso_user.tsv` on iOS, the parent of `DM_SAVE` on the Mac (`DM_PSO_USER=path` overrides it). It is appended while playing, one line per item built on the spot: a shader (`S`), a render pipeline (`R`, the hex of `pso_skey` in `dm/gfx/nvn/nvn_pso_skey.h`) or a compute pipeline (`C`).
 - `dm/games/<id>/pso_manifest.tsv` is the seed list bundled with the app, prewarmed before `pso_user.tsv`.
 
+For opt-in offline AOT packing, the Mac build consumes both `pso_seen.jsonl`
+and `pso_user.tsv` (overridden by `DM_PSO_SEEN` and `DM_PSO_USER`). The native
+TSV is converted through the matching rebuilt host in descriptor-only tool mode,
+before any guest loading. It also joins the bundled startup prepare list, so
+runtime `DM_AOT=0` still prepares known states. `DM_PSO_LEARN=1` records exact
+portable state without enabling AOT lookups. See [the recorder and miss-path
+repair](reference/shaders.md#exact-aot-misses-bypass-hybrid-pipelines-and-packed-libraries-lose-learning)
+for captured constants, archive coverage and verification limits.
+
 The lines name shaders by content key and hold no compiled code and nothing personal, so a list recorded on one device works on any other. To seed the bundled list:
 1. Record on the Mac with prewarm off, so everything is built on demand: `DM_PSO_MANIFEST=off DM_PSO_RECORD=<file>`, playing the scenes players reach first. Engage's list covers boot, the opening movie, the title, a save load and the prologue battle.
 2. Append the recorded lines below the header comments, in the recorded order. Duplicates are dropped at load, and so are shaders the shader map does not have (a list of another version of the game: the bundled list packed with a version the profile was not brought up on, or a device's `pso_user.tsv` kept across a game update), which the `prewarm done` line counts.

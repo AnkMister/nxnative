@@ -106,6 +106,22 @@ class Planning(unittest.TestCase):
             imported = [json.loads(line) for line in (root / 'work/pso-import-0.jsonl').read_text().splitlines()]
             self.assertEqual({row['class'] for row in imported}, {'render', 'mesh', 'compute'})
             self.assertIn('R\t', (root / 'out/pso_manifest.tsv').read_text())
+            # One old key and one unsupported row must not destroy accepted
+            # states or leak refused rows into the startup manifest.
+            mixed = root / 'mixed.tsv'
+            mixed.write_text(Path(str(learned) + '.tsv').read_text() + 'C\tstale_b\nR\tnot-a-native-key\n')
+            accepted = pso_aot.import_user(os.environ['DM_TEST_AOT'], shader_lib.view(lib), shader_map, [mixed], root / 'work', False)[0]
+            audit = json.loads(Path(str(accepted) + '.refused.json').read_text())
+            self.assertEqual([row['stale'] for row in audit], [True, False])
+            self.assertEqual({json.loads(line)['class'] for line in accepted.read_text().splitlines()}, {'render', 'mesh', 'compute'})
+            manifest = Path(str(accepted) + '.manifest.tsv').read_text()
+            self.assertNotIn('stale_b', manifest); self.assertNotIn('not-a-native-key', manifest)
+            bad = render(chain); bad['fragment'] = ['q_b', 'main0', [[99, 'int', 7], [32, 'bool', True]]]
+            refused = root / 'refused.jsonl'; refused.write_text(json.dumps(bad) + '\n')
+            self.assertEqual(po.main(args + ['--seen', str(refused)]), 0)
+            denied = json.loads((root / 'out' / f'aot-refused.{arch}.json').read_text())
+            self.assertEqual(len(denied), 1); self.assertEqual(denied[0]['descriptor'], bad)
+            self.assertTrue((root / 'out' / f'{arch}.mtl4a').is_file(), 'valid archive pieces must survive a rejected constant')
 
 
 if __name__ == '__main__': unittest.main()

@@ -1,18 +1,45 @@
 # Ocarina community play build
 
-Use branch `oot-play`. It combines `oot-1439`, upstream `c83c48f2`,
-`oot-play-fixes`, local and cloud Brent round two ports, and optional HDR.
+Use branch `oot-play-1444`. It adds the reviewed PR #1444 source ports to final
+`oot-play` at `e8c3bc22`, which includes the earlier fixes, Brent ports and optional HDR.
 The [integration list](NEXT-MERGES.md) records the selected inputs.
 
 Visual correctness comes first. Gameplay and zero compiler entries during play
 remain unproven. Unit and native fixtures do not establish either result.
-`DM_AOT_STRICT=1` reports misses and still compiles to preserve visible geometry.
+Play defaults to `DM_AOT=0` and `DM_AOT_STRICT=0`. A live hotfix with that
+setting and counted serial holds was reported much smoother. The earlier
+`aot_lookup(compile=1)` compiled whole exact misses synchronously before the
+hybrid stand-in could run. The new archive-only lookup fix remains unverified.
+Use `DM_PSO_LEARN=1` to capture descriptors without enabling that AOT path.
+`DM_NVN_MESH_PREDICT=1` queues native task/mesh pipelines on workers and adds
+them to bounded command look-ahead. Every draw is preserved. A first use can
+still wait for an unfinished worker; this is not a zero-stutter guarantee.
 Lazy shaders stay off. Build the entire map and pipeline archives.
 
-The default chain is `e16dbb187984`. With `DMSH_OOT_VISUAL=1`, the play
-chain is `4323760be52f`, different from the existing package at `992d6981956f`.
-Adopting `oot-play` requires a full shader and archive rebuild, then a matching
-host. A host rebuild alone will reject the old library stamp.
+The committed `dm/gfx/nvn/dmsh_chain.h` describes source defaults. Building
+with `DMSH_OOT_VISUAL=1` produces a different play chain. Regenerate the header
+under the chosen build environment, then rebuild every shader, the pipeline
+archives and the matching host. Replacing only the host rejects the old stamp.
+
+## Native 60 fps and the 120 Hz screen
+
+PR #1444 reports native ~60 fps after rendering, shader and memory fixes.
+It adds no Ocarina `FRAME_STEP` patch, `fps_target` or `fps_max` key.
+`DM_FPS_TARGET=60` cannot unlock this game because no frame-step or engine
+limiter hook is registered. Keep `DM_FPS_TARGET=0` and the game's interval.
+
+For the user's 4K 120 Hz display, use `DM_PRESENT_LINK=2`,
+`DM_PRESENT_HZ=60` and `DM_PRESENT_INTERVAL=game`. The host can show each game
+frame for two display ticks. Keep `DM_OPMODE=1`, `DM_RENDER_SCALE=1` and
+`DM_UPSCALER=game` for initial visual acceptance. These settings neither force
+4K internal rendering nor prove sustained 60 fps on M4 Max. Both Apple10 tensor
+options stay off on its Apple9 GPU. HDR and 1440p internal rendering remain
+separate options below.
+
+The actual pair-table additions let the shader build pad missing mesh outputs
+for genuine BNSH variations. AOT's independent interface check still excludes
+incompatible inferred pairs. There are no additional shader content keys to
+append; both bases contain the same 42,854 keys and all NDSR additions.
 
 ## Split, rewrite and shader-build environment
 
@@ -34,12 +61,15 @@ export DM_PSO_PREPARE_THREADS=4
 export DMSH_WIDE_GROUP=0 DMSH_RAW_LOAD_QUADS=0 DMSH_CBUF_REUSE=0 DMSH_STORAGE_RUNS=0
 export DMSH_STAGECACHE=0 DMSH_STAGECACHE_WARM=0
 export DM_NVN_BORDER_SPLIT=0
-export DM_OOT_RENDER_RES=off DM_OOT_BRENT=0
+export DM_OOT_RENDER_RES=off DM_OOT_BRENT=1
 export DM_FAST_CLOCK=0 DM_REWRITE_J=4 J=4
 export DMSH_TARGETS=mac XLATE_DEBUG=1 XLATE_REDUCED=1
 export DOTNET_ROOT="$HOME/.dotnet"
 export PATH="${OOT_PYTHON_BIN}:$HOME/.dotnet:$PATH"
 export TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch
+export DM_PSO_USER="$OOT_SHARED_CONTEXT/oot-saves/session1-0024/pso_user.tsv"
+export DM_PSO_SEEN="$OOT_SHARED_CONTEXT/playtest-1/live/pso_seen.jsonl"
+export DM_AOT_REBASE_SEEN=1
 unset IOSOUT XLATE SPIRV_CROSS DMSH_CAS DMSH_PREFILL WORK DM_GAMES_DIR
 ```
 
@@ -54,9 +84,36 @@ NDSR reader recovers SMAA-weights key `d17eefaff4f0bc23`; confirm it enters the
 new shader map. The three recovered NDSR keys are already in the committed profile.
 Regenerate `dmsh_chain.h` using `python dm/gfx/tools/dmsh_chain.py --header`
 under this environment, build that profile's matching Mac shader libraries, then
-build the host with `make -C dm/host -j4 GAME=0400486024DEC000 dmhost`.
+build the host with `nice -n 19 make -C dm/host -j2 GAME=0400486024DEC000 dmhost`.
 
-The committed header describes source defaults, where visual translation is off.
+After explicit `RESUME`, the exact full Mac app command is below. Run from
+this branch's checkout. First set `OOT_SHARED_CONTEXT` to
+`$HOME/Documents/Crypt/Gaming-rea/_work/nxnative` and `OOT_PYTHON_BIN` to
+`$HOME/Documents/Crypt/Gaming-rea/nxnative/.venv/bin`, then apply the build
+exports above. The prepared runtime env file contains the runtime block below.
+Do not source it into the build shell: the packer needs AOT enabled while play
+keeps it disabled.
+
+```sh
+nice -n 19 python dm/gfx/tools/dmsh_chain.py --header
+nice -n 19 python scripts/build_ipa_from_nsp.py \
+  "$HOME/Documents/Crypt/Gaming-rea/_work/games/oot/The Legend of Zelda Ocarina of Time.nup" \
+  --platform mac-app --progress lines --no-seen-shaders --no-heap-check \
+  --work-dir "$HOME/Documents/Crypt/Gaming-rea/_work/games/oot-play-1444/0400486024DEC000_build" \
+  --out "$HOME/Documents/Crypt/Gaming-rea/_work/games/oot-play-1444/The Legend of Zelda - Ocarina of Time.app" \
+  --env-file "$OOT_SHARED_CONTEXT/pr1444-evidence/next-play.env"
+```
+
+The archive step imports the 7,387-row session TSV using the rebuilt host's
+descriptor-only tool mode and consumes the JSON census too. Exact descriptors
+include blend/format/sample/layout state and captured function constants.
+Known TSV rows also become the bundled startup prepare list, so they are warmed
+with runtime AOT disabled. Neither tool mode loads a game. Captured constants
+use the local Mac's Metal 4 compiler and serializer at build time because
+`metal-tt` has refused these specialized library functions. Compiler refusals
+and missing inputs stop the strict archive build. This command has not run.
+
+The committed header describes source defaults, where the new visual translation paths are off.
 The enabled play build has its own chain hash. Never combine that header
 or host with libraries built using another option set. The common translator
 binary includes gated visual paths; its lock is shared by both configurations.
@@ -69,14 +126,23 @@ settings; the integration does not write the user's Application Support env.txt.
 ```ini
 DM_SAFE_GPU=1
 DM_GUEST_FILE=0
-DM_AOT=1
-DM_AOT_STRICT=1
+DM_AOT=0
+DM_AOT_STRICT=0
+DM_PSO_LEARN=1
+DM_NVN_MESH_PREDICT=1
 DM_PSO_PREPARE_THREADS=4
 DM_OOT_RENDER_RES=off
-DM_OOT_BRENT=0
+DM_OOT_BRENT=1
 DM_NVN_POOL_SKIP_RETIRED=0
 DM_NVN_VISUAL=1
-DM_NVN_MESH_INDIRECT=0
+DM_NVN_P1444_TEX=1
+DM_NVN_P1444_STUTTER=1
+DM_NVN_BCRT=1
+DM_FOCUS_KEEP=1
+DM_PRESENT_LINK=2
+DM_PRESENT_HZ=60
+DM_PRESENT_INTERVAL=game
+DM_NVN_MESH_INDIRECT=1
 DM_NVN_SERIAL_HELD=1
 DM_NVN_GMEM_COMMIT=1
 DM_SDK22_SERVICES=1
@@ -132,13 +198,16 @@ The safety net defaults on for this Ocarina Mac profile and caps GPU memory at
 70% of recommendedMaxWorkingSetSize. Its source fixes remain active. It cannot
 guarantee survival of a kernel/driver failure.
 
-`DM_NVN_MESH_INDIRECT` stays off. Static analysis proves that this SDK consumes
-two words, but the field order and the game's producer remain unverified.
-Enabling it is a separate diagnostic run. The converter refuses counts above
-its cap and first-task overflow. The host waits for the converted snapshot and
-checks every record before submitting the mesh draw, logging the first eight
-raw records. The waits cost performance. Missing indirect geometry remains an
-open visual limitation while the flag is off. See [record evidence](mesh-indirect-layout.md).
+The user selected `DM_NVN_MESH_INDIRECT=1` based on PR #1444's long gameplay
+report. The source default remains off. Static guest analysis proves that the
+SDK consumes two words; field order and the game's producer remain unverified.
+The converter refuses excessive counts and first-task overflow. The host waits
+for the converted snapshot and checks every record before submitting its mesh
+draw, logging the first eight raw records. These waits can cause stalls and
+remain part of the accepted diagnostic protection. Neither a synthetic fixture
+nor upstream gameplay establishes the exact record ABI on this fork.
+See [record evidence](mesh-indirect-layout.md).
+
 `DM_QUALITY=max` is a separate optional image-enhancement experiment;
 it is left off here so the game's filtering and reconstruction remain selected.
 Crop and all quality configurations pass Metal validation as synthetic tests;
@@ -146,17 +215,32 @@ that does not prove game pictures, GPU safety or display colour acceptance.
 
 ## AOT acceptance
 
-Set `DM_AOT=1` for both the packer and runtime. Keep `DM_AOT_STRICT=1`
-during acceptance and play. Packing consumes the standard per-game
-`pso_seen.jsonl`, or `DM_PSO_SEEN`; direct planning uses `--aot --seen <census>`.
+Use `DM_AOT=1 DM_AOT_STRICT=1` for the offline packer and controlled AOT
+fixtures. Keep the play defaults at `DM_AOT=0 DM_AOT_STRICT=0` until the new
+miss path passes validation. Packing consumes `pso_seen.jsonl` and
+`pso_user.tsv`, or explicit `DM_PSO_SEEN` and `DM_PSO_USER`. Direct planning
+uses `--aot --seen <jsonl> --user <tsv> --host <matching-dmhost>`.
 Read the packed preflight report and require zero startup archive misses and
 zero cumulative gameplay compiler entries on every required route. First present
 starts gameplay accounting, including title and loading screens. Strict mode
-reports a miss but still compiles it synchronously so native meshes stay visible.
+reports compiler entries; it does not prohibit the existing fallback paths.
 Any gameplay compiler event fails the user's rule. Repack learned descriptors
 and repeat acceptance; static preflight always reports incomplete coverage.
-Function constants, unobserved final states and diagnostic source remain gaps.
+Unobserved final states, unobserved constant values and diagnostic source remain gaps.
 No game or full offline build ran here, so no finished play package is claimed.
+
+Native TSV imports isolate stale and unsupported rows in `aot-import-refused.json`.
+Only accepted native rows join the startup manifest. Strict packing refuses
+unsupported current states. Exact compiler refusals are bisected so non-strict
+builds retain successful archive pieces. Constants are checked against the
+function's declared indices, types and required values. The source-built host
+must match the planned chain and local GPU architecture.
+
+With runtime `DM_AOT=0`, exact mesh/helper archives are not queried by the
+expanded AOT path. The bundled native manifest still prepares known states.
+Controlled `DM_AOT=1` acceptance is required to prove direct exact hits after
+the synchronous lookup repair. An archived open-color base still needs color
+specialization; only an exact final descriptor avoids that request.
 
 ## Optional HDR and resolution
 

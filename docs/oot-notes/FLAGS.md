@@ -1,10 +1,33 @@
 # Ocarina play controls
 
-`oot-play` is the community build branch. The [play recipe](PLAY-BUILD.md)
-sets `DM_AOT=1`, `DM_AOT_STRICT=1` and `DM_SAFE_GPU=1`. Keep
-`DM_NVN_MESH_INDIRECT=0`, `DM_HDR=0` and `DM_OOT_RENDER_RES=off`.
+`oot-play-1444` is the community build branch, based on final `oot-play` at `e8c3bc22`. The [play recipe](PLAY-BUILD.md)
+uses offline `DM_AOT=1`, then runtime `DM_AOT=0`, `DM_AOT_STRICT=0`,
+`DM_PSO_LEARN=1`, `DM_NVN_SERIAL_HELD=1` and `DM_SAFE_GPU=1`. Use
+`DM_NVN_MESH_INDIRECT=1` with the existing cap/refusal checks, `DM_HDR=0` and `DM_OOT_RENDER_RES=off`.
 Gameplay image parity and zero compiler entries during play remain unproven.
 Source defaults and recommended recipe settings are separate.
+
+## PR 1444 source ports
+
+Upstream's M5 Pro gameplay results are reported evidence. This combined branch
+still needs M4 Max gameplay acceptance. The PR description names several fixes
+absent from its pinned source. Sparse upload is an adaptation of its existing
+GPU branch. The specialization guard and BC1/BC4 encoder are new repairs.
+
+| Control | Source default | Purpose and acceptance limit |
+| --- | --- | --- |
+| `DMSH_OOT_VISUAL=1` | Off for new shader changes | Enables early-exit barrier handling, shared-store fences, loop safety limit, mesh point topology, actual mesh/pixel pair padding and the NDSR descriptor walk. Full shader/archive rebuild required. The loop limit is a safety workaround, not a proven input repair. |
+| `DM_NVN_P1444_TEX=1` | Off | Texture/view upgrades, per-serial alias notes and attachment ownership. Preserve ancestor holds and range-based CPU/GPU write classification. Gameplay images remain unverified. |
+| `DM_NVN_P1444_STUTTER=1` | Off; ON for play | Upload buffer and packaged-texture caching, with an adapted sparse gathered-source path. Memory lifetime and scene transitions need gameplay acceptance. Descriptor safety checks are unconditional; AOT keeps its own opt-in. |
+| `DM_NVN_DISPATCH_CLAMP=1` | Off; implied by the texture gate unless explicitly 0 | GPU clamp of indirect compute dimensions and total work. Mesh indirect uses its separate cap and refusal path. |
+| `DM_NVN_BCRT=1` | Off | New BC1/BC4 render-target redirect and encoding. Absent from the pinned upstream source. The encoded-mip GPU fixture and game reflections must pass before acceptance. |
+| `DM_PRESENT_LINK=2`, `DM_PRESENT_HZ=60`, `DM_PRESENT_INTERVAL=game` | Default link 1, 60 Hz, game interval | Uses the 120 Hz display link with one game frame every other tick. Does not request 120 fps game logic. |
+| `DM_FPS_TARGET=0` | Game profile 0 | Keeps Ocarina's native frame rate. This profile has no host frame-step patch or engine-limiter hook to unlock with this setting. |
+
+All six upstream profile tables are retained. The 1,284 additional mesh/pixel
+pairs cover 491 mesh keys. They describe actual BNSH variations. AOT inference
+still rejects unknown or mismatched generated interfaces; it does not invent
+padding for unrelated inferred shader pairs.
 
 ## Brent round two and HDR
 
@@ -239,12 +262,15 @@ The new tensor translator source enters FILES and translation-stage fingerprints
 | Flag or environment variable | Default | Visual risk | Expected gain | Source branch |
 | --- | --- | --- | --- | --- |
 | `DMSH_WIDE_GROUP=1` | Off; OFF for play | HIGH until image parity; boundary fallbacks are tested | About 70% fewer static pool lookups in selected foliage meshes; GPU gain unmeasured | oot-foliage |
-| `DM_AOT=1` | Off; ON for play packer and runtime | Coverage gaps can still compile synchronously; fixtures preserve mesh draws on misses | Expanded archives and startup prewarm reduce first-use pipeline work | oot-aot |
-| `DM_AOT_STRICT=1` | Off; ON for play acceptance | Logs gaps; does not prevent compilation | Conservative evidence of compiler API entries | oot-aot |
+| `DM_AOT=1` | Off; ON for offline packer, OFF for play | Earlier exact misses bypassed hybrid stand-ins and froze cutscenes. The archive-only lookup fix is unverified | Expanded archives and startup prewarm; unknown states still use existing fallbacks | oot-aot / oot-play-1444 |
+| `DM_AOT_STRICT=1` | Off; ON for offline build and AOT fixtures, OFF for play | Logs compiler API entries; does not enforce a runtime compiler ban | Detects archive gaps during controlled acceptance | oot-aot |
+| `DM_PSO_LEARN=1` | Off; ON for play | Descriptor file I/O; records without enabling AOT exact compilation | Portable final and base state with typed constants, also from packed shader libraries | oot-play-1444 |
+| `DM_NVN_MESH_PREDICT=1` | Off; ON for the candidate play recipe, unverified | Preserves all draws; first use can still wait for its exact worker result | Adds native task/mesh states to bounded prediction and keeps their compilation on workers when admitted | oot-play-1444 |
 | Compile counters | Always on | Low, diagnostic accounting | Separates startup/gameplay compiler and archive API entries | oot-aot |
 | `DM_AOT_LOG_SECONDS` | 5 seconds | None | Summary interval without a timer thread | oot-aot |
 | `DM_PSO_SEEN` | Per-game `pso_seen.jsonl` beside `pso_user.tsv` | None; stale chain entries are rejected | Learn exact descriptors and consume them on repack | oot-aot |
-| `pso_offline.py --aot`, repeatable `--seen` | Off / no explicit census | Unknown final states remain gaps | Offline compute, layer, mesh, helper and learned exact states | oot-aot |
+| `pso_offline.py --aot`, repeatable `--seen` and `--user`, matching `--host` | Off / no explicit census | Unknown states remain gaps; legacy TSV is decoded by the rebuilt host | Offline exact render, compute, mesh, helper and captured constant states; TSV also seeds startup preparation | oot-play-1444 |
+| `DM_AOT_REBASE_SEEN=1` | Off; ON only for this saved old-chain census | Carries observed final state to the new chain after function validation; visual acceptance remains required | Reuses the saved three-row JSON census alongside the larger native TSV | oot-play-1444 |
 | `DM_TEST_AOT` | Unset | Test only | Native archive round-trip fixture path | oot-aot |
 
 Stage keys include grouping's `readonly` argument and module bytes. Raw-load

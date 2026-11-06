@@ -1,20 +1,33 @@
 ## AnkMister fork: Ocarina of Time on Mac
 
-`oot-play` combines the Ocarina fixes, current upstream changes, Brent's ports
-and optional HDR for Apple Silicon Macs. Follow [the play build guide](docs/oot-notes/PLAY-BUILD.md)
-to build the matching shaders, pipeline archives and host.
+`oot-play-1444` builds on final `oot-play` (`e8c3bc22`) and the reviewed source
+ports from [PR #1444](https://github.com/seedds/nxnative/pull/1444).
+Follow [the play build guide](docs/oot-notes/PLAY-BUILD.md) for matching shaders,
+pipeline archives and host. A full rebuild is required.
 
-Use `DMSH_OOT_VISUAL=1` when building. Keep `DM_AOT=1`, `DM_AOT_STRICT=1`
-and `DM_SAFE_GPU=1`. Enable the reviewed play settings in the guide. Keep `DM_NVN_MESH_INDIRECT=0`, `DM_HDR=0` and
-`DM_OOT_RENDER_RES=off`. See [all fork flags](docs/oot-notes/FLAGS.md).
+Build with `DMSH_OOT_VISUAL=1` and offline `DM_AOT=1`. Play with
+`DM_AOT=0`, `DM_AOT_STRICT=0`, `DM_NVN_SERIAL_HELD=1` and `DM_SAFE_GPU=1`.
+`DM_PSO_LEARN=1` records exact states without enabling the expanded AOT path.
+The candidate also uses `DM_NVN_MESH_PREDICT=1` to prepare task/mesh pipelines
+on workers. Every draw is preserved; a cold first use can still wait.
+The guide lists the separate texture, upload and BC1/BC4
+opt-ins. The play recipe sets `DM_NVN_MESH_INDIRECT=1` with the refusal safeguards. Keep `DM_HDR=0` and
+`DM_OOT_RENDER_RES=off` for initial acceptance.
+See [all fork flags](docs/oot-notes/FLAGS.md).
+
+Upstream reports native 60 fps through Dodongo's Cavern on M5 Pro. That result
+has not been reproduced on this combined branch or M4 Max. A 120 Hz display
+can present each 60 fps game frame twice; it does not unlock 120 fps or 4K
+internal rendering.
 
 Known limits:
 
-- Gameplay has not been validated on this combined branch.
-- The mesh-indirect record layout is unproven. Some geometry may be missing while the option is off.
-- Zero shader or pipeline compiles during play is unproven. Strict mode reports misses and still compiles them.
+- Integrated gameplay and image correctness remain unverified.
+- The mesh-indirect record order is unproven. Geometry may be missing while its option is off.
+- The earlier AOT path caused cutscene freezes. Its archive-miss fix and exact-state import await verification. Zero gameplay compiler entries remain unproven.
 
 Credit goes to [seedds and the upstream contributors](https://github.com/seedds/nxnative),
+[ksolenk38ze](https://github.com/ksolenk38ze) for the Ocarina profile and validation,
 the authors of the [ported PRs](docs/oot-notes/PR-FILES.md),
 [BrentRosen](https://github.com/BrentRosen) for the Ocarina work, and
 [beecrepaldi-afk](https://github.com/beecrepaldi-afk) for the HDR contribution in
