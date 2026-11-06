@@ -1,6 +1,6 @@
 # Integrated Ocarina community build
 
-The final branch starts from official main through d928699b. It takes the
+The final branch starts from official main through 671c68e1. It takes the
 maintainer's Ocarina fixes, profile tables and overlapping shader behavior.
 Only missing serial ownership, texture/view repairs, upload caches, guarded
 mesh behavior, optional pool/retirement work, GPU safety and HDR are retained.

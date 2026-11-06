@@ -1,7 +1,7 @@
 # Ocarina community play build
 
 `oot-play-1444` follows the latest upstream Ocarina implementation, including
-`b1d7c707`, `6121fd75` and the movie decoder worker in `75c1a8cf`, through `d928699b`. It also includes opt-in #1456, #1459 and #1461.
+`b1d7c707`, `6121fd75` and the movie decoder worker in `75c1a8cf`, through `671c68e1`. It also includes opt-in #1456, #1459 and #1461.
 The profile tables and overlapping shader fixes come from upstream. The
 community additions retain serial-held ownership, guarded upload caches,
 optional BC targets, pool placement/retirement, GPU safety, pipeline learning
