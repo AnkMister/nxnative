@@ -8,9 +8,9 @@ are archived. Their confirmed defects are repaired in the integrated source.
 
 The requested 18 PR file lists are preserved in [PR-FILES.md](PR-FILES.md).
 Brent's [Integrator merge notes](brent-compare.md#integrator-merge-notes) remain
-relevant when moving the combined source onto upstream main. The second variant
-will use origin/main resolved at creation, including upstream alias layout and
-renderer PCM blocks. Keep its packed library loader and repaired source gates.
+relevant to future rebases. oot-hyper-main uses origin/main eab0aaac resolved
+at creation, including upstream alias layout and renderer PCM blocks. Its
+packed library loader and repaired source gates are retained.
 
 No requested finished branch is pending. oot-aot and oot-foliage are integrated
 after their reviewed stable/Brent ancestors. Existing committed history is kept.

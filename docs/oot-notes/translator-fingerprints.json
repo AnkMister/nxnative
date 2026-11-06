@@ -438,5 +438,8 @@
     "dm/third_party/ryujinx/src/Spv.Generator/Spv.Generator.csproj": "12452e81253ca4c1c7fdbde30a2967fc76c5f86b9e3feb28a708d084a7d814e1",
     "dm/third_party/ryujinx/src/Spv.Generator/TypeDeclarationKey.cs": "5a28f3cc4b03404f6fb8aa1c8e882ceabcaba113bb7e053557e0972902712a0d",
     "dm/third_party/ryujinx/src/Spv.Generator/spirv.cs": "edbe69718c6fd6fa9754fead258bef34d9ea6e93d8a3c2d8db8fdd4436bd831d"
-  }
+  },
+  "default_chain": "0d0146e341bb",
+  "visual_play_chain": "735446b8c867",
+  "option_combinations": 64
 }

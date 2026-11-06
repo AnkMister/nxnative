@@ -61,7 +61,7 @@ inputs retain correction; opt-in `_bn` assets are disposable and fail back to `_
 | `DM_RT` | On | Acquire/present scheduling can change | `0` removes acquire thread's Mach time-constraint policy | oot-cpu |
 | `DM_NVN_FAST_WAKE` | On | Fence wake semantics | Already present; `0` is a comparison control | oot-cpu |
 | `DM_PRESENT_FIFO` | On | Frame selection and latency | Already present; `0` chooses newest queued frame | oot-cpu |
-| `DM_GUEST_FILE=1` | Off | Compatibility guard disables dedupe; backing implementation itself is not included | Avoids combining file-backed guest memory with dedupe | oot-mem-fix |
+| `DM_GUEST_FILE=1` | Off | Compatibility guard disables dedupe; file backing is included only in oot-hyper-main | Avoids combining file-backed guest memory with dedupe | oot-mem-fix |
 | `DM_NVN_DIRTYCHECK` | Off | Diagnostic hash/read overhead | Verifies uploads; not an efficiency switch | oot-mem-fix |
 | `DM_FOCUS_KEEP` | Off | Affects game focus response | Harness uses `1`; explicit eco hidden policy takes precedence | oot-cpu, oot-idle, oot-bench |
 | `DM_PRESENT_LINK` | `1` | Cadence/latency | Stack's direct-present A/B uses `0` | oot-stack |
@@ -193,7 +193,7 @@ release blockers in [PLAY-BUILD.md](PLAY-BUILD.md).
 | --- | --- | --- | --- | --- |
 | `DM_OOT_RENDER_RES=1440` / `2160` | Off; exact values only | HIGH: engine hooks change scene/final dimensions and disable dynamic reduction; NDSR 1:1, effects, UI, allocation capacity and images unverified | More internal detail with higher GPU/memory cost; no gameplay result | oot-res, 51c75925 |
 | `DM_OOT_ORIGINAL_MAIN` | Unset | Test-only read-only original-NSO input | Audits original hook instructions; no runtime gain | oot-res |
-| `DM_OOT_BRENT=1` | Off | Alias layout, audio-lock discovery and resource cleanup need acceptance; packaging checks may refuse bad inputs | SDK lock correctness, completed-log reclamation and build reuse; no measured frame gain | oot-brent |
+| `DM_OOT_BRENT=1` | Off | Alias/heap layout is gated only on oot-hyper; audio-lock discovery and resource cleanup need acceptance; packaging checks may refuse bad inputs | SDK lock correctness, completed-log reclamation and build reuse; no measured frame gain | oot-brent |
 | `DM_NVN_POOL_SKIP_RETIRED=1` | Off | HIGH: a finalized handle can legally read surviving storage; can omit visible textures | Avoids remaking retired textures; game savings unmeasured | oot-brent, #1393 |
 | `DM_ALIAS_SIZE` | Existing profile/host policy; Brent opt-in on oot-hyper reserves at least 64 GB | Guest address layout and pointer truncation; reserves address space, not RAM | Explicit override preserved; upstream-main variant uses upstream alias implementation | oot-brent, upstream main |
 
@@ -218,3 +218,15 @@ The new tensor translator source enters FILES and translation-stage fingerprints
 Stage keys include grouping's `readonly` argument and module bytes. Raw-load
 quads, storage runs, constant reuse, border splitting and visual translation keep
 their distinct inputs. TBDR host-only controls do not change the shader chain.
+
+## Additional upstream-main controls
+
+| Flag or environment variable | Default | Visual risk | Expected gain | Source branch |
+| --- | --- | --- | --- | --- |
+| `DM_GUEST_FILE_CHUNK` | 1 GiB, minimum 64 MiB | File-backed guest-memory compatibility; OFF for play via DM_GUEST_FILE=0 | Bounds periodic file-flush work | origin/main, oot-hyper-main only |
+| `DM_GUEST_FILE_DIR` | Process temporary directory | None when file backing is off; use an owned persistent scratch root when testing | Select backing-file storage | origin/main, oot-hyper-main only |
+| `DM_GUEST_FILE_MIN_FREE` | 5 GiB; Mac also keeps 8 GiB reserve | Stops the process when free-space guard trips | Avoids exhausting backing storage | origin/main, oot-hyper-main only |
+
+On oot-hyper-main, the upstream 64 GB alias reservation and provisional heap
+alias accounting are unconditional upstream fixes. DM_OOT_BRENT no longer gates
+or duplicates them. The per-renderer PCM-block repair is also unconditional.

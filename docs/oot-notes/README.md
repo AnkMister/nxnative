@@ -10,3 +10,8 @@ selects the shared task workspace; `OOT_READONLY_GAME_ROOT` and
 `OOT_PYTHON_BIN` select the existing uv environment. Resolve these explicitly
 before using a historical command. These names are documentation placeholders,
 not new game feature flags. Never point writable outputs at protected inputs.
+
+Current delivery: [flags](FLAGS.md), [play build](PLAY-BUILD.md),
+[verification](VERIFICATION.md), [next merges](NEXT-MERGES.md) and
+[storage](STORAGE.md). All requested finished branches and reviewed replacements
+are integrated; no finished branch remains pending.

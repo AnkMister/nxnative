@@ -1,5 +1,11 @@
 # Recommended Ocarina play build
 
+**Selected basis: oot-hyper-main**, validated source 5f066f7d, on upstream
+origin/main eab0aaac resolved at branch creation. oot-hyper also passes all
+integrated checks. See [verification](VERIFICATION.md) for both result sets.
+Use main's matching play chain `992d6981956f`; the oot-hyper alternative uses
+`735446b8c867`. These apply to the exact flags below and final source-built tools.
+
 The reviewed visual and stable replacements are integrated. The Float16/integer
 selector, watchdog snapshot and auxiliary residency races are repaired.
 `DM_SAFE_GPU=1` is restored in the recommended play environment.
@@ -66,6 +72,7 @@ settings; the integration does not write the user's Application Support env.txt.
 
 ```ini
 DM_SAFE_GPU=1
+DM_GUEST_FILE=0
 DM_AOT=1
 DM_AOT_STRICT=1
 DM_PSO_PREPARE_THREADS=4

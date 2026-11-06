@@ -27,3 +27,12 @@ than runtime source. Exact AOT keys conservatively retain depth/stencil formats 
 descriptor. Metal 4 has no depth/stencil format setters, so those fields are
 not sent to its compiler descriptors. The native fixture checks key separation
 and valid replay through the actual Metal 4 API.
+
+Final delivery: this source passes 1,306 tools tests, 417 Python graphics tests,
+all 127 native graphics targets, the host build and focused host/memory/quality
+checks. oot-hyper-main also passes and is selected for the parent's next complete
+play build. Shared FLAGS, PLAY-BUILD, NEXT-MERGES, VERIFICATION and storage records
+are synchronized. No full shader build or game ran. AOT strict coverage and image
+acceptance remain the parent's release gates. All requested finished branches and
+reviewed replacements are integrated. Private generated cache/publish outputs
+were cleaned; audits, source snapshots and checkout build outputs are retained.
