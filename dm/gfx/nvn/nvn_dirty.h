@@ -25,3 +25,4 @@ size_t nvn_dirty_release(const void *addr, size_t len, uint64_t stamp, int (*ok)
 int nvn_dirty_restore(const void *addr, size_t len);              // 1: every page accessible; 0: incomplete restore, dedupe disabled
 void nvn_dirty_require(const void *addr, size_t len);             // restore or stop before exposing bytes to kernel/GPU
 void nvn_dirty_dedupe_stats(uint64_t *gone, uint64_t *released, uint64_t *back, uint64_t *reread, uint64_t *raced, uint64_t *failed, uint64_t *file);
+size_t nvn_dirty_discard(const void *addr, size_t len, int tracked, int method);   // Replace the whole pages inside [addr, addr+len) with zero pages (tracked: only still-protected ones, kept protected; else unprotected ones); returns bytes

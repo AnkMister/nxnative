@@ -415,3 +415,10 @@ No game, full shader build, settings write, push or remote branch change ran.
 - Ported 3d700bb7's pool-owned placement heap, covered-range initialization and GPU readback fixture. DM_NVN_POOL_HEAP=1 opts in; upstream enables it by default.
 - Usage upgrades keep the placement heap and skip self-copies. The same two changes occur inside p1444-tex's gated tex_upgrade work. Keep this owner-aware path when resolving that merge.
 - Upstream's 3 GB to 0.7 GB claim is not measured here. Visual aliasing and stability need gameplay validation. No builds or tests ran while dmhost was active.
+
+## Harvest 3: PR 1447
+
+- The terrain fix 2a18e3ec duplicates oot-play's #1390 port 0c2dbf41. Kept its existing range API and split-preserving range removal, including the DM_NVN_VISUAL gate. p1444-tex preserves that implementation. No second range tracker was added.
+- Ported 0034c911's opt-in DM_TEX_RELEASE, probe mode, completion-gated discard and GPU donor copies. Preserved safe-GPU feedback and injected upload-loss handling.
+- Release refuses file-backed guests, active DM_NVN_TEX_DEDUPE, kernel-visible tracked ranges and ranges shared by multiple registrations. Existing dedupe remains the recoverable alternative.
+- DM_TEX_RELEASE=2 is destructive and experimental. Recreated textures of a different description or without a live donor can read zero pages. Keep it disabled until visual checks cover transitions and masks. No builds or tests ran.
