@@ -660,3 +660,9 @@ game run, shader corpus build, push or PR is authorized here.
 - #1354 / 5292ae49 excludes mount device numbers from RomFS reuse identities
   with DM_OOT_BRENT=1. It accepts old five-field image stamps and rejects malformed
   identity lists. The source digest still changes once when adopting this packer.
+
+- #1393 / 61fa7980 moves retired-ID skipping into shared pool_entry, including
+  incremental table patches, and preserves IDs used by the current submission.
+  The profile key defaults off. Enable DM_NVN_POOL_SKIP_RETIRED=1 explicitly;
+  Brent's later fb85c524 default-on Ocarina profile edit is deliberately omitted.
+  #1404 in oot-stable fixes residency, not this retired-ID policy, so both compose.
