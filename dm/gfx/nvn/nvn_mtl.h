@@ -2,6 +2,8 @@
 // Ordering convention (to avoid repeating the GO_MAP_SHARE corrupted-picture mistake of the x86 route): every visible effect of "GPU completion" (sync object ready, event values, counters)
 // happens only after the Metal command buffer has actually completed; CPU-side waits look only at the completed value of the MTLSharedEvent.
 #pragma once
+// Emergency CPU-owned teardown; deliberately never drains GPU work.
+void mtl_safe_gpu_release(void);
 #include <stdint.h>
 #include <stddef.h>
 
