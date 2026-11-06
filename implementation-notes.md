@@ -357,3 +357,19 @@ Semantics sources:
 - https://docs.nvidia.com/cuda/parallel-thread-execution/
 - https://github.com/cloudcores/CuAssembler/blob/master/CuAsm/InsAsmRepos/DefaultInsAsmRepos.sm_86.txt
 - https://github.com/seedds/nxnative/pull/1300
+
+## #1359: adapted
+
+Head `34d04efbe93ba88f5c82f0bcf2ac264218f79e4a`. Imported its RED/ATOMG
+float-add CAS lowering and memory fixtures. Enabled only for global F32FtzRn
+under `DMSH_OOT_VISUAL=1`; shared float adds have different denormal semantics.
+NVIDIA PTX documents round-nearest-even and sign-preserving FTZ for inputs and
+results of global atom/red.add.f32. A native Metal float atomic add cannot
+independently flush the accumulator and result, so the CAS implementation stays.
+Found and fixed two source issues: FlushDenormal loses negative zero's sign;
+the initial ordinary load races with atomic writes. The adapted helper flushes
+by exponent/magnitude bits and keeps the sign. The initial read uses CAS(0,0).
+Expected symptom improvement is the washed-out outdoor scene from missing sky,
+probe and shadow accumulation. Numeric/concurrency GPU checks are pending the
+single translator rebuild. Risks include CAS contention and console NaN payload
+parity; gameplay remains unverified.
