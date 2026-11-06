@@ -7684,6 +7684,7 @@ static NSString *pso_user_path(void);
 // what it lacks: a draw, the prewarm and the prebuild compile a base, and the serializer captures it, only after the bundle missed (it holds no base with a vertex layout). A system
 // that cannot open it (one older than the archive's minimum, or an OS update that changed the GPU compiler) or a GPU it was not built for gets an info line, and the device builds
 // the bases itself as before (the on-device prebuild is the fallback)
+static NSArray<id<MTL4Archive>> *g_arch_bundles;
 static id<MTL4Archive> g_arch_bundle; static NSString *g_bundle_dir;
 // Metal's loader crashes on malformed containers rather than returning an error. Check the GPU image's load commands and referenced file ranges, including every slice of a
 // universal archive, before giving it to Metal. This checks the container, not the compiler's private payload: Metal still decides whether this system can use its binaries.
@@ -7757,13 +7758,36 @@ static void pso_bundle_open(NSMutableArray<id<MTL4Archive>> *archp) {
              have.count ? [have componentsJoinedByString:@", "].UTF8String : "none");
         return;
     }
-    uint64_t t0 = bp_now(); NSError *ae = nil;
-    if (!arch_file_ok(p)) { MLOG("[RED] pipeline archive bundled with the app: %s is not a pipeline archive: the bases are built on the device", p.UTF8String); return; }
-    id<MTL4Archive> a = [g_dev newArchiveWithURL:[NSURL fileURLWithPath:p] error:&ae];
-    if (!a) { MLOG("pipeline archive bundled with the app: this system cannot open %s (%s; made for another system version, or an OS update changed the GPU compiler): the bases are built on the device",
-                   p.UTF8String, ae.localizedDescription.UTF8String); return; }
-    g_arch_bundle = a; g_bundle_dir = dir; [archp addObject:a];
-    MLOG("pipeline archive bundled with the app: %s, %.1f MB, opened in %.1f ms", p.UTF8String, [[NSFileManager.defaultManager attributesOfItemAtPath:p error:nil] fileSize] / 1048576.0, (bp_now() - t0) / 1e6);
+    NSMutableArray<NSString *> *paths = [NSMutableArray arrayWithObject:p];
+    NSArray<NSString *> *names = [[NSFileManager.defaultManager contentsOfDirectoryAtPath:dir error:nil] sortedArrayUsingSelector:@selector(localizedStandardCompare:)];
+    NSString *prefix = [gpu stringByAppendingString:@"."];
+    for (NSString *name in names) {
+        if (name.length <= prefix.length + 6 || ![name hasPrefix:prefix] || ![name hasSuffix:@".mtl4a"]) continue;
+        NSString *number = [name substringWithRange:NSMakeRange(prefix.length, name.length - prefix.length - 6)];
+        if (!number.length || [number rangeOfCharacterFromSet:NSCharacterSet.decimalDigitCharacterSet.invertedSet].location != NSNotFound) continue;
+        if (number.integerValue != paths.count) { MLOG("[RED] pipeline archive bundle has a missing part: %s", name.UTF8String); return; }
+        [paths addObject:[dir stringByAppendingPathComponent:name]];
+    }
+    // New builders list every part: a missing final part must not pass the coverage probe by chance.
+    NSString *metadata = [NSString stringWithContentsOfFile:[dir stringByAppendingPathComponent:@"archive.tsv"] encoding:NSUTF8StringEncoding error:nil];
+    for (NSString *line in [metadata componentsSeparatedByString:@"\n"]) {
+        NSArray<NSString *> *fields = [line componentsSeparatedByString:@"\t"];
+        if (fields.count != 3 || ![fields[0] isEqualToString:@"part"] || ![fields[1] hasPrefix:prefix]) continue;
+        NSString *required = [dir stringByAppendingPathComponent:fields[1]];
+        if (![paths containsObject:required] || [[NSFileManager.defaultManager attributesOfItemAtPath:required error:nil] fileSize] != fields[2].longLongValue) {
+            MLOG("[RED] pipeline archive bundle has a missing or incomplete part: %s", required.UTF8String); return;
+        }
+    }
+    NSMutableArray<id<MTL4Archive>> *opened = [NSMutableArray array];
+    for (NSString *path in paths) {
+        uint64_t t0 = bp_now(); NSError *ae = nil;
+        if (!arch_file_ok(path)) { MLOG("[RED] pipeline archive bundled with the app: %s is not a pipeline archive: the bases are built on the device", path.UTF8String); return; }
+        id<MTL4Archive> a = [g_dev newArchiveWithURL:[NSURL fileURLWithPath:path] error:&ae];
+        if (!a) { MLOG("pipeline archive bundled with the app: this system cannot open %s (%s): the bases are built on the device", path.UTF8String, ae.localizedDescription.UTF8String); return; }
+        [opened addObject:a];
+        MLOG("pipeline archive bundled with the app: %s, %.1f MB, opened in %.1f ms", path.UTF8String, [[NSFileManager.defaultManager attributesOfItemAtPath:path error:nil] fileSize] / 1048576.0, (bp_now() - t0) / 1e6);
+    }
+    g_arch_bundles = [opened copy]; g_arch_bundle = opened.firstObject; g_bundle_dir = dir; [archp addObjectsFromArray:opened];
 }
 // gpuarchiver-* folders are Metal's private compiler state. On the Mac their parent is shared by every program: a directory appearing during our capture or flush may belong
 // to another compiler, and serialization success does not end its lifetime. Only our output archives are ours to remove. iOS can reclaim previous runs' app-private folders
@@ -7877,8 +7901,8 @@ static void pso4_init(void) {
             }
             arch_open_end();
             if (runf.count > PSO_ARCH_COMPACT && arch_compact_allowed()) { g_compact_enabled = 1; g_compact_files = runf; }
-            MLOG("pipeline archive %s: %lu files (%lu of bases without a vertex layout), %.1f MB, opened in %.1f ms", g_arch_dir.UTF8String, (unsigned long)(arch.count + archp.count - (g_arch_bundle != nil)),
-                 (unsigned long)archp.count - (g_arch_bundle != nil), bytes / 1048576.0, (bp_now() - t0) / 1e6);
+            MLOG("pipeline archive %s: %lu files (%lu of bases without a vertex layout), %.1f MB, opened in %.1f ms", g_arch_dir.UTF8String, (unsigned long)(arch.count + archp.count - g_arch_bundles.count),
+                 (unsigned long)archp.count - g_arch_bundles.count, bytes / 1048576.0, (bp_now() - t0) / 1e6);
         }
         g_arch4 = arch; g_arch4p = archp;
         NSError *ce = nil; g_comp4 = [g_dev newCompilerWithDescriptor:[MTL4CompilerDescriptor new] error:&ce];
@@ -8482,7 +8506,10 @@ static int pso_bundle_covers(NSArray<NSArray<NSString *> *> *pairs, NSString *wa
         NSArray<NSString *> *p = cand[k * n / MIN(n, (NSUInteger)PRE_PROBE)];
         MTL4RenderPipelineDescriptor *m = pre_desc(p[0], p[1], zero);
         if (!m) continue;
-        probed++; found += [g_arch_bundle newRenderPipelineStateWithDescriptor:m error:nil] != nil;
+        probed++;
+        for (id<MTL4Archive> archive in g_arch_bundles) {
+            if ([archive newRenderPipelineStateWithDescriptor:m error:nil]) { found++; break; }
+        }
     }
     int ok = probed > 0 && found == probed;   // skipped samples give no evidence that this system can take a base from the archive
     MLOG("pipeline archive bundled with the app: %s (%d of %d probed bases found, %.1f ms)%s", ok ? "holds the bases of every shader pair" : "this system does not take its bases",

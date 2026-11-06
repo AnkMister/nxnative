@@ -151,11 +151,15 @@ int main(void) { @autoreleasepool {
         NSString *txt = [NSString stringWithContentsOfFile:[tables stringByAppendingPathComponent:@"shader_pairs.tsv"] encoding:NSUTF8StringEncoding error:nil];
         NSString *own = [arch stringByAppendingPathComponent:[[[NSFileManager.defaultManager contentsOfDirectoryAtPath:arch error:nil] filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"self BEGINSWITH 'p' AND self ENDSWITH '.mtl4a'"]] firstObject]];
         id<MTL4Archive> real = g_arch_bundle; NSError *e = nil;
+        NSArray *realParts = g_arch_bundles;
         g_arch_bundle = [g_dev newArchiveWithURL:[NSURL fileURLWithPath:own] error:&e];
+        g_arch_bundles = g_arch_bundle ? @[g_arch_bundle] : @[];
         EXPECT("archive guard: real serialized archive accepted", 1, arch_file_ok(own));
         EXPECT("probe: another archive opened", 1, g_arch_bundle != nil);
         EXPECT("probe: its bases are not this run's", 0, pso_bundle_covers(pre_parse(txt), pre_stamp(txt, 0), 0, rest));
-        g_arch_bundle = real;
+        g_arch_bundles = @[g_arch_bundle, real];
+        EXPECT("probe: finds a base in a later bundle part", 1, pso_bundle_covers(pre_parse(txt), pre_stamp(txt, 0), 0, rest));
+        g_arch_bundle = real; g_arch_bundles = realParts;
         EXPECT("probe: the bundled archive holds them", 1, pso_bundle_covers(pre_parse(txt), pre_stamp(txt, 0), 0, rest));
         EXPECT("probe: not for the other depth mode", 0, pso_bundle_covers(pre_parse(txt), pre_stamp(txt, 1), 1, rest));
         // Raw-pair sampling can hit only ineligible pairs: 0 of 0 lookups must not suppress the device prebuild.
@@ -180,6 +184,25 @@ int main(void) { @autoreleasepool {
         setenv("DM_PSO_BUNDLE", "off", 1); pso_bundle_open(list);
         EXPECT("off: none opened", 0, list.count);
         g_arch_bundle = real;
+    }
+    {
+        NSString *gpu = g_dev.architecture.name;
+        NSString *first = [bundle stringByAppendingPathComponent:[gpu stringByAppendingPathExtension:@"mtl4a"]];
+        NSString *second = [bundle stringByAppendingPathComponent:[gpu stringByAppendingString:@".1.mtl4a"]];
+        [NSFileManager.defaultManager copyItemAtPath:first toPath:second error:nil];
+        NSMutableArray *list = [NSMutableArray array];
+        setenv("DM_PSO_BUNDLE", bundle.UTF8String, 1); pso_bundle_open(list);
+        EXPECT("split: opens both parts", 2, list.count);
+        EXPECT("split: first remains the primary archive", 1, g_arch_bundle == list.firstObject);
+        NSString *meta = [bundle stringByAppendingPathComponent:@"archive.tsv"];
+        put(meta, [NSString stringWithFormat:@"part\t%@\t%llu\n", second.lastPathComponent, [[NSFileManager.defaultManager attributesOfItemAtPath:second error:nil] fileSize]]);
+        [NSFileManager.defaultManager removeItemAtPath:second error:nil];
+        list = [NSMutableArray array]; pso_bundle_open(list);
+        EXPECT("split: missing final part rejects bundle", 0, list.count);
+        put(second, @"broken");
+        [NSFileManager.defaultManager removeItemAtPath:meta error:nil];
+        pso_bundle_open(list);
+        EXPECT("split: corrupt part publishes no archives", 0, list.count);
     }
     [NSFileManager.defaultManager removeItemAtPath:root error:nil];
     printf("t_pso_bundle: %d checks, %d failed\n", checks, failed);

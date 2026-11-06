@@ -433,6 +433,26 @@ class Build(unittest.TestCase):
             self.assertEqual(observed, before, 'the normal packer must reuse the complete merged archive')
             self.assertIn('bases\t5\n', (self.out/'archive.tsv').read_text())
 
+    def test_split_archive_reuse_missing_part_and_shrink(self):
+        bases = [('v_bp', f'vertex{i}', 'f_b', 'main0') for i in range(5)]
+        runner, observed = self.batched_runner()
+        limit = 2 * len(b'archive applegpu_g18p')
+        with mock.patch.object(self, 'fake_run', runner), mock.patch.object(po, 'plan', return_value=(bases, [], {})), mock.patch.object(po, 'PACK_LIMIT', limit):
+            self.main('--batch-size', '2', '--os-min', '27.0')
+            parts = sorted(self.out.glob('*.mtl4a'))
+            self.assertEqual([p.name for p in parts], ['applegpu_g18p.1.mtl4a', 'applegpu_g18p.mtl4a'])
+            self.assertTrue(all(0 < p.stat().st_size <= limit for p in parts))
+            self.assertEqual([x for x in observed if x[0] == 'merge'], [('merge', 2), ('merge', 1)])
+            self.assertIn('part\tapplegpu_g18p.1.mtl4a\t', (self.out/'archive.tsv').read_text())
+            observed.clear(); self.main('--batch-size', '2', '--os-min', '27.0')
+            self.assertFalse(observed)
+            (self.out/'applegpu_g18p.1.mtl4a').unlink()
+            self.main('--batch-size', '2', '--os-min', '27.0')
+            self.assertEqual(observed, [('merge', 2), ('merge', 1)])
+        with mock.patch.object(self, 'fake_run', runner), mock.patch.object(po, 'plan', return_value=(bases[:2], [], {})):
+            self.main('--batch-size', '2', '--os-min', '27.0')
+        self.assertEqual([p.name for p in self.out.glob('*.mtl4a')], ['applegpu_g18p.mtl4a'])
+
     def test_batch_failure_preserves_completed_work_and_publishes_nothing(self):
         bases = [('v_bp', f'vertex{i}', 'f_b', 'main0') for i in range(5)]
         runner, observed = self.batched_runner(fail_compile='vertex2')
