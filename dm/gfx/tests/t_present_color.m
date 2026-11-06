@@ -22,7 +22,7 @@ int main(void) { @autoreleasepool {
         rp.colorAttachments[0].loadAction=MTLLoadActionDontCare;rp.colorAttachments[0].storeAction=MTLStoreActionStore;
         id<MTLCommandBuffer> cb=[q commandBuffer];id<MTLRenderCommandEncoder> e=[cb renderCommandEncoderWithDescriptor:rp];
         MTLSamplerDescriptor *sd=[MTLSamplerDescriptor new];id<MTLSamplerState> samp=[dev newSamplerStateWithDescriptor:sd];
-        float crop[12]={0,0,1,1,.0625,.5,.9375,.5,1,0.125,1,0};
+        float crop[16]={0,0,1,1,.0625,.5,.9375,.5,1,0.125,1,0};
         [e setRenderPipelineState:ps];[e setFragmentTexture:src atIndex:0];[e setFragmentSamplerState:samp atIndex:0];[e setFragmentBytes:crop length:sizeof crop atIndex:0];
         [e drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];[e endEncoding];[cb commit];[cb waitUntilCompleted];
         CHECK(cb.status == MTLCommandBufferStatusCompleted,"present executes on GPU");

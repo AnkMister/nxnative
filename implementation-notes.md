@@ -54,3 +54,32 @@ All experiments remain default-off except inherited/profile defaults; the play
 recipe explicitly enables reviewed correctness/stability and srgb. Complete
 pipeline coverage and image/gameplay acceptance remain parent gates. No game,
 full shader build, push or PR ran. Final results and cleanup are in docs/oot-notes.
+
+## Optional Mac HDR port
+
+Created oot-hdr from oot-hyper-main at 64a163ba. Ported the Mac changes from
+PR #1176 fetched at a360806f. Omitted unrelated game validation and the iOS
+frontend. The launcher HDR setting is offered only on Mac Switch 2 builds.
+DM_HDR remains off by default. The fetched head now defaults to a PQ layer;
+DM_HDR_LAYER=float retains its extended-linear BT.2020 path.
+
+Static v131072 inspection establishes the game's output path. Main calls the
+HDR status query and paper white. The SDK interprets format 1 as HDR. Main and
+UI scene configs enable HDR. An agl output shader contains the BT.709-to-BT.2020
+matrix and all PQ constants. The game's note records addresses and shader key.
+
+Kept the existing SDR source tagging, quality filtering, sharpening, AOT helper
+hooks, crop and absolute present cadence. The quality and HDR constants occupy
+separate float4s. PQ bypasses the SDR-configured MetalFX scaler; scaled SDR is
+converted only in the final present. Combined checks compare HDR white against
+the same scaled SDR output because MetalFX can shift saturated SDR by one code.
+2202d610 is absent from the base, so no crop redesign was included.
+
+Native checks cover HDR on Metal 3 and Metal 4, unset and zero defaults, quality
+plus P3, ColorSync comparison, quality variants, crops, snapshots, allocators,
+rescue and eco-present. Settings and documentation tests pass. The host builds.
+No game, regression harness, shader translation, installation, push or PR ran.
+Only the embedded host present shader was rebuilt. Existing game libraries stay
+valid, but HDR-specific AOT archive coverage and display acceptance remain open.
+The parent task owns independent review. External evidence and hdr.md are kept
+in the shared task workspace. All heavy commands ran at nice 19.

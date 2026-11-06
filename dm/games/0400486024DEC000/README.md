@@ -119,6 +119,8 @@ The [BAHS record-boundary finding](../../../docs/reference/shaders.md#a-bahs-sca
 
 ## Found on this game
 
+- The optional [HDR present path](../../../docs/reference/rendering.md#hdr-output) has [static output evidence](#hdr-output); display acceptance is open.
+
 - Open experiment: [visual source ports](../../../docs/reference/shaders.md#ocarina-visual-source-ports-experimental) are default-off on `oot-visual`. Ten extracted v131072 targets now translate and compile on the M4 Max, including the foliage, output-payload task, float-reduction, SMAA and deep-expression compute targets. Numeric GPU and focused host fixtures pass. The Open entries below describe the earlier runtime findings; visual/gameplay acceptance remains open.
 
 - Open: [pipeline creation after offline translation](../../../docs/reference/shaders.md#pipeline-creation-remains-after-offline-shader-translation) has opt-in archive coverage and descriptor learning. Synthetic fixtures pass; no gameplay zero-compile or image result is established.
@@ -446,3 +448,33 @@ brightness in gameplay remain unverified.
 Found on this game: the [raw lookup grouping extension](../../../docs/reference/shaders.md#adjacent-raw-global-memory-reads)
 accepts the heavy mesh programs' read-only pool table under `DMSH_WIDE_GROUP=1`.
 Keep this off until matching host/shader builds pass image comparison.
+
+## HDR output
+
+Current static finding for v131072. Main build ID is
+`e0f3ccfaf50065ae4ea01eb5aeb13b1a45da3348000000000000000000000000`.
+SDK build ID is `1643a838814f9c10c696f930ed681e7fa3fb9af8000000000000000000000000`.
+Main calls `QueryDisplayHdrStatus` at `0x346c6e4` and paper white at
+`0x346c704`. The returned status and luminance are stored in the display state.
+The SDK exports both functions and `DefaultDisplay::QueryHdrStatus`.
+
+Both Main and UI `gsys/ModelSceneConfigParam` bgyml files set `CreateHdr=true`.
+The RomFS agl resource archive contains `agl_technique_pfx.sharcb` with
+`hdr_color_mapping_compute_color_lut`, `hdr_color_mapping_apply_color_lut`,
+`hdr_color_mapping_compose`, `ToneMapping`, `cPaperWhite` and `cInvPaperWhite`.
+Five output shaders contain all five ST 2084 PQ constants and both inverse
+exponents. For example, BAHS entry `0x1aa958` is pixel key `8c9ab97b1114e618`
+in the existing map. That shader contains all nine BT.709-to-BT.2020 matrix
+coefficients before the PQ output constants. The common archive also contains
+PQ deployment variants.
+These establish an HDR output path, but do not establish which variant is
+selected during gameplay or prove its output primaries on this host.
+
+The opt-in Mac host support is [HDR output](../../../docs/reference/rendering.md#hdr-output).
+`DM_HDR=1` keeps SDR sources consistent with the sRGB source contract and allows
+HDR on a screen with EDR headroom. The default is off. The float layer remains
+available with `DM_HDR_LAYER=float`; the fetched upstream PR defaults to a PQ
+layer. This changes only host code and its embedded present shader. Existing
+game shader libraries stay valid. HDR-specific pipeline archive coverage and
+actual scene, menu, fullscreen and monitor-switching acceptance remain open.
+No game was run for this port.

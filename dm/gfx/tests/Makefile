@@ -45,10 +45,10 @@ check_t_eco_compile: t_eco_compile
 	DM_ECO_COMPILE_THREADS=65 ./t_eco_compile 0
 # The run list: every t_*.c and t_*.m but those in NOT_RUN. `make run` builds them all (in parallel with -j), then runs them one after another, each through its check_
 # target: ./t_x by default, with the environment its RUN_ENV gives it (check_t_x: RUN_ENV = MTL_DEBUG_LAYER=1, beside its build rule), or a check_t_x recipe of its own when it
-# runs several ways. A new test needs its source and its build rule; no list to add it to. NOT_RUN: helpers linked into other tests (t_host_stubs, t_present_rescue_focus),
+# runs several ways. A new test needs its source and its build rule; no list to add it to. NOT_RUN: helpers linked into other tests (t_host_stubs, t_present_rescue_focus, t_present_hdr_front),
 # a fixture test_image_atomic_bounds.py builds itself (t_atomic_return), t_geometry_primitive_id (the GPU half of test_dmsh_geometry.py, which gives it the directory of
 # its translated fixtures), t_visual_numeric (built and driven by test_dmsh_visual_numeric.py), t_wide_group (test_dmsh_wide.py), and t_gpuprof, which CI's CPU subset runs (.github/workflows/tests.yml)
-NOT_RUN = t_wide_group t_visual_numeric t_host_stubs t_present_rescue_focus t_atomic_return t_geometry_primitive_id t_gpuprof
+NOT_RUN = t_wide_group t_visual_numeric t_host_stubs t_present_rescue_focus t_present_hdr_front t_atomic_return t_geometry_primitive_id t_gpuprof
 RUN_TESTS = $(filter-out $(NOT_RUN),$(basename $(sort $(wildcard t_*.c t_*.m))))
 check_t_%: t_%
 	$(RUN_ENV) ./$<
@@ -225,6 +225,16 @@ t_present_rescue: t_present_rescue.m t_present_rescue_focus.c $(MTL_T_DEP)
 .PHONY: check_t_present_rescue
 check_t_present_rescue: t_present_rescue
 	MTL_DEBUG_LAYER=1 ./t_present_rescue --metal
+t_present_hdr: t_present_hdr.m t_present_hdr_front.c ../hle_vi.c $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_present_hdr.m t_present_hdr_front.c ../hle_vi.c $(MTL_T_SRC) $(FW)
+check_t_present_hdr: RUN_ENV = MTL_DEBUG_LAYER=1
+.PHONY: check_t_present_hdr
+check_t_present_hdr: t_present_hdr
+	MTL_DEBUG_LAYER=1 ./t_present_hdr
+	MTL_DEBUG_LAYER=1 ./t_present_hdr --metal4
+	env -u DM_HDR MTL_DEBUG_LAYER=1 ./t_present_hdr --sdr
+	DM_HDR=0 MTL_DEBUG_LAYER=1 ./t_present_hdr --sdr
+	MTL_DEBUG_LAYER=1 ./t_present_hdr --combined
 t_present_alloc: t_present_alloc.m $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -o $@ t_present_alloc.m $(MTL_T_SRC) $(FW)
 t_eco_present: t_eco_present.m t_present_alloc.m $(MTL_T_DEP)
