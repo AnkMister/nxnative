@@ -1451,8 +1451,8 @@ def finish(key, w, j, c1):
     try: src = stage_pass(raw_log_opt, key, j['stage'], src, res)
     except ValueError as e: return 'reflection failed', str(e)[:160], None
     src = stage_pass(dmsh_wide.wide_loads, src, offset_runs=dmsh_chain.storage_runs())   # storage words the translator split, read whole again (see dmsh_wide.py)
-    res = json.load(open(os.path.join(w, key + '.res.json')))
     if dmsh_chain.raw_load_quads() and j['stage'] == 'cs' and j.get('arch') == 'sm86' and not j.get('mesh_stage'):
+        res = json.load(open(os.path.join(w, key + '.res.json')))
         sbufs = sorted(res['sbufs'], key=lambda b: b['binding'])
         raw = [(i, b) for i, b in enumerate(sbufs) if b['cb_slot'] == abi.GMEM_MAP_CB_SLOT]
         if len(raw) == 1 and raw[0][1]['cb_offset'] == 0 and not raw[0][1]['flags'] & 1:

@@ -416,6 +416,15 @@ static void shape_case(void) {
     CHECK(a2 == a && !fresh, "the live snapshot is reused until the next barrier");
     for (int i = 0; i < 8; i++) { g_fbc[i] = (fb_cache_t){0}; } g_fbc_use = 0;
 }
+static void memo_baseline_case(id<MTLFunction> sentinel) {
+    NvShader *sh = [NvShader new]; strcpy(sh->key, "eeeeeeeeeeeeeeee_b");
+    int fx[32] = {0}; uint8_t lm[8] = {0,1,2,3,4,5,6,7};
+    uint64_t h = bf_hash(sh, fx, 0, 0, lm); bf_memo *m = &g_bf_memo[h & 1023];
+    *m = (bf_memo){.fs = sh, .fn = sentinel, .h = h}; memcpy(m->lmap, lm, 8);
+    const char *e = getenv("DM_NVN_FEEDBACK_MEMO"); int enabled = e && !strcmp(e, "1");
+    CHECK(bf_fn(sh, fx, 0, lm) == (enabled ? sentinel : nil), "numeric memo is strictly opt-in; default uses original lookup");
+    memset(m, 0, sizeof *m);
+}
 int main(int argc, char **argv) { @autoreleasepool {
     setenv("DM_NVN_TBDR", "0", 1);
     mtl_init(); NSError *error = nil;
@@ -438,6 +447,7 @@ int main(int argc, char **argv) { @autoreleasepool {
     id<MTLRenderPipelineState> pipeline = [g_dev newRenderPipelineStateWithDescriptor:d error:&error];
     CHECK(pipeline != nil, "synthetic render pipeline compiles");
     if (!pipeline) { fprintf(stderr, "%s\n", error.localizedDescription.UTF8String); return 1; }
+    memo_baseline_case(fs->fn);
     const int slots[] = {0, 128, 255};
     for (int i = 0; i < 3; i++) slot_case(pr, pipeline, slots[i], i);
     reuse_case(pr);
