@@ -644,3 +644,7 @@ game run, shader corpus build, push or PR is authorized here.
 - #1376 / 2d6f86f8 puts LDSM shared reads between subgroup barriers. It uses
   DMSH_OOT_VISUAL so disabled output keeps the existing translation. The upstream
   emitted-MSL ordering test is retained. Translator execution waits for our one rebuild.
+
+- #1388 / c8aeba86 uses a four-byte search for validated control pairs, then
+  consumes the complete shader record. #1353's entry-wise tests remain, and
+  #1388's vertex/pixel pairing tests are added. Disabled split behavior is retained.

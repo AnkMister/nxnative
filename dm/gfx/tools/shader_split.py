@@ -222,16 +222,20 @@ def ndsr_shaders(d, label):
     The entries start at +0x14 in Splatoon Raiders' pack, whose header has another word and other values (+4 0x40100, against 0x300 in Bananza's), so the start is the one whose first
     entries point at control sections. Read from +0x10 the same pack gave no shader, the upscaler's draws were skipped and every 3D frame reached the window black"""
     if d[:4] != b'NDSR' or len(d) < 0x20: return []
-    step = 8 if os.environ.get('DMSH_OOT_VISUAL') == '1' else 16
+    word_walk = os.environ.get('DMSH_OOT_VISUAL') == '1'
+    step = 16
     def entries_from(o):   # inspect complete entries, including a short/truncated pack
         return sum(1 for at in range(o, min(len(d) - 7, o + 16 * 16), step)
                    if (c := struct.unpack_from('<I', d, at)[0]) + 0x48 <= len(d) and nvn2_ctl(d[c:c + 0x48]))
-    out = []; o = max((0x10, 0x14), key=entries_from); prog = None
+    out = []; o = 0x10 if word_walk else max((0x10, 0x14), key=entries_from); prog = None
     while o + 16 <= len(d):
         c, cl, k, _ = struct.unpack_from('<4I', d, o)
-        if not c and not cl: break
+        if not c and not cl and (not word_walk or not k): break
+        valid = c + 0x48 <= len(d) and nvn2_ctl(d[c:c + 0x48])
+        if word_walk and not (valid and cl & 15 in (0, 3, 6) and cl >> 4 >= 0x48):
+            o += 4; continue
         o += step
-        if not ((step == 16 or cl & 15 in (0, 3, 6)) and c + 0x48 <= len(d) and nvn2_ctl(d[c:c + 0x48])): continue
+        if not valid: continue
         ctl = d[c:c + max(cl >> 4, 0x48)]
         code = d[k:k + struct.unpack_from('<I', ctl, 0x44)[0]]
         st = nvn2_stage(ctl, code)
