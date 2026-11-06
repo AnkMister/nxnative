@@ -85,6 +85,46 @@ class RenderScale(unittest.TestCase):
                         for register, value in registers.items():
                             self.assertEqual(machine.reg_read(register), value, f'register {register}')
 
+    @unittest.skipIf(unicorn is None, 'optional ARM64 execution dependency: unicorn')
+    def test_frame_controller_stub_and_combined_hook(self):
+        assert unicorn is not None and arm is not None
+        base, area, state, obj, stack, site = 0x4000000, 0x10000, 0x20000, 0x30000, 0x40000, 0x3b4f074
+        machine = unicorn.Uc(unicorn.UC_ARCH_ARM64, unicorn.UC_MODE_ARM)
+        machine.mem_map(base, 0x3c00000)
+        cursor, checked, patched = area, [], []
+        def emit(word):
+            nonlocal cursor
+            machine.mem_write(base + cursor, struct.pack('<I', word))
+            cursor += 4
+        def put(offset, words, reason):
+            patched.append(offset)
+            machine.mem_write(base + offset, struct.pack('<' + 'I' * len(words), *words))
+        ctx = types.SimpleNamespace(here=lambda: cursor, emit=emit, site=lambda offset, old: checked.append((offset, old)), put=put, state=state)
+        profile.apply(ctx)
+        self.assertEqual(patched, [0x31d3f48, site])
+        self.assertEqual(checked[-1], (site, 'e00314aa'))
+        self.assertEqual(ctx.render_scale, 1)
+        for target in (0, 30, 60):
+            for step in (0, 1, 2, 3):
+                with self.subTest(target=target, step=step):
+                    machine.mem_write(base + state, struct.pack('<f', target))
+                    machine.mem_write(base + state + 0x20, struct.pack('<I', step))
+                    machine.mem_write(base + state + 0x30, struct.pack('<Q', 41))
+                    machine.mem_write(base + obj, b'\xa5' * 0x80)
+                    machine.mem_write(base + obj + 0x48, struct.pack('<I', 7))
+                    machine.mem_write(base + obj + 0x58, struct.pack('<I', 8))
+                    regs = {getattr(arm, f'UC_ARM64_REG_X{i}'): 0x12340000 + i for i in range(31)}
+                    regs.update({arm.UC_ARM64_REG_X20: base + obj, arm.UC_ARM64_REG_SP: base + stack, arm.UC_ARM64_REG_NZCV: 0x90000000})
+                    for reg, value in regs.items(): machine.reg_write(reg, value)
+                    machine.emu_start(base + site, base + site + 4, count=64)
+                    active = bool(target and step)
+                    self.assertEqual(struct.unpack('<I', machine.mem_read(base + obj + 0x48, 4))[0], step if active else 7)
+                    self.assertEqual(struct.unpack('<I', machine.mem_read(base + obj + 0x58, 4))[0], 60 // step if active else 8)
+                    self.assertEqual(struct.unpack('<Q', machine.mem_read(base + state + 0x30, 8))[0], 41 + step if active else 41)
+                    self.assertEqual(bytes(machine.mem_read(base + obj + 0x4c, 12)), b'\xa5' * 12)
+                    for reg, value in regs.items():
+                        self.assertEqual(machine.reg_read(reg), base + obj if reg == arm.UC_ARM64_REG_X0 else value)
+
 
 if __name__ == '__main__':
     unittest.main()

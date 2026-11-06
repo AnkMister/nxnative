@@ -72,6 +72,27 @@ int main(void) {
     snprintf(rom, sizeof rom, "%s/rom", root); snprintf(overlay, sizeof overlay, "%s/overlay", root); snprintf(rdata, sizeof rdata, "%s/data", rom); snprintf(odata, sizeof odata, "%s/data", overlay);
     mkdir(rom, 0755); mkdir(overlay, 0755); mkdir(rdata, 0755); mkdir(odata, 0755);
     snprintf(fn, sizeof fn, "%s/same", rdata); put(fn, "base"); snprintf(fn, sizeof fn, "%s/same", odata); put(fn, "overlay"); snprintf(fn, sizeof fn, "%s/base", rdata); put(fn, "only-base"); snprintf(fn, sizeof fn, "%s/over", odata); put(fn, "only-overlay");
+    extern int t_opmode;
+    char mode_dir[1200], mode_data[1300], mode_file[1400];
+    for (int mode = 0; mode < 2; mode++) {
+        snprintf(mode_dir, sizeof mode_dir, "%s/%s", overlay, mode ? "docked" : "handheld"); mkdir(mode_dir, 0755);
+        snprintf(mode_data, sizeof mode_data, "%s/data", mode_dir); mkdir(mode_data, 0755);
+        snprintf(mode_file, sizeof mode_file, "%s/same", mode_data); put(mode_file, mode ? "docked" : "handheld");
+    }
+    setenv("DM_ROMFS", rom, 1); setenv("DM_ROMFS_OVERLAY", overlay, 1);
+    for (int mode = 0; mode < 2; mode++) {
+        t_opmode = mode;
+        CHECK(h_fs_MountRom("rom", NULL, 0) == RES_OK, "mount mode overlay");
+        CHECK(read_fs("rom:/data/same", got, sizeof got) && !strcmp(got, mode ? "docked" : "handheld"), "mode overlay wins over root");
+        t_opmode = !mode;
+        CHECK(read_fs("rom:/data/same", got, sizeof got) && !strcmp(got, mode ? "docked" : "handheld"), "mode remains fixed until remount");
+        CHECK(read_fs("rom:/data/over", got, sizeof got) && !strcmp(got, "only-overlay"), "mode overlay falls back to root");
+        CHECK(read_fs("rom:/data/base", got, sizeof got) && !strcmp(got, "only-base"), "mode overlay falls back to base");
+        h_fs_Unmount("rom");
+    }
+    snprintf(mode_dir, sizeof mode_dir, "%s/handheld", overlay); rm_tree(mode_dir);
+    snprintf(mode_dir, sizeof mode_dir, "%s/docked", overlay); rm_tree(mode_dir);
+    t_opmode = 0;
     setenv("DM_ROMFS", rom, 1); setenv("DM_ROMFS_OVERLAY", overlay, 1); CHECK(h_fs_MountRom("rom", NULL, 0) == RES_OK, "mount RomFS with two layers (base + overlay)");
     size_t rom_cache = 0; CHECK(h_fs_QueryRomCacheIdx(&rom_cache, 0) == RES_OK && rom_cache == 0x1000, "SDK 19: the cache size overload with a program index");
     CHECK(h_fs_MountRomIdx("rom2", 0, NULL, 0) == RES_OK && read_fs("rom2:/data/base", got, sizeof got) && !strcmp(got, "only-base"), "SDK 19: MountRom with a program index mounts the RomFS");

@@ -1,0 +1,157 @@
+[
+  [
+    "06f47f57",
+    "HAVE",
+    "b1d7c707: F2IP and task payload reads in the official source."
+  ],
+  [
+    "e3f8ef8c",
+    "HAVE",
+    "b1d7c707: F2IP rounding and RZ source handling."
+  ],
+  [
+    "9cb1fe2a",
+    "HAVE",
+    "b1d7c707: indirect task/mesh replay and atomic image handling; keep the newer MDX implementation."
+  ],
+  [
+    "10e53364",
+    "HAVE",
+    "b1d7c707: NDVE discovery, eventfd/offline services and no virtual input startup."
+  ],
+  [
+    "9fb44679",
+    "HAVE",
+    "b1d7c707: official profile, conditional clears, NVN2 stage discovery and residency."
+  ],
+  [
+    "ee9b7765",
+    "HAVE",
+    "b1d7c707 and a0f5e939: pool registration/storage notes and incremental table patching supersede the early implementation."
+  ],
+  [
+    "46975a20",
+    "HAVE",
+    "c8521eeb: g_gww intervals retain wide writes across submissions."
+  ],
+  [
+    "bd766c4d",
+    "HAVE",
+    "b1d7c707: one ListVirtualInputDevices answer; newer SDK input-stream handling remains intact."
+  ],
+  [
+    "d7f5b403",
+    "HAVE",
+    "b1d7c707: newer raw-table ABI covers the reported pool capacity failure. The dynamic allocation scheme is superseded, not copied."
+  ],
+  [
+    "02bd6a3d",
+    "HAVE",
+    "04df08d4: ATOMG.CAS 0x3a9 in source, already integrated."
+  ],
+  [
+    "fa26fa93",
+    "HAVE",
+    "04df08d4 and 87564a6b: deep bracket Metal compile limit already raised."
+  ],
+  [
+    "d0952dc2",
+    "HAVE",
+    "b1d7c707: float ADD uses EmitAtomicAddF32 compare-and-swap instead of being dropped."
+  ],
+  [
+    "04aba437",
+    "SKIP",
+    "Translator binary/chain rebuild. Never import its DLLs."
+  ],
+  [
+    "72275f7a",
+    "SKIP",
+    "FPS overlay and launcher/UI plumbing only; no Ocarina frame-time fix. Avoid expanding the host/frontend interface for this harvest."
+  ],
+  [
+    "cd94ea37",
+    "SKIP",
+    "Window paused label is UX feedback, not a hang fix or a Mac performance improvement."
+  ],
+  [
+    "8bca33fb",
+    "SKIP",
+    "Selective bracket compiler convention changes shader-chain tools. Existing unconditional raised limit handles the Ocarina nesting; do not change chain."
+  ],
+  [
+    "e2a20428",
+    "SKIP",
+    "WIP Opus/thread/video diagnostic logging, not an audio fix; extra hot-path logging is unsuitable for hitch reduction."
+  ],
+  [
+    "2c4a08f4",
+    "SKIP",
+    "Partial diagnostic follow-up and game note. Does not repair the guest Opus idle periods."
+  ],
+  [
+    "5ec8a62b",
+    "HAVE",
+    "b1d7c707: ndsr_shaders advances 8 bytes past a data entry, then takes control/code together. Donor synthetic odd-entry tests added and pass for both header offsets."
+  ],
+  [
+    "b114a464",
+    "SKIP",
+    "Cause/documentation update only; no source behavior to port."
+  ],
+  [
+    "34d04efb",
+    "HAVE",
+    "b1d7c707: EmitAtomicOp routes AtomSize.F32FtzRn ADD through EmitAtomicAddF32 CAS retry; exposure sums are retained. See source equivalence limits below."
+  ],
+  [
+    "ef72f7c5",
+    "HAVE",
+    "b1d7c707: official raw global pool table and ABI supersede the fork A-1 design; preserve current chain."
+  ],
+  [
+    "84b13565",
+    "SKIP",
+    "Merged translator DLL rebuild and chain lock/header only. No binaries imported."
+  ],
+  [
+    "a3844dc6",
+    "HAVE",
+    "6121fd75, retained by a0f5e939: pool_table_take/give reuse resident buffers after g_done reaches their fence. Current bounded cache has 16 spares rounded to 64 KiB instead of 64 exact-size slots."
+  ],
+  [
+    "58adddbd",
+    "SKIP",
+    "Empty code diff: speculative frame-generation design note, no implemented feature."
+  ],
+  [
+    "ad998585",
+    "SKIP",
+    "Mixed iPhone memory/default changes, guest anonymous remapping, lossy/mip-discard features, launcher replacement packaging and shader-chain edits. Useful upstream parts already exist (b1d7c707, 6121fd75, a0f5e939; profile already uses segment GPU timestamps). Do not import this broad bundle or its default-on upscale-chain skipping."
+  ],
+  [
+    "5314fd48",
+    "HAVE",
+    "87564a6b already records/replays RO_R_MESH_IND, fixing the relevant indirect mesh selector boundary. Skip incidental app-overlay packaging, resolution generator and fork build diary."
+  ],
+  [
+    "0803c304",
+    "SKIP",
+    "iPhone Metal 4 pipeline default and build-history notes only."
+  ],
+  [
+    "2de238f3",
+    "TAKE",
+    "Profile-only frame-controller hook, composed with the existing render-scale hook. Preserve registers; keep fps_target absent/default 0. Manual DM_FPS_TARGET=30/60 opts in after repacking main. Skip iPhone touch layout."
+  ],
+  [
+    "c2218343",
+    "SKIP",
+    "Fix is specific to g_up_chain_in early-stage skipping introduced by ad998585. That mechanism and upscaler_chain are absent here. #1459 uses the retained per-shader path; no earlier stages are skipped. Importing that prerequisite would introduce the black-frame failure being avoided. No need for this fallback on the current path."
+  ],
+  [
+    "26a2646e",
+    "TAKE",
+    "Host-only mode selection for explicitly supplied DM_ROMFS_OVERLAY roots. Do not ship the resolution overlay generator/data or alter console mode, dynamic resolution, or scaling defaults."
+  ]
+]

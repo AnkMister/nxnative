@@ -1,0 +1,7 @@
+/Applications/Xcode-27.2.app/Contents/Developer/usr/bin/make -C .. game_profile GAME=0400486024DEC000
+mkdir -p build
+clang  -O1 -Wno-unused-function -I.. -I../gen/0400486024DEC000 -I../../games/0400486024DEC000 -o build/t_fs t_fs.c t_fs_stub.c ../hle_bigstack.c ../save_sync.c
+clang  -O1 -Wno-unused-function -I.. -I../gen/0400486024DEC000 -I../../games/0400486024DEC000 -o build/t_fs_case t_fs_case.c ../hle_bigstack.c ../save_sync.c
+clang  -O1 -g -Wall -Werror -Wno-unused-function -I.. -I../gen/0400486024DEC000 -I../../games/0400486024DEC000 -o build/t_fs_directory t_fs_directory.c t_fs_stub.c ../hle_bigstack.c ../save_sync.c
+clang  -O1 -Wall -Wno-unused-function -I.. -I../gen/0400486024DEC000 -I../../games/0400486024DEC000 -o build/t_fs_commit_list t_fs_commit_list.c t_fs_stub.c ../hle_bigstack.c ../save_sync.c
+clang  -O1 -Wall -Wno-unused-function -I.. -I../gen/0400486024DEC000 -I../../games/0400486024DEC000 -o build/t_save_sync t_save_sync.c t_fs_stub.c ../hle_bigstack.c ../save_sync.c

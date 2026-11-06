@@ -1,0 +1,230 @@
+[dm] fs rom overlay: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/overlay/handheld for the handheld mode
+[dm] fs mount rom: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/rom (read-only) (overlay first)
+[dm] fs rom overlay: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/overlay/handheld for the handheld mode
+[dm] fs rom overlay: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/overlay/docked for the docked mode
+[dm] fs mount rom2: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/rom (read-only)
+[dm] fs write to a read-only mount: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/overlay/data/same
+  ✓ mount mode overlay
+  ✓ mode overlay wins over root
+  ✓ mode remains fixed until remount
+  ✓ mode overlay falls back to root
+  ✓ mode overlay falls back to base
+  ✓ mount mode overlay
+  ✓ mode overlay wins over root
+  ✓ mode remains fixed until remount
+  ✓ mode overlay falls back to root
+  ✓ mode overlay falls back to base
+  ✓ mount RomFS with two layers (base + overlay)
+  ✓ SDK 19: the cache size overload with a program index
+  ✓ SDK 19: MountRom with a program index mounts the RomFS
+  ✓ the overlay file wins
+  ✓ falls back to the base when the overlay lacks the file
+  ✓ the two-layer mount refuses writes
+  ✓ backslashes separate as slashes do, in both layers
+  ✓ a folder file's handle is 16-byte aligned, as a Horizon FileAccessor pointer is (0x30)
+  ✓ missing game files stop the rom mount
+[dm] fs RomFS image /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/rom.img: 5 entries
+[dm] fs mount rom: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/rom.img (read-only)
+[dm] fs ReadFile short read: fd 2 offset 3 wanted 10 got 2
+[dm] fs ReadFile short read: fd 2 offset 3 wanted 10 got 2
+[dm] fs write to a read-only mount: rom:/data/a
+[dm] fs RomFS image /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/rom.img: 5 entries
+[dm] fs mount rom: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/rom.img (read-only) (overlay first)
+[dm] fs RomFS image /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/2.img: 5 entries
+[dm] fs RomFS image /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/2.img: 5 entries
+[dm] fs mount aoc: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/2.img (read-only)
+[dm] fs RomFS image /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/rom.img: 5 entries
+[dm] fs RomFS image /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/rom.img: 5 entries
+[dm] [RED] fs RomFS image /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/rom.img: damaged files 1: they failed the NCA's hash check when it was extracted (a damaged NSP, --allow-damaged); a crash or a wrong picture may come from their bytes
+[dm] fs mount rom: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/rom.img (read-only)
+[dm] [RED] fs rom:/data/a failed the NCA's hash check when it was extracted (a damaged NSP, --allow-damaged); its bytes may be wrong
+[dm] [RED] fs RomFS image /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/rom.img is not a complete image (copied in part? errno=22)
+[dm] [RED] fs RomFS image /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/rom.img is not a complete image (copied in part? errno=22)
+[dm] [RED] fs RomFS image /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/rom.img is not a complete image (copied in part? errno=22)
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save.work (transactional save: work directory, swapped in atomically on Commit)
+[dm] fs pwrite (wrote 0 bytes) fd failed errno=28
+[dm] [RED] save commit refused: a save write failed in this transaction errno=28 (0-byte files in the work directory: none); the committed version is unchanged, the work directory was recloned from the committed version
+[dm] save commit #1: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save.work swapped atomically into /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save (3 save writes so far) (clone + swap 999 us, since this transaction's first write 1273 us)
+[dm] DM_TEST_FS_FAIL: save write #5 returns failure errno=28
+[dm] fs pwrite (injected) fd failed errno=28
+[dm] [RED] save commit refused: a save write failed in this transaction errno=28 (0-byte files in the work directory: none); the committed version is unchanged, the work directory was recloned from the committed version
+[dm] save commit #2: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save.work swapped atomically into /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save (7 save writes so far) (clone + swap 993 us, since this transaction's first write 1151 us)
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save.work (transactional save: work directory, swapped in atomically on Commit)
+[dm] DM_TEST_FS_FAILAT: reclone fails with ENOSPC (#1)
+[dm] [RED] save transaction: recloning the work directory failed errno=28 -- the work directory is left as it is and stays tainted (the next commit is refused again and retries), the committed version is unchanged
+[dm] [RED] save commit refused: a save write failed in this transaction errno=28 (0-byte files in the work directory: none); the committed version is unchanged, the work directory could not be recloned (see the previous line)
+[dm] [RED] save commit refused: a save write failed in this transaction errno=28 (0-byte files in the work directory: none); the committed version is unchanged, the work directory was recloned from the committed version
+[dm] save commit #3: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save.work swapped atomically into /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save (10 save writes so far) (clone + swap 774 us, since this transaction's first write 813 us)
+[dm] DM_TEST_FS_FAILAT: guestname fails with ENOSPC (#1)
+[dm] DM_TEST_FS_FAILAT: renameback fails with ENOSPC (#1)
+[dm] [RED] fs rename: writing the name metadata failed and so did the rollback errno=28: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save.work/d stays at the new path, the affected save commit(s) will be refused
+[dm] fs rename name /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save.work/d failed errno=28
+[dm] [RED] save commit refused: a save write failed in this transaction errno=28 (0-byte files in the work directory: none); the committed version is unchanged, the work directory was recloned from the committed version
+[dm] save commit #4: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save.work swapped atomically into /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save (12 save writes so far) (clone + swap 2058 us, since this transaction's first write 2120 us)
+[dm] DM_TEST_FS_FAILAT: mountclone fails with ENOSPC (#1)
+[dm] [RED] save transaction: cloning the work directory failed (/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save.work, errno=28) -- mounting the committed directory /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save read-only instead: saves cannot be written this session, the committed version is unchanged
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save (read-only)
+[dm] fs write to a read-only mount: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save/a
+  ✓ a fifo as the game files stop the rom mount
+RomFS image
+  ✓ mount the image
+  ✓ reads a file
+  ✓ reads the next file, through ..
+  ✓ a read stops at the end of the file (got 2)
+  ✓ size 5, open for reading
+  ✓ full reads without a byte count succeed
+  ✓ short reads without a byte count fail
+  ✓ entry 4 still reads after its handle's low bits are masked off (0x4000000000000040)
+  ✓ and is 2 bytes
+  ✓ backslash paths, also through ..
+  ✓ a missing file is not found
+  ✓ names are case-sensitive
+  ✓ a directory does not open as a file
+  ✓ refuses writes; create answers "exists"
+  ✓ entry types
+  ✓ a directory of 3 entries (3)
+  ✓ lists a, b, c
+  ✓ the file filter hides directories
+  ✓ an empty directory
+  ✓ mount the image with an overlay folder
+  ✓ the overlay file wins over the image
+  ✓ image files and overlay-only files both read
+  ✓ the listing merges both, once each (4)
+  ✓ with the right types and sizes
+  ✓ backslash paths reach the overlay folder and the image
+  ✓ and list the merged directory (4)
+  ✓ stage a DLC image
+  ✓ DLC image reports Horizon table size (176, got 176)
+  ✓ DLC mounts and reads directly from its image
+  ✓ a clean image has no damaged files
+  ✓ a damaged file mounts, and is counted
+  ✓ not named before its first open
+  ✓ opening a clean file names nothing
+  ✓ the damaged file reads as written, and is named
+  ✓ and reads again
+  ✓ an unknown flag on a file is refused
+  ✓ a damaged flag on a directory is refused
+  ✓ a cut-off image is refused
+  ✓ mount the save
+① pwrite returns 0
+  ✓ WriteFile returns failure 0x2A2
+  ✓ pwrite called only once (actually 1 times; it used to retry forever)
+② pwrite writes in pieces
+  ✓ WriteFile succeeds
+  ✓ pwrite called twice (3 bytes + 4 bytes; actually 2)
+  ✓ the work directory holds the complete abcdefg
+③ transaction
+  ✓ the Commit of the transaction holding ①② is refused, front end notified once errno=ENOSPC (actually 1 times errno=28)
+  ✓ work directory discarded, back to the committed version old
+  ✓ next transaction: write new
+  ✓ before Commit the committed directory is still old
+  ✓ Commit
+  ✓ after Commit the committed directory is new
+  ✓ the swapped-out old version is deleted (no .new left)
+④ DM_TEST_FS_FAIL=write:5:28
+  ✓ (b does not exist: open fails, not counted as a write)
+  ✓ 4th write succeeds
+  ✓ 5th write fails errno=28 (actually errno=28)
+  ✓ 6th write succeeds
+  ✓ that transaction's Commit is refused, front end notified errno=28 (2 times in total)
+  ✓ committed directory unchanged (no b)
+  ✓ work directory discarded (no b)
+  ✓ committed directory a is still new
+  ✓ next transaction: write b=7, Commit succeeds
+  ✓ final committed b = 7 (the next transaction's content)
+  ✓ a successful transaction sends no notification (still 2 times in total)
+⑤ remounting discards uncommitted content
+  ✓ write a=v9 without committing
+  ✓ remount
+  ✓ work directory a is back to the committed version new
+  ✓ work directory b = the committed 7
+⑥ failed writes are handled without exiting (DM_TEST_FS_FAILAT)
+  ✓ write a=bad
+  ✓ this transaction is refused (injected reclone failure), the process is still alive, front end notified once
+  ✓ committed directory a is still new
+  ✓ work directory not deleted (a is still bad)
+  ✓ still tainted: the next commit is refused too
+  ✓ this time the reclone works: work directory a is back to new
+  ✓ no .re left
+  ✓ next transaction writes a=good, commit succeeds
+  ✓ committed a = good
+  ✓ write c
+  ✓ rename c → d returns failure (both steps injected to fail), the process is still alive
+  ✓ this transaction's commit is refused
+  ✓ committed directory has no c
+  ✓ committed directory has no d
+  ✓ committed a is still good
+  ✓ the next transaction commits as usual
+  ✓ mount returns success, front end notified once (actually 1 times)
+  ✓ the read-only mount reads the committed a=ok2 (read ok2)
+  ✓ writes fail
+  ✓ commit is a no-op
+  ✓ commit[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save.work (transactional save: work directory, swapped in atomically on Commit)
+[dm] save commit #5: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save.work swapped atomically into /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save (13 save writes so far) (clone + swap 878 us, since this transaction's first write 974 us)
+[dm] [RED] save transaction: the save folder's filesystem cannot clone directories (save transactions need APFS: set DM_SAVE to a folder on an APFS volume) (/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save.work, errno=45) -- mounting the committed directory /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save read-only instead: saves cannot be written this session, the committed version is unchanged
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save (read-only)
+[dm] fs write to a read-only mount: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save/a
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/save.work (transactional save: work directory, swapped in atomically on Commit)
+[dm] fs unmount cache: in the SDK's own mount table, released there
+[dm] save: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/\sub\deep.bin is now /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/sub/deep.bin (a name from a host before backslashes separated paths)
+[dm] save: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/plain/\x is now /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/plain/x (a name from a host before backslashes separated paths)
+[dm] save: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/\dir\f is now /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/dir/f (a name from a host before backslashes separated paths)
+[dm] save: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/\dir/in is now /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/dir/in (a name from a host before backslashes separated paths)
+[dm] save: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/\Foo is now /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/.dm-case-1 (a name from a host before backslashes separated paths)
+[dm] save: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/\m/a is now /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/m/a (a name from a host before backslashes separated paths)
+[dm] save: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/\m/same stays as it is: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/m/same already exists (the game cannot see the old one)
+[dm] save: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/\both.bin stays as it is: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/both.bin already exists (the game cannot see the old one)
+[dm] save: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/\..\up stays as it is: it has no place under today's path rules
+[dm] save: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/\savedata0.bin is now /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/savedata0.bin (a name from a host before backslashes separated paths)
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave.work (transactional save: work directory, swapped in atomically on Commit)
+[dm] save commit #6: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave.work swapped atomically into /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave (14 save writes so far) (clone + swap 2906 us, since this transaction's first write 0 us)
+[dm] save: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/\m/same stays as it is: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/m/same already exists (the game cannot see the old one)
+[dm] save: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/\both.bin stays as it is: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/both.bin already exists (the game cannot see the old one)
+[dm] save: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave/\..\up stays as it is: it has no place under today's path rules
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs.wsU14g/oldsave.work (transactional save: work directory, swapped in atomically on Commit)
+ted a is still ok2
+  ✓ remount without injection: transactional as usual, writing a=ok3 and committing succeed
+  ✓ committed a = ok3
+⑦ backslash paths on a save
+  ✓ create and write save:\dir\f
+  ✓ it is save:/dir/f
+  ✓ rename by backslash path
+  ✓ the directory lists g, not a name with backslashes (g)
+⑧ a save folder that cannot clone, and symlinks in recursive deletes
+  ✓ clonefile ENOTSUP: the committed save mounts read-only and the front end is told once
+  ✓ the committed save still reads (a = ok3)
+  ✓ a write is refused
+  ✓ committed a is still ok3
+  ✓ with cloning back, the save mounts writable
+  ✓ create save:/d
+  ✓ a symlink to a directory outside the save inside save:/d
+  ✓ DeleteDirectoryRecursively removes the symlink, not its target's files
+  ✓ the same again in a new save:/d
+  ✓ CleanDirectoryRecursively removes the symlink, not its target's files
+  ✓ rm_tree of a symlink to a directory refuses it (ENOTDIR) and leaves the target alone
+  ✓ the host holds save
+  ✓ Unmount with no SDK in the process is a no-op
+  ✓ a host mount stays and the SDK is not asked
+  ✓ a name in neither table is a no-op (the SDK's Unmount would abort on it)
+  ✓ a null name reaches no SDK call
+  ✓ an SDK-owned mount is released in the SDK
+  ✓ unmounting it again does not reach the SDK's Unmount
+  ✓ an SDK without an IsMounted symbol: no blind Unmount
+⑨ saves named by a host before backslash paths
+  ✓ the save mounts
+  ✓ save:\savedata0.bin finds the old file
+  ✓ the committed save has the new name and not the old
+  ✓ a file with its folder in its name gets the folder
+  ✓ a folder and a file that named it become one folder
+  ✓ a name deeper in the save
+  ✓ a taken name is not overwritten, and the old file stays
+  ✓ folders merge, and a taken name in them stays too
+  ✓ names that differ in case stay two files
+  ✓ a name with .. stays where it is
+  ✓ an ordinary name is untouched
+  ✓ the root lists
+  ✓ the listing shows foo and Foo
+  ✓ the game erases the moved file and commits
+  ✓ an erased file stays erased at the next mount
+  ✓ a second mount changes nothing else
+== 148 checks, 0 failed ==

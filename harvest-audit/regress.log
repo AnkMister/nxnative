@@ -1,0 +1,3 @@
+usage: regress.py [-h] [--root ROOT] [--games-dir GAMES_DIR]
+                  {baseline,check,chain,capture,replay,usage,impact,list} ...
+regress.py: error: set --root (REGRESS_ROOT) and --games-dir (REGRESS_GAMES): where the harness keeps its trees and reports, and the folder of the games' NSP folders, for example regress.py --root <drive>/harness --games-dir <drive>/nsp check ... (the options go before the command)

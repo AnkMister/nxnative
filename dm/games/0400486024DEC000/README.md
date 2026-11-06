@@ -156,3 +156,18 @@ The per-PR decisions, conflicts and build evidence are in [the integration repor
 - [GPU completion without an event signal](../../../docs/reference/frame-rate.md#gpu-completion-without-an-event-signal): feedback recheck with the existing wait budget.
 
 - [Global compare and swap on Ampere](../../../docs/reference/shaders.md#global-compare-and-swap-on-ampere): the missing `0x3a9` opcode.
+
+## Optional frame controller and mode overlays
+
+The v131072 frame-controller hook from cheemu21's `2de238f3` is build-gated and
+checks the original instruction at `main+0x3b4f074`. It shares the existing
+state page with the render-scale ceiling. Repack the rewritten main to include
+it, then set `DM_FPS_TARGET=30` or `60` to make the controller's interval and fps
+follow the host step. The profile's target stays 0, preserving the game's own
+choice. This port preserves x9, x16 and x17 around the hook. Synthetic ARM64
+execution checks the stores and vsync counter; local gameplay speed, cutscenes
+and visual acceptance remain open. No 60 fps improvement is claimed.
+
+An explicitly configured `DM_ROMFS_OVERLAY` can use `handheld/` and `docked/`
+subfolders. See [mode-specific overlays](../../../docs/reference/services.md#romfs-overlays-that-differ-by-console-mode).
+No resolution table or other game-file replacement is shipped by this port.

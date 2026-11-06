@@ -1,0 +1,116 @@
+(1) packing
+  ✓ scan: 3 files, a 32-digit hash, saved = the newest file's date (3 files, saved 1000000100)
+  ✓ pack: the same hash as the scan, the title ID in capitals (0100ABC)
+  ✓ read: hash, files, date, title and device come back (from Mac16,5)
+  ✓ unpack
+  ✓ files and the guest name (hle_fs.c's FS_GUEST_NAME) come back
+  ✓ a file's date comes back (1000000000)
+  ✓ an empty folder and the device save come back
+  ✓ the unpacked save has the original's hash
+  ✓ another date, the same hash (the date still says which is newer)
+  ✓ Finder's .DS_Store is not part of the save
+  ✓ one changed byte, another hash
+  ✓ an empty folder is no save: no files, no hash
+  ✓ a file cut short by one byte is refused
+  ✓ a byte too many is refused
+  ✓ a flipped byte in the contents is refused (the hash)
+  ✓ a path that leaves the save is refused, and nothing is written
+(2) which way
+  ✓ no save anywhere: keep
+  ✓ nothing in the cloud: send
+  ✓ nothing here: bring in
+  ✓ the same here and in the cloud: keep
+  ✓ only the cloud's changed: bring in, even with an older date
+  ✓ only this one changed: send, even with an older date
+  ✓ both changed, the cloud's newer: bring in
+  ✓ both changed, this one newer: send
+  ✓ a first sync with a save of its own counts as both changed
+  ✓ the same date: this device's is kept
+(3) Mac -> cloud -> iPhone
+[dm] save sync: on: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+[dm] save sync: this device's save (saved 2026-11-06 12:35:00) is not in the cloud yet: it goes to the cloud
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac/save.work (transactional save: work directory, swapped in atomically on Commit)
+[dm] save sync: sent: 1 files, saved 2026-11-06 12:35:00, to /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+  ✓ the Mac's first session with sync sends its save
+  ✓ and remembers it as in step (/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac/save.sync)
+  ✓ nothing is left beside the save
+[dm] save sync: on: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+[dm] save sync: brought in the cloud's save (from Mac16,5, saved 2026-11-06 12:35:00)
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save.work (transactional save: work directory, swapped in atomically on Commit)
+  ✓ the iPhone's first session brings it in
+  ✓ with no save of its own, the iPhone keeps no backup
+[dm] save sync: on: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+[dm] save sync: in step with the cloud
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save.work (transactional save: work directory, swapped in atomically on Commit)
+[dm] save commit #1: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save.work swapped atomically into /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save (1 save writes so far) (clone + swap 23395 us, since this transaction's first write 30290 us)
+[dm] save sync: sent: 1 files, saved 2026-11-06 12:35:01, to /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+  ✓ the iPhone saves: the cloud has its save
+(4) the cloud's changed
+[dm] save sync: on: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+[dm] save sync: brought in the cloud's save (from Mac16,5, saved 2026-11-06 12:35:01); this device's is kept in /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac/save-backups/2026-11-06 12.35.01 local
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac/save.work (transactional save: work directory, swapped in atomically on Commit)
+  ✓ the Mac starts again: the iPhone's save comes in
+  ✓ the Mac's old save is kept (/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac/save-backups/2026-11-06 12.35.01 local)
+(5) both changed, the cloud's newer
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save.work (transactional save: work directory, swapped in atomically on Commit)
+[dm] save commit #1: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save.work swapped atomically into /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save (1 save writes so far) (clone + swap 47854 us, since this transaction's first write 48088 us)
+  ✓ the iPhone plays with sync off
+[dm] save sync: on: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+[dm] save sync: in step with the cloud
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac/save.work (transactional save: work directory, swapped in atomically on Commit)
+[dm] save commit #1: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac/save.work swapped atomically into /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac/save (1 save writes so far) (clone + swap 10883 us, since this transaction's first write 11087 us)
+[dm] save sync: sent: 1 files, saved 2026-11-06 12:35:01, to /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+  ✓ then the Mac saves and sends
+[dm] save sync: on: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+[dm] save sync: brought in the cloud's save (from Mac16,5, saved 2026-11-06 12:35:01, the newer of two that both changed); this device's is kept in /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save-backups/2026-11-06 12.35.01 local
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save.work (transactional save: work directory, swapped in atomically on Commit)
+  ✓ the iPhone starts with sync: the newer Mac save comes in
+  ✓ the iPhone's own is kept (/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save-backups/2026-11-06 12.35.01 local)
+(6) both changed, this one newer
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac/save.work (transactional save: work directory, swapped in atomically on Commit)
+[dm] save commit #1: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac/save.work swapped atomically into /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac/save (1 save writes so far) (clone + swap 538 us, since this transaction's first write 686 us)
+  ✓ the Mac plays with sync off
+[dm] save sync: on: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+[dm] save sync: in step with the cloud
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save.work (transactional save: work directory, swapped in atomically on Commit)
+[dm] save commit #1: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save.work swapped atomically into /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save (1 save writes so far) (clone + swap 6206 us, since this transaction's first write 6327 us)
+[dm] save sync: sent: 1 files, saved 2026-11-06 12:35:01, to /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+  ✓ the iPhone saves and sends
+[dm] save sync: on: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+[dm] save sync: this device's save (saved 2026-11-06 12:36:41) is the newer of two that both changed: it goes to the cloud
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac/save.work (transactional save: work directory, swapped in atomically on Commit)
+[dm] save sync: the cloud's save (from Mac16,5, saved 2026-11-06 12:35:01) changed since this device's last sync; this device's newer one replaces it, and it is kept in /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac/save-backups/2026-11-06 12.35.01 cloud
+[dm] save sync: sent: 1 files, saved 2026-11-06 12:36:41, to /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+  ✓ the Mac starts with sync: its newer save stays and goes out
+  ✓ the iPhone's save it replaced in the cloud is kept on the Mac (/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac/save-backups/2026-11-06 12.35.01 cloud)
+[dm] save sync: sent: 1 files, saved 2026-11-06 12:35:01, to /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+(7) the Mac launcher after the host
+  ✓ a save the host left unsent goes out
+  ✓ a second time there is nothing to send (the cloud's file is not rewritten)
+  ✓ sync off: nothing to do
+(8) the game's own folder chosen
+[dm] save sync: on: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+[dm] save sync: brought in the cloud's save (from Mac16,5, saved 2026-11-06 12:35:01)
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac2/save.work (transactional save: work directory, swapped in atomically on Commit)
+  ✓ <folder>/<title ID> itself as the folder: the save in it comes in
+  ✓ and no second <title ID> folder is made inside it
+(9) old backups go
+[dm] save sync: on: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+[dm] save sync: brought in the cloud's save (from Mac16,5, saved 2026-11-06 12:35:01); this device's is kept in /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save-backups/2026-11-06 12.35.03 local
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save.work (transactional save: work directory, swapped in atomically on Commit)
+[dm] save commit #1: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save.work swapped atomically into /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iphone/save (1 save writes so far) (clone + swap 7148 us, since this transaction's first write 7326 us)
+[dm] save sync: sent: 1 files, saved 2026-11-06 12:35:03, to /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+  ✓ the iPhone saves again
+[dm] save sync: on: /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+[dm] save sync: removed 4 old local backups (the newest 10 stay)
+[dm] save sync: brought in the cloud's save (from Mac16,5, saved 2026-11-06 12:35:03); this device's is kept in /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac2/save-backups/2026-11-06 12.35.03 local
+[dm] fs mount save: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/mac2/save.work (transactional save: work directory, swapped in atomically on Commit)
+  ✓ the second Mac brings it in, keeping its own
+  ✓ 10 local backups stay, the new one among them (10)
+  ✓ the four oldest went (00, 00 2, 01, 02)
+  ✓ the other side's backups and a folder of the player's stay
+[dm] save sync: sent: 1 files, saved 2026-11-06 12:35:03, to /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_save_sync.ED3hma/iCloud Drive/nxnative Saves/0400486024DEC000/save.dmsync
+(10) the Mac launcher's DM_SAVE with a slash after it
+  ✓ it goes out
+  ✓ and the sync state is beside the save, not inside it
+== save sync: 54 checks, 0 failed ==

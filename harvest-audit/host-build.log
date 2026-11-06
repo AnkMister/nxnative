@@ -1,0 +1,509 @@
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/alloccommon.c -o gen/vpx/vp8/common/alloccommon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/arm/loopfilter_arm.c -o gen/vpx/vp8/common/arm/loopfilter_arm.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/arm/neon/bilinearpredict_neon.c -o gen/vpx/vp8/common/arm/neon/bilinearpredict_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/arm/neon/copymem_neon.c -o gen/vpx/vp8/common/arm/neon/copymem_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/arm/neon/dc_only_idct_add_neon.c -o gen/vpx/vp8/common/arm/neon/dc_only_idct_add_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/arm/neon/dequant_idct_neon.c -o gen/vpx/vp8/common/arm/neon/dequant_idct_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/arm/neon/dequantizeb_neon.c -o gen/vpx/vp8/common/arm/neon/dequantizeb_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/arm/neon/idct_blk_neon.c -o gen/vpx/vp8/common/arm/neon/idct_blk_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/arm/neon/iwalsh_neon.c -o gen/vpx/vp8/common/arm/neon/iwalsh_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/arm/neon/loopfiltersimplehorizontaledge_neon.c -o gen/vpx/vp8/common/arm/neon/loopfiltersimplehorizontaledge_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/arm/neon/loopfiltersimpleverticaledge_neon.c -o gen/vpx/vp8/common/arm/neon/loopfiltersimpleverticaledge_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/arm/neon/mbloopfilter_neon.c -o gen/vpx/vp8/common/arm/neon/mbloopfilter_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/arm/neon/shortidct4x4llm_neon.c -o gen/vpx/vp8/common/arm/neon/shortidct4x4llm_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/arm/neon/sixtappredict_neon.c -o gen/vpx/vp8/common/arm/neon/sixtappredict_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/arm/neon/vp8_loopfilter_neon.c -o gen/vpx/vp8/common/arm/neon/vp8_loopfilter_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/blockd.c -o gen/vpx/vp8/common/blockd.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/dequantize.c -o gen/vpx/vp8/common/dequantize.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/entropy.c -o gen/vpx/vp8/common/entropy.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/entropymode.c -o gen/vpx/vp8/common/entropymode.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/entropymv.c -o gen/vpx/vp8/common/entropymv.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/extend.c -o gen/vpx/vp8/common/extend.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/filter.c -o gen/vpx/vp8/common/filter.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/findnearmv.c -o gen/vpx/vp8/common/findnearmv.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/generic/systemdependent.c -o gen/vpx/vp8/common/generic/systemdependent.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/idct_blk.c -o gen/vpx/vp8/common/idct_blk.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/idctllm.c -o gen/vpx/vp8/common/idctllm.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/loopfilter_filters.c -o gen/vpx/vp8/common/loopfilter_filters.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/mbpitch.c -o gen/vpx/vp8/common/mbpitch.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/modecont.c -o gen/vpx/vp8/common/modecont.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/quant_common.c -o gen/vpx/vp8/common/quant_common.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/reconinter.c -o gen/vpx/vp8/common/reconinter.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/reconintra.c -o gen/vpx/vp8/common/reconintra.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/reconintra4x4.c -o gen/vpx/vp8/common/reconintra4x4.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/rtcd.c -o gen/vpx/vp8/common/rtcd.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/setupintrarecon.c -o gen/vpx/vp8/common/setupintrarecon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/swapyv12buffer.c -o gen/vpx/vp8/common/swapyv12buffer.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/treecoder.c -o gen/vpx/vp8/common/treecoder.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/common/vp8_loopfilter.c -o gen/vpx/vp8/common/vp8_loopfilter.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/decoder/dboolhuff.c -o gen/vpx/vp8/decoder/dboolhuff.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/decoder/decodeframe.c -o gen/vpx/vp8/decoder/decodeframe.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/decoder/decodemv.c -o gen/vpx/vp8/decoder/decodemv.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/decoder/detokenize.c -o gen/vpx/vp8/decoder/detokenize.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/decoder/onyxd_if.c -o gen/vpx/vp8/decoder/onyxd_if.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/decoder/threading.c -o gen/vpx/vp8/decoder/threading.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp8/vp8_dx_iface.c -o gen/vpx/vp8/vp8_dx_iface.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/arm/neon/vp9_iht16x16_add_neon.c -o gen/vpx/vp9/common/arm/neon/vp9_iht16x16_add_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/arm/neon/vp9_iht4x4_add_neon.c -o gen/vpx/vp9/common/arm/neon/vp9_iht4x4_add_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/arm/neon/vp9_iht8x8_add_neon.c -o gen/vpx/vp9/common/arm/neon/vp9_iht8x8_add_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_alloccommon.c -o gen/vpx/vp9/common/vp9_alloccommon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_blockd.c -o gen/vpx/vp9/common/vp9_blockd.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_common_data.c -o gen/vpx/vp9/common/vp9_common_data.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_entropy.c -o gen/vpx/vp9/common/vp9_entropy.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_entropymode.c -o gen/vpx/vp9/common/vp9_entropymode.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_entropymv.c -o gen/vpx/vp9/common/vp9_entropymv.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_filter.c -o gen/vpx/vp9/common/vp9_filter.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_frame_buffers.c -o gen/vpx/vp9/common/vp9_frame_buffers.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_idct.c -o gen/vpx/vp9/common/vp9_idct.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_loopfilter.c -o gen/vpx/vp9/common/vp9_loopfilter.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_mvref_common.c -o gen/vpx/vp9/common/vp9_mvref_common.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_pred_common.c -o gen/vpx/vp9/common/vp9_pred_common.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_quant_common.c -o gen/vpx/vp9/common/vp9_quant_common.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_reconinter.c -o gen/vpx/vp9/common/vp9_reconinter.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_reconintra.c -o gen/vpx/vp9/common/vp9_reconintra.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_rtcd.c -o gen/vpx/vp9/common/vp9_rtcd.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_scale.c -o gen/vpx/vp9/common/vp9_scale.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_scan.c -o gen/vpx/vp9/common/vp9_scan.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_seg_common.c -o gen/vpx/vp9/common/vp9_seg_common.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_thread_common.c -o gen/vpx/vp9/common/vp9_thread_common.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/common/vp9_tile_common.c -o gen/vpx/vp9/common/vp9_tile_common.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/decoder/vp9_decodeframe.c -o gen/vpx/vp9/decoder/vp9_decodeframe.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/decoder/vp9_decodemv.c -o gen/vpx/vp9/decoder/vp9_decodemv.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/decoder/vp9_decoder.c -o gen/vpx/vp9/decoder/vp9_decoder.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/decoder/vp9_detokenize.c -o gen/vpx/vp9/decoder/vp9_detokenize.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/decoder/vp9_dsubexp.c -o gen/vpx/vp9/decoder/vp9_dsubexp.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/decoder/vp9_job_queue.c -o gen/vpx/vp9/decoder/vp9_job_queue.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/vp9_dx_iface.c -o gen/vpx/vp9/vp9_dx_iface.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vp9/vp9_iface_common.c -o gen/vpx/vp9/vp9_iface_common.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx/src/vpx_codec.c -o gen/vpx/vpx/src/vpx_codec.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx/src/vpx_decoder.c -o gen/vpx/vpx/src/vpx_decoder.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx/src/vpx_encoder.c -o gen/vpx/vpx/src/vpx_encoder.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx/src/vpx_image.c -o gen/vpx/vpx/src/vpx_image.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/idct16x16_1_add_neon.c -o gen/vpx/vpx_dsp/arm/idct16x16_1_add_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/idct16x16_add_neon.c -o gen/vpx/vpx_dsp/arm/idct16x16_add_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/idct32x32_135_add_neon.c -o gen/vpx/vpx_dsp/arm/idct32x32_135_add_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/idct32x32_1_add_neon.c -o gen/vpx/vpx_dsp/arm/idct32x32_1_add_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/idct32x32_34_add_neon.c -o gen/vpx/vpx_dsp/arm/idct32x32_34_add_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/idct32x32_add_neon.c -o gen/vpx/vpx_dsp/arm/idct32x32_add_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/idct4x4_1_add_neon.c -o gen/vpx/vpx_dsp/arm/idct4x4_1_add_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/idct4x4_add_neon.c -o gen/vpx/vpx_dsp/arm/idct4x4_add_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/idct8x8_1_add_neon.c -o gen/vpx/vpx_dsp/arm/idct8x8_1_add_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/idct8x8_add_neon.c -o gen/vpx/vpx_dsp/arm/idct8x8_add_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/intrapred_neon.c -o gen/vpx/vpx_dsp/arm/intrapred_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/loopfilter_neon.c -o gen/vpx/vpx_dsp/arm/loopfilter_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/vpx_convolve8_neon.c -o gen/vpx/vpx_dsp/arm/vpx_convolve8_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/vpx_convolve_avg_neon.c -o gen/vpx/vpx_dsp/arm/vpx_convolve_avg_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/vpx_convolve_copy_neon.c -o gen/vpx/vpx_dsp/arm/vpx_convolve_copy_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/vpx_convolve_neon.c -o gen/vpx/vpx_dsp/arm/vpx_convolve_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/arm/vpx_scaled_convolve8_neon.c -o gen/vpx/vpx_dsp/arm/vpx_scaled_convolve8_neon.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/bitreader.c -o gen/vpx/vpx_dsp/bitreader.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/bitreader_buffer.c -o gen/vpx/vpx_dsp/bitreader_buffer.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/intrapred.c -o gen/vpx/vpx_dsp/intrapred.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/inv_txfm.c -o gen/vpx/vpx_dsp/inv_txfm.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/loopfilter.c -o gen/vpx/vpx_dsp/loopfilter.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/prob.c -o gen/vpx/vpx_dsp/prob.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/skin_detection.c -o gen/vpx/vpx_dsp/skin_detection.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/vpx_convolve.c -o gen/vpx/vpx_dsp/vpx_convolve.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_dsp/vpx_dsp_rtcd.c -o gen/vpx/vpx_dsp/vpx_dsp_rtcd.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_mem/vpx_mem.c -o gen/vpx/vpx_mem/vpx_mem.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_ports/aarch64_cpudetect.c -o gen/vpx/vpx_ports/aarch64_cpudetect.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_scale/generic/gen_scalers.c -o gen/vpx/vpx_scale/generic/gen_scalers.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_scale/generic/vpx_scale.c -o gen/vpx/vpx_scale/generic/vpx_scale.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_scale/generic/yv12config.c -o gen/vpx/vpx_scale/generic/yv12config.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_scale/generic/yv12extend.c -o gen/vpx/vpx_scale/generic/yv12extend.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_scale/vpx_scale_rtcd.c -o gen/vpx/vpx_scale/vpx_scale_rtcd.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_util/vpx_thread.c -o gen/vpx/vpx_util/vpx_thread.o
+clang -O2 -g -mmacosx-version-min=26.6 -I../third_party/libvpx -I../third_party/libvpx/config -c ../third_party/libvpx/vpx_util/vpx_write_yuv_frame.c -o gen/vpx/vpx_util/vpx_write_yuv_frame.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/cdef_16bpc.c -o gen/dav1d/config/tmpl/cdef_16bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/cdef_8bpc.c -o gen/dav1d/config/tmpl/cdef_8bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/cdef_apply_16bpc.c -o gen/dav1d/config/tmpl/cdef_apply_16bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/cdef_apply_8bpc.c -o gen/dav1d/config/tmpl/cdef_apply_8bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/fg_apply_16bpc.c -o gen/dav1d/config/tmpl/fg_apply_16bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/fg_apply_8bpc.c -o gen/dav1d/config/tmpl/fg_apply_8bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/filmgrain_16bpc.c -o gen/dav1d/config/tmpl/filmgrain_16bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/filmgrain_8bpc.c -o gen/dav1d/config/tmpl/filmgrain_8bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/ipred_16bpc.c -o gen/dav1d/config/tmpl/ipred_16bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/ipred_8bpc.c -o gen/dav1d/config/tmpl/ipred_8bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/ipred_prepare_16bpc.c -o gen/dav1d/config/tmpl/ipred_prepare_16bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/ipred_prepare_8bpc.c -o gen/dav1d/config/tmpl/ipred_prepare_8bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/itx_16bpc.c -o gen/dav1d/config/tmpl/itx_16bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/itx_8bpc.c -o gen/dav1d/config/tmpl/itx_8bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/lf_apply_16bpc.c -o gen/dav1d/config/tmpl/lf_apply_16bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/lf_apply_8bpc.c -o gen/dav1d/config/tmpl/lf_apply_8bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/loopfilter_16bpc.c -o gen/dav1d/config/tmpl/loopfilter_16bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/loopfilter_8bpc.c -o gen/dav1d/config/tmpl/loopfilter_8bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/looprestoration_16bpc.c -o gen/dav1d/config/tmpl/looprestoration_16bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/looprestoration_8bpc.c -o gen/dav1d/config/tmpl/looprestoration_8bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/lr_apply_16bpc.c -o gen/dav1d/config/tmpl/lr_apply_16bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/lr_apply_8bpc.c -o gen/dav1d/config/tmpl/lr_apply_8bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/mc_16bpc.c -o gen/dav1d/config/tmpl/mc_16bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/mc_8bpc.c -o gen/dav1d/config/tmpl/mc_8bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/recon_16bpc.c -o gen/dav1d/config/tmpl/recon_16bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/config/tmpl/recon_8bpc.c -o gen/dav1d/config/tmpl/recon_8bpc.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/cdef.S -o gen/dav1d/src/arm/64/cdef.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/cdef16.S -o gen/dav1d/src/arm/64/cdef16.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/filmgrain.S -o gen/dav1d/src/arm/64/filmgrain.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/filmgrain16.S -o gen/dav1d/src/arm/64/filmgrain16.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/ipred.S -o gen/dav1d/src/arm/64/ipred.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/ipred16.S -o gen/dav1d/src/arm/64/ipred16.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/itx.S -o gen/dav1d/src/arm/64/itx.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/itx16.S -o gen/dav1d/src/arm/64/itx16.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/loopfilter.S -o gen/dav1d/src/arm/64/loopfilter.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/loopfilter16.S -o gen/dav1d/src/arm/64/loopfilter16.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/looprestoration.S -o gen/dav1d/src/arm/64/looprestoration.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/looprestoration16.S -o gen/dav1d/src/arm/64/looprestoration16.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/looprestoration_common.S -o gen/dav1d/src/arm/64/looprestoration_common.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/mc.S -o gen/dav1d/src/arm/64/mc.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/mc16.S -o gen/dav1d/src/arm/64/mc16.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/mc16_sve.S -o gen/dav1d/src/arm/64/mc16_sve.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/mc_dotprod.S -o gen/dav1d/src/arm/64/mc_dotprod.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/msac.S -o gen/dav1d/src/arm/64/msac.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/64/refmvs.S -o gen/dav1d/src/arm/64/refmvs.S.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/arm/cpu.c -o gen/dav1d/src/arm/cpu.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/cdf.c -o gen/dav1d/src/cdf.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/cpu.c -o gen/dav1d/src/cpu.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/ctx.c -o gen/dav1d/src/ctx.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/data.c -o gen/dav1d/src/data.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/decode.c -o gen/dav1d/src/decode.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/dequant_tables.c -o gen/dav1d/src/dequant_tables.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/getbits.c -o gen/dav1d/src/getbits.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/intra_edge.c -o gen/dav1d/src/intra_edge.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/itx_1d.c -o gen/dav1d/src/itx_1d.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/lf_mask.c -o gen/dav1d/src/lf_mask.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/lib.c -o gen/dav1d/src/lib.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/log.c -o gen/dav1d/src/log.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/mem.c -o gen/dav1d/src/mem.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/msac.c -o gen/dav1d/src/msac.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/obu.c -o gen/dav1d/src/obu.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/pal.c -o gen/dav1d/src/pal.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/picture.c -o gen/dav1d/src/picture.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/qm.c -o gen/dav1d/src/qm.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/ref.c -o gen/dav1d/src/ref.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/refmvs.c -o gen/dav1d/src/refmvs.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/scan.c -o gen/dav1d/src/scan.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/tables.c -o gen/dav1d/src/tables.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/thread_task.c -o gen/dav1d/src/thread_task.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/warpmv.c -o gen/dav1d/src/warpmv.c.o
+clang -O2 -g -mmacosx-version-min=26.6 -fvisibility=hidden -fomit-frame-pointer -fno-align-functions -I../third_party/dav1d -I../third_party/dav1d/include -I../third_party/dav1d/config -c ../third_party/dav1d/src/wedge.c -o gen/dav1d/src/wedge.c.o
+python3 ../gfx/tools/host_msl.py --sdk macosx --min 26.6 gen/msl-macosx/host_msl_gen.h ../gfx/msl/bc_encode.metal ../gfx/msl/builtin.metal ../gfx/msl/clear.metal ../gfx/msl/copy.metal ../gfx/msl/deswz.metal ../gfx/msl/draw_tex.metal ../gfx/msl/geo_pack.metal ../gfx/msl/gl_util.metal ../gfx/msl/ixc.metal ../gfx/msl/mdx.metal ../gfx/msl/mesh_nofrag.metal ../gfx/msl/present.metal ../gfx/msl/rb_swap.metal ../gfx/msl/tf.metal ../gfx/msl/wide.metal
+rm -f gen/vpx/libvpx.a; ar rcs gen/vpx/libvpx.a gen/vpx/vp8/common/alloccommon.o gen/vpx/vp8/common/arm/loopfilter_arm.o gen/vpx/vp8/common/arm/neon/bilinearpredict_neon.o gen/vpx/vp8/common/arm/neon/copymem_neon.o gen/vpx/vp8/common/arm/neon/dc_only_idct_add_neon.o gen/vpx/vp8/common/arm/neon/dequant_idct_neon.o gen/vpx/vp8/common/arm/neon/dequantizeb_neon.o gen/vpx/vp8/common/arm/neon/idct_blk_neon.o gen/vpx/vp8/common/arm/neon/iwalsh_neon.o gen/vpx/vp8/common/arm/neon/loopfiltersimplehorizontaledge_neon.o gen/vpx/vp8/common/arm/neon/loopfiltersimpleverticaledge_neon.o gen/vpx/vp8/common/arm/neon/mbloopfilter_neon.o gen/vpx/vp8/common/arm/neon/shortidct4x4llm_neon.o gen/vpx/vp8/common/arm/neon/sixtappredict_neon.o gen/vpx/vp8/common/arm/neon/vp8_loopfilter_neon.o gen/vpx/vp8/common/blockd.o gen/vpx/vp8/common/dequantize.o gen/vpx/vp8/common/entropy.o gen/vpx/vp8/common/entropymode.o gen/vpx/vp8/common/entropymv.o gen/vpx/vp8/common/extend.o gen/vpx/vp8/common/filter.o gen/vpx/vp8/common/findnearmv.o gen/vpx/vp8/common/generic/systemdependent.o gen/vpx/vp8/common/idct_blk.o gen/vpx/vp8/common/idctllm.o gen/vpx/vp8/common/loopfilter_filters.o gen/vpx/vp8/common/mbpitch.o gen/vpx/vp8/common/modecont.o gen/vpx/vp8/common/quant_common.o gen/vpx/vp8/common/reconinter.o gen/vpx/vp8/common/reconintra.o gen/vpx/vp8/common/reconintra4x4.o gen/vpx/vp8/common/rtcd.o gen/vpx/vp8/common/setupintrarecon.o gen/vpx/vp8/common/swapyv12buffer.o gen/vpx/vp8/common/treecoder.o gen/vpx/vp8/common/vp8_loopfilter.o gen/vpx/vp8/decoder/dboolhuff.o gen/vpx/vp8/decoder/decodeframe.o gen/vpx/vp8/decoder/decodemv.o gen/vpx/vp8/decoder/detokenize.o gen/vpx/vp8/decoder/onyxd_if.o gen/vpx/vp8/decoder/threading.o gen/vpx/vp8/vp8_dx_iface.o gen/vpx/vp9/common/arm/neon/vp9_iht16x16_add_neon.o gen/vpx/vp9/common/arm/neon/vp9_iht4x4_add_neon.o gen/vpx/vp9/common/arm/neon/vp9_iht8x8_add_neon.o gen/vpx/vp9/common/vp9_alloccommon.o gen/vpx/vp9/common/vp9_blockd.o gen/vpx/vp9/common/vp9_common_data.o gen/vpx/vp9/common/vp9_entropy.o gen/vpx/vp9/common/vp9_entropymode.o gen/vpx/vp9/common/vp9_entropymv.o gen/vpx/vp9/common/vp9_filter.o gen/vpx/vp9/common/vp9_frame_buffers.o gen/vpx/vp9/common/vp9_idct.o gen/vpx/vp9/common/vp9_loopfilter.o gen/vpx/vp9/common/vp9_mvref_common.o gen/vpx/vp9/common/vp9_pred_common.o gen/vpx/vp9/common/vp9_quant_common.o gen/vpx/vp9/common/vp9_reconinter.o gen/vpx/vp9/common/vp9_reconintra.o gen/vpx/vp9/common/vp9_rtcd.o gen/vpx/vp9/common/vp9_scale.o gen/vpx/vp9/common/vp9_scan.o gen/vpx/vp9/common/vp9_seg_common.o gen/vpx/vp9/common/vp9_thread_common.o gen/vpx/vp9/common/vp9_tile_common.o gen/vpx/vp9/decoder/vp9_decodeframe.o gen/vpx/vp9/decoder/vp9_decodemv.o gen/vpx/vp9/decoder/vp9_decoder.o gen/vpx/vp9/decoder/vp9_detokenize.o gen/vpx/vp9/decoder/vp9_dsubexp.o gen/vpx/vp9/decoder/vp9_job_queue.o gen/vpx/vp9/vp9_dx_iface.o gen/vpx/vp9/vp9_iface_common.o gen/vpx/vpx/src/vpx_codec.o gen/vpx/vpx/src/vpx_decoder.o gen/vpx/vpx/src/vpx_encoder.o gen/vpx/vpx/src/vpx_image.o gen/vpx/vpx_dsp/arm/idct16x16_1_add_neon.o gen/vpx/vpx_dsp/arm/idct16x16_add_neon.o gen/vpx/vpx_dsp/arm/idct32x32_135_add_neon.o gen/vpx/vpx_dsp/arm/idct32x32_1_add_neon.o gen/vpx/vpx_dsp/arm/idct32x32_34_add_neon.o gen/vpx/vpx_dsp/arm/idct32x32_add_neon.o gen/vpx/vpx_dsp/arm/idct4x4_1_add_neon.o gen/vpx/vpx_dsp/arm/idct4x4_add_neon.o gen/vpx/vpx_dsp/arm/idct8x8_1_add_neon.o gen/vpx/vpx_dsp/arm/idct8x8_add_neon.o gen/vpx/vpx_dsp/arm/intrapred_neon.o gen/vpx/vpx_dsp/arm/loopfilter_neon.o gen/vpx/vpx_dsp/arm/vpx_convolve8_neon.o gen/vpx/vpx_dsp/arm/vpx_convolve_avg_neon.o gen/vpx/vpx_dsp/arm/vpx_convolve_copy_neon.o gen/vpx/vpx_dsp/arm/vpx_convolve_neon.o gen/vpx/vpx_dsp/arm/vpx_scaled_convolve8_neon.o gen/vpx/vpx_dsp/bitreader.o gen/vpx/vpx_dsp/bitreader_buffer.o gen/vpx/vpx_dsp/intrapred.o gen/vpx/vpx_dsp/inv_txfm.o gen/vpx/vpx_dsp/loopfilter.o gen/vpx/vpx_dsp/prob.o gen/vpx/vpx_dsp/skin_detection.o gen/vpx/vpx_dsp/vpx_convolve.o gen/vpx/vpx_dsp/vpx_dsp_rtcd.o gen/vpx/vpx_mem/vpx_mem.o gen/vpx/vpx_ports/aarch64_cpudetect.o gen/vpx/vpx_scale/generic/gen_scalers.o gen/vpx/vpx_scale/generic/vpx_scale.o gen/vpx/vpx_scale/generic/yv12config.o gen/vpx/vpx_scale/generic/yv12extend.o gen/vpx/vpx_scale/vpx_scale_rtcd.o gen/vpx/vpx_util/vpx_thread.o gen/vpx/vpx_util/vpx_write_yuv_frame.o
+rm -f gen/dav1d/libdav1d.a; ar rcs gen/dav1d/libdav1d.a gen/dav1d/config/tmpl/cdef_16bpc.c.o gen/dav1d/config/tmpl/cdef_8bpc.c.o gen/dav1d/config/tmpl/cdef_apply_16bpc.c.o gen/dav1d/config/tmpl/cdef_apply_8bpc.c.o gen/dav1d/config/tmpl/fg_apply_16bpc.c.o gen/dav1d/config/tmpl/fg_apply_8bpc.c.o gen/dav1d/config/tmpl/filmgrain_16bpc.c.o gen/dav1d/config/tmpl/filmgrain_8bpc.c.o gen/dav1d/config/tmpl/ipred_16bpc.c.o gen/dav1d/config/tmpl/ipred_8bpc.c.o gen/dav1d/config/tmpl/ipred_prepare_16bpc.c.o gen/dav1d/config/tmpl/ipred_prepare_8bpc.c.o gen/dav1d/config/tmpl/itx_16bpc.c.o gen/dav1d/config/tmpl/itx_8bpc.c.o gen/dav1d/config/tmpl/lf_apply_16bpc.c.o gen/dav1d/config/tmpl/lf_apply_8bpc.c.o gen/dav1d/config/tmpl/loopfilter_16bpc.c.o gen/dav1d/config/tmpl/loopfilter_8bpc.c.o gen/dav1d/config/tmpl/looprestoration_16bpc.c.o gen/dav1d/config/tmpl/looprestoration_8bpc.c.o gen/dav1d/config/tmpl/lr_apply_16bpc.c.o gen/dav1d/config/tmpl/lr_apply_8bpc.c.o gen/dav1d/config/tmpl/mc_16bpc.c.o gen/dav1d/config/tmpl/mc_8bpc.c.o gen/dav1d/config/tmpl/recon_16bpc.c.o gen/dav1d/config/tmpl/recon_8bpc.c.o gen/dav1d/src/arm/64/cdef.S.o gen/dav1d/src/arm/64/cdef16.S.o gen/dav1d/src/arm/64/filmgrain.S.o gen/dav1d/src/arm/64/filmgrain16.S.o gen/dav1d/src/arm/64/ipred.S.o gen/dav1d/src/arm/64/ipred16.S.o gen/dav1d/src/arm/64/itx.S.o gen/dav1d/src/arm/64/itx16.S.o gen/dav1d/src/arm/64/loopfilter.S.o gen/dav1d/src/arm/64/loopfilter16.S.o gen/dav1d/src/arm/64/looprestoration.S.o gen/dav1d/src/arm/64/looprestoration16.S.o gen/dav1d/src/arm/64/looprestoration_common.S.o gen/dav1d/src/arm/64/mc.S.o gen/dav1d/src/arm/64/mc16.S.o gen/dav1d/src/arm/64/mc16_sve.S.o gen/dav1d/src/arm/64/mc_dotprod.S.o gen/dav1d/src/arm/64/msac.S.o gen/dav1d/src/arm/64/refmvs.S.o gen/dav1d/src/arm/cpu.c.o gen/dav1d/src/cdf.c.o gen/dav1d/src/cpu.c.o gen/dav1d/src/ctx.c.o gen/dav1d/src/data.c.o gen/dav1d/src/decode.c.o gen/dav1d/src/dequant_tables.c.o gen/dav1d/src/getbits.c.o gen/dav1d/src/intra_edge.c.o gen/dav1d/src/itx_1d.c.o gen/dav1d/src/lf_mask.c.o gen/dav1d/src/lib.c.o gen/dav1d/src/log.c.o gen/dav1d/src/mem.c.o gen/dav1d/src/msac.c.o gen/dav1d/src/obu.c.o gen/dav1d/src/pal.c.o gen/dav1d/src/picture.c.o gen/dav1d/src/qm.c.o gen/dav1d/src/ref.c.o gen/dav1d/src/refmvs.c.o gen/dav1d/src/scan.c.o gen/dav1d/src/tables.c.o gen/dav1d/src/thread_task.c.o gen/dav1d/src/warpmv.c.o gen/dav1d/src/wedge.c.o
+host_msl.py: 15 libraries for macosx (Apple metal version 32023.922 (metalfe-32023.922.4)) in gen/msl-macosx/host_msl_gen.h
+clang -O1 -g -Wall -Wno-unused-function -mmacosx-version-min=26.6 -I../gfx/nvn/include -Igen/msl-macosx/ -I../third_party/vulkan-headers/include -Igen/0400486024DEC000/ -I../third_party/libvpx -I../third_party/dav1d/include -I../third_party/stb_vorbis -fobjc-arc -o dmhost main.c loader.c hle.c crash.c probe.c thread.c save_sync.c memstat.m haptics_apple.m hle_account.c hle_audio.c hle_audren.c hle_bigstack.c hle_cheats.c hle_codec.c hle_codec_video.c hle_count.c hle_fdstat.c hle_fpslock.c hle_friends.c hle_fs.c hle_glslc.c hle_guestthread.c hle_haptics.c hle_hid.c hle_jit.c hle_lifecycle.c hle_mii.c hle_misc.c hle_movie.c hle_movie_av1.c hle_movie_avc.c hle_net.c hle_nvdrv.c hle_oe.c hle_offline.c hle_oodle.c hle_os.c hle_ro.c hle_sdk16.c hle_sdkinit.c hle_sf.c hle_svc.c hle_swkbd.c hle_table.c hle_thread.c hle_time.c hle_touch.c hle_uecvar.c hle_uemalloc.c hle_web.c front_mac.m web_apple.m entry.S ../gfx/gl/hle_gl.m ../gfx/hle_nv.c ../gfx/hle_vi.c ../gfx/nvn/hle_nvn.c ../gfx/nvn/host_msl.m ../gfx/nvn/nvn_capture.c ../gfx/nvn/nvn_dirty.c ../gfx/nvn/nvn_entry.S ../gfx/nvn/nvn_mtl.m ../gfx/nvn/nvn_refl.m ../gfx/nvn/nvn_tex.c ../gfx/nvn/nvn_thunks.S ../gfx/tex/nvn_deswizzle.c ../gfx/tex/nvn_deswizzle_gpu.m ../gfx/tex/nvn_fmt_mtl.c ../gfx/vk/hle_vk.m gen/vpx/libvpx.a gen/dav1d/libdav1d.a -framework Cocoa -framework WebKit -framework UserNotifications -framework QuartzCore -framework Metal -framework MetalFX -framework GameController -framework CoreHaptics -framework IOKit -framework AudioToolbox -framework VideoToolbox -framework CoreMedia -framework CoreVideo -framework ImageIO -framework UniformTypeIdentifiers
+hle_sdk16.c:341:28: warning: calling '__builtin_frame_address' with a nonzero argument is unsafe [-Wframe-address]
+  341 |     dm_backtrace((uint64_t)__builtin_frame_address(1));
+      |                            ^~~~~~~~~~~~~~~~~~~~~~~~~~
+1 warning generated.
+front_mac.m:1378:15: warning: variable 'activity' set but not used [-Wunused-but-set-variable]
+ 1378 |     static id activity; activity = [[NSProcessInfo processInfo] beginActivityWithOptions:NSActivityUserInitiated | NSActivityLatencyCritical reason:@"game"];
+      |               ^
+1 warning generated.
+../gfx/nvn/nvn_mtl.m:2120:8: warning: ARC __unsafe_unretained lifetime qualifier on return type is ignored [-Wignored-qualifiers]
+ 2120 | static __unsafe_unretained id hm_get_id(const nvn_hmap *m, const void *k) { return (__bridge id)nvn_hm_get(m, k); }
+      |        ^
+../gfx/nvn/nvn_mtl.m:2387:8: warning: ARC __unsafe_unretained lifetime qualifier on return type is ignored [-Wignored-qualifiers]
+ 2387 | static __unsafe_unretained id serial_get(uint64_t k) { pthread_mutex_lock(&g_smu); __unsafe_unretained id o = hm_get_id(&g_by_serial, &k); pthread_mutex_unlock(&g_smu); return o; }
+      |        ^
+../gfx/nvn/nvn_mtl.m:2402:41: warning: passing 'const tex_t *' to parameter of type 'void *' discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]
+ 2402 |     nvn_hm_put(&g_tex_live, &t->serial, t);
+      |                                         ^
+../gfx/nvn/nvn_hmap.h:44:66: note: passing argument to parameter 'v' here
+   44 | static inline void *nvn_hm_put(nvn_hmap *m, const void *k, void *v) {
+      |                                                                  ^
+../gfx/nvn/nvn_mtl.m:2407:8: warning: ARC __unsafe_unretained lifetime qualifier on return type is ignored [-Wignored-qualifiers]
+ 2407 | static __unsafe_unretained id tex_get(uint64_t k) {
+      |        ^
+../gfx/nvn/nvn_mtl.m:4525:40: warning: returning 'id<MTL4ComputeCommandEncoder>' from a function with incompatible result type 'id<MTLComputeCommandEncoder>'
+ 4525 |     if (!p) { args_dirty_all(); return enc_c_begin(NULL); }
+      |                                        ^~~~~~~~~~~~~~~~~
+../gfx/nvn/nvn_mtl.m:4531:12: warning: returning 'id<MTL4ComputeCommandEncoder>' from a function with incompatible result type 'id<MTLComputeCommandEncoder>'
+ 4531 |     return enc_c_begin(cd);
+      |            ^~~~~~~~~~~~~~~
+../gfx/nvn/nvn_mtl.m:4816:133: warning: 'MTLPixelFormatPVRTC_RGB_2BPP' is deprecated: first deprecated in macOS 15.0 - Usage of ASTC/ETC2/BC formats is recommended instead. [-Wdeprecated-declarations]
+ 4816 | static int mtl_fmt_block(MTLPixelFormat f) { return (f >= MTLPixelFormatBC1_RGBA && f <= MTLPixelFormatBC7_RGBAUnorm_sRGB) || (f >= MTLPixelFormatPVRTC_RGB_2BPP && f < MTLPixelFormatGBGR422); }
+      |                                                                                                                                     ^
+/Applications/Xcode-27.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/Metal.framework/Headers/MTLPixelFormat.h:239:5: note: 'MTLPixelFormatPVRTC_RGB_2BPP' has been explicitly marked deprecated here
+  239 |     MTLPixelFormatPVRTC_RGB_2BPP        API_DEPRECATED("Usage of ASTC/ETC2/BC formats is recommended instead.", macos(11.0,15.0), macCatalyst(14.0,18.0), ios(8.0,18.0)) = 160,
+      |     ^
+../gfx/nvn/nvn_mtl.m:5808:8: warning: ARC __unsafe_unretained lifetime qualifier on return type is ignored [-Wignored-qualifiers]
+ 5808 | static __unsafe_unretained NvProg *prog_get(const prog_t *cp) {   // Called only on the submit thread
+      |        ^
+../gfx/nvn/nvn_mtl.m:8361:8: warning: ARC __unsafe_unretained lifetime qualifier on return type is ignored [-Wignored-qualifiers]
+ 8361 | static __unsafe_unretained id<MTLRenderPipelineState> hybrid_get(const pso_key *k, NvShader *vs, NvShader *fs) {
+      |        ^
+../gfx/nvn/nvn_mtl.m:8619:8: warning: ARC __unsafe_unretained lifetime qualifier on return type is ignored [-Wignored-qualifiers]
+ 8619 | static __unsafe_unretained id<MTLRenderPipelineState> pso_get_(NvProg *pr, MTLRenderPassDescriptor *unused);
+      |        ^
+../gfx/nvn/nvn_mtl.m:8633:8: warning: ARC __unsafe_unretained lifetime qualifier on return type is ignored [-Wignored-qualifiers]
+ 8633 | static __unsafe_unretained id<MTLRenderPipelineState> pso_get(NvProg *pr, MTLRenderPassDescriptor *unused) { AP_B; __unsafe_unretained id<MTLRenderPipelineState> r = pso_get_(pr, unused); AP_E(2); return r; }
+      |        ^
+../gfx/nvn/nvn_mtl.m:8638:8: warning: ARC __unsafe_unretained lifetime qualifier on return type is ignored [-Wignored-qualifiers]
+ 8638 | static __unsafe_unretained id<MTLRenderPipelineState> sm_amp_get(const pso_key *k, NvShader *vs, NvShader *fs) {
+      |        ^
+../gfx/nvn/nvn_mtl.m:8650:8: warning: ARC __unsafe_unretained lifetime qualifier on return type is ignored [-Wignored-qualifiers]
+ 8650 | static __unsafe_unretained id<MTLRenderPipelineState> pso_get_(NvProg *pr, MTLRenderPassDescriptor *unused) {
+      |        ^
+../gfx/nvn/nvn_mtl.m:9540:21: warning: passing 'id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 9540 |     else enc_r_args((id<MTLRenderCommandEncoder>)en, metal_vertex ? MTLRenderStageVertex : MTLRenderStageFragment, gpu, ai);
+      |                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../gfx/nvn/nvn_mtl.m:1302:60: note: passing argument to parameter 'e' here
+ 1302 | static inline void enc_r_args(id<MTL4RenderCommandEncoder> e, MTLRenderStages s, uint64_t gpu, NSUInteger i) {
+      |                                                            ^
+../gfx/nvn/nvn_mtl.m:12338:38: warning: converting the result of '?:' with integer constants to a boolean always evaluates to 'true' [-Wtautological-constant-compare]
+ 12338 |             MDX_TAKE(ind, m->cnt, i, dw ? 4u : 5u);
+       |                                      ^
+../gfx/nvn/nvn_mtl.m:12338:38: warning: converting the result of '?:' with integer constants to a boolean always evaluates to 'true' [-Wtautological-constant-compare]
+../gfx/nvn/nvn_mtl.m:12338:38: warning: converting the result of '?:' with integer constants to a boolean always evaluates to 'true' [-Wtautological-constant-compare]
+../gfx/nvn/nvn_mtl.m:12338:38: warning: converting the result of '?:' with integer constants to a boolean always evaluates to 'true' [-Wtautological-constant-compare]
+In file included from ../gfx/nvn/nvn_mtl.m:12390:
+../gfx/nvn/nvn_feedback.inc:71:34: warning: passing '__strong id<MTL4RenderCommandEncoder>' to parameter of incompatible type 'id<MTLCommandEncoder>'
+   71 |     args_dirty_all();encode_args(en,vs,0,1);enc_r_vbuf(en,14,job);
+      |                                  ^~
+../gfx/nvn/nvn_mtl.m:9863:46: note: passing argument to parameter 'en' here
+ 9863 | static int encode_args(id<MTLCommandEncoder> en, NvShader *sh, int nvn_stage, int metal_vertex) { cbs_note(sh); AP_B; int r = encode_args_(en, sh, nvn_stage, metal_vertex); AP_E(3); return r; }
+      |                                              ^
+In file included from ../gfx/nvn/nvn_mtl.m:12390:
+../gfx/nvn/nvn_feedback.inc:82:99: warning: passing '__strong id<MTL4RenderCommandEncoder>' to parameter of incompatible type 'id<MTLCommandEncoder>'
+   82 |     id<MTL4RenderCommandEncoder> en=enc_r_begin(rd);enc_r_pso(en,ps);args_dirty_all();encode_args(en,reader,0,1);enc_r_vbuf(en,14,job);
+      |                                                                                                   ^~
+../gfx/nvn/nvn_mtl.m:9863:46: note: passing argument to parameter 'en' here
+ 9863 | static int encode_args(id<MTLCommandEncoder> en, NvShader *sh, int nvn_stage, int metal_vertex) { cbs_note(sh); AP_B; int r = encode_args_(en, sh, nvn_stage, metal_vertex); AP_E(3); return r; }
+      |                                              ^
+In file included from ../gfx/nvn/nvn_mtl.m:12392:
+../gfx/nvn/nvn_geometry.inc:142:72: warning: passing '__strong id<MTL4RenderCommandEncoder>' to parameter of incompatible type 'id<MTLCommandEncoder>'
+  142 |     vconv_bind(en, vs, 1, &range, NULL); args_dirty_all(); encode_args(en, vs, 0, 1); enc_r_vbuf(en, 13, gpu);
+      |                                                                        ^~
+../gfx/nvn/nvn_mtl.m:9863:46: note: passing argument to parameter 'en' here
+ 9863 | static int encode_args(id<MTLCommandEncoder> en, NvShader *sh, int nvn_stage, int metal_vertex) { cbs_note(sh); AP_B; int r = encode_args_(en, sh, nvn_stage, metal_vertex); AP_E(3); return r; }
+      |                                              ^
+In file included from ../gfx/nvn/nvn_mtl.m:12392:
+../gfx/nvn/nvn_geometry.inc:406:194: warning: incompatible operand types ('id<MTLFunction>' and 'NSNull * _Nonnull')
+  406 |             g_geo_mesh_runfn[[NSValue valueWithPointer:(__bridge const void *)f]] = aot_function(lib, [@"dm_mesh_run" stringByAppendingString:[((id<MTLFunction>)f).name substringFromIndex:7]]) ?: NSNull.null; }
+      |                                                                                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^  ~~~~~~~~~~~
+../gfx/nvn/nvn_geometry.inc:436:82: warning: incompatible operand types ('id<MTLRenderPipelineState>' and 'NSNull * _Nonnull')
+  436 |             os_unfair_lock_lock(&g_pso_mesh_lock); hm_put_id(&g_pso_mesh, &kk, p ?: NSNull.null); os_unfair_lock_unlock(&g_pso_mesh_lock);
+      |                                                                                ~ ^  ~~~~~~~~~~~
+../gfx/nvn/nvn_geometry.inc:543:88: warning: passing '__strong id<MTL4RenderCommandEncoder>' to parameter of incompatible type 'id<MTLCommandEncoder>'
+  543 |     g_args_dirty[2] = 1; g_args_ogen[2]++; g_args_mesh = GEO_MESH_GS_SLOT; encode_args(en, g_geo_mesh.lean, 2, 0); g_args_mesh = 0; g_args_dirty[2] = 1; g_args_ogen[2]++;
+      |                                                                                        ^~
+../gfx/nvn/nvn_mtl.m:9863:46: note: passing argument to parameter 'en' here
+ 9863 | static int encode_args(id<MTLCommandEncoder> en, NvShader *sh, int nvn_stage, int metal_vertex) { cbs_note(sh); AP_B; int r = encode_args_(en, sh, nvn_stage, metal_vertex); AP_E(3); return r; }
+      |                                              ^
+In file included from ../gfx/nvn/nvn_mtl.m:12392:
+../gfx/nvn/nvn_geometry.inc:622:90: warning: incompatible operand types ('id<MTLRenderPipelineState>' and 'NSNull * _Nonnull')
+  622 |         os_unfair_lock_lock(&g_pso_mtk_legacy_lock); hm_put_id(&g_pso_mtk_legacy, &kk, p ?: NSNull.null); os_unfair_lock_unlock(&g_pso_mtk_legacy_lock);
+      |                                                                                        ~ ^  ~~~~~~~~~~~
+../gfx/nvn/nvn_geometry.inc:676:124: warning: passing '__strong id<MTL4RenderCommandEncoder>' to parameter of incompatible type 'id<MTLCommandEncoder>'
+  676 |     if (ts) { [en setArgumentTable:g_ot atStages:MTLRenderStageObject]; g_args_dirty[3] = 1; g_args_ogen[3]++; encode_args(en, ts, 3, 0);
+      |                                                                                                                            ^~
+../gfx/nvn/nvn_mtl.m:9863:46: note: passing argument to parameter 'en' here
+ 9863 | static int encode_args(id<MTLCommandEncoder> en, NvShader *sh, int nvn_stage, int metal_vertex) { cbs_note(sh); AP_B; int r = encode_args_(en, sh, nvn_stage, metal_vertex); AP_E(3); return r; }
+      |                                              ^
+In file included from ../gfx/nvn/nvn_mtl.m:12392:
+../gfx/nvn/nvn_geometry.inc:678:56: warning: passing '__strong id<MTL4RenderCommandEncoder>' to parameter of incompatible type 'id<MTLCommandEncoder>'
+  678 |     g_args_dirty[4] = 1; g_args_ogen[4]++; encode_args(en, ms, 4, 1);
+      |                                                        ^~
+../gfx/nvn/nvn_mtl.m:9863:46: note: passing argument to parameter 'en' here
+ 9863 | static int encode_args(id<MTLCommandEncoder> en, NvShader *sh, int nvn_stage, int metal_vertex) { cbs_note(sh); AP_B; int r = encode_args_(en, sh, nvn_stage, metal_vertex); AP_E(3); return r; }
+      |                                              ^
+In file included from ../gfx/nvn/nvn_mtl.m:12392:
+../gfx/nvn/nvn_geometry.inc:993:35: warning: passing 'const __strong id<MTL4RenderCommandEncoder>' to parameter of incompatible type 'id<MTLCommandEncoder>'
+  993 |     args_dirty_all(); encode_args(re, j->vs, 0, 1); enc_r_vbuf(re, 13, j->capture_info);
+      |                                   ^~
+../gfx/nvn/nvn_mtl.m:9863:46: note: passing argument to parameter 'en' here
+ 9863 | static int encode_args(id<MTLCommandEncoder> en, NvShader *sh, int nvn_stage, int metal_vertex) { cbs_note(sh); AP_B; int r = encode_args_(en, sh, nvn_stage, metal_vertex); AP_E(3); return r; }
+      |                                              ^
+In file included from ../gfx/nvn/nvn_mtl.m:12392:
+../gfx/nvn/nvn_geometry.inc:1004:35: warning: passing 'const __strong id<MTL4ComputeCommandEncoder>' to parameter of incompatible type 'id<MTLCommandEncoder>'
+ 1004 |     args_dirty_all(); encode_args(ce, j->gs, 2, 0); enc_c_pso(ce, j->gs->geo_pso);
+      |                                   ^~
+../gfx/nvn/nvn_mtl.m:9863:46: note: passing argument to parameter 'en' here
+ 9863 | static int encode_args(id<MTLCommandEncoder> en, NvShader *sh, int nvn_stage, int metal_vertex) { cbs_note(sh); AP_B; int r = encode_args_(en, sh, nvn_stage, metal_vertex); AP_E(3); return r; }
+      |                                              ^
+In file included from ../gfx/nvn/nvn_mtl.m:12393:
+../gfx/nvn/nvn_aot_tool.inc:89:56: warning: incompatible operand types ('id<MTLComputePipelineState> _Nullable' and 'id<MTLRenderPipelineState> _Nullable')
+   89 |         if (d) ps = [row[@"class"] isEqual:@"compute"] ? [compiler newComputePipelineStateWithDescriptor:(id)d compilerTaskOptions:nil error:&error]
+      |                                                        ^ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   90 |             : [compiler newRenderPipelineStateWithDescriptor:d compilerTaskOptions:nil error:&error];
+      |               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+../gfx/nvn/nvn_mtl.m:12775:33: warning: initializing '__strong id<MTLRenderCommandEncoder>' with an expression of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12775 |     id<MTLRenderCommandEncoder> en = rp_begin_ex(mode);
+       |                                 ^    ~~~~~~~~~~~~~~~~~
+../gfx/nvn/nvn_mtl.m:12784:97: warning: assigning to '__strong id<MTLRenderCommandEncoder>' from incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12784 |         vbuf_prepare(pr->sh[0] ? &pr->sh[0]->rf : NULL, dw, di); g_fd_dw = dw; g_fd_di = di; en = rp_begin_ex(mode); g_fd_dw = NULL; g_fd_di = NULL; g_rp_layered = 0;
+       |                                                                                                 ^ ~~~~~~~~~~~~~~~~~
+../gfx/nvn/nvn_mtl.m:12797:22: warning: assigning to '__strong id<MTLRenderCommandEncoder>' from incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12797 |         rp_end(); en = rp_begin_ex(mode); if (!en) return;
+       |                      ^ ~~~~~~~~~~~~~~~~~
+../gfx/nvn/nvn_mtl.m:12803:38: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12803 |     if (ps != g_enc_pso) { enc_r_pso(en, ps); g_enc_pso = ps; }
+       |                                      ^~
+../gfx/nvn/nvn_mtl.m:1282:59: note: passing argument to parameter 'e' here
+ 1282 | static inline void enc_r_pso(id<MTL4RenderCommandEncoder> e, id<MTLRenderPipelineState> p) { [e setRenderPipelineState:p]; }
+      |                                                           ^
+../gfx/nvn/nvn_mtl.m:12814:42: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12814 |     if (cur_ds != g_enc_dss) { enc_r_dss(en, cur_ds); g_enc_dss = cur_ds; }
+       |                                          ^~
+../gfx/nvn/nvn_mtl.m:1283:59: note: passing argument to parameter 'e' here
+ 1283 | static inline void enc_r_dss(id<MTL4RenderCommandEncoder> e, id<MTLDepthStencilState> s) { [e setDepthStencilState:s]; }
+      |                                                           ^
+../gfx/nvn/nvn_mtl.m:12816:72: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12816 |       if (!(g_ed.ok & ED_SREF) || g_ed.sref != sr) { enc_r_stencil_ref(en, sr, sr); g_ed.sref = sr; g_ed.ok |= ED_SREF; } }
+       |                                                                        ^~
+../gfx/nvn/nvn_mtl.m:1291:67: note: passing argument to parameter 'e' here
+ 1291 | static inline void enc_r_stencil_ref(id<MTL4RenderCommandEncoder> e, uint32_t f, uint32_t b) { (void)b; [e setStencilReferenceValue:f]; }
+      |                                                                   ^
+../gfx/nvn/nvn_mtl.m:12826:82: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12826 |       if (!(g_ed.ok & ED_VP) || memcmp(&g_ed.vp, &v, sizeof v)) { enc_r_viewport(en, v); g_ed.vp = v; g_ed.ok |= ED_VP; } }
+       |                                                                                  ^~
+../gfx/nvn/nvn_mtl.m:1284:64: note: passing argument to parameter 'e' here
+ 1284 | static inline void enc_r_viewport(id<MTL4RenderCommandEncoder> e, MTLViewport v) { [e setViewport:v]; }
+      |                                                                ^
+../gfx/nvn/nvn_mtl.m:12834:81: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12834 |     if (!(g_ed.ok & ED_SC) || memcmp(&g_ed.sc, &sc, sizeof sc)) { enc_r_scissor(en, sc); g_ed.sc = sc; g_ed.ok |= ED_SC; }
+       |                                                                                 ^~
+../gfx/nvn/nvn_mtl.m:1285:63: note: passing argument to parameter 'e' here
+ 1285 | static inline void enc_r_scissor(id<MTL4RenderCommandEncoder> e, MTLScissorRect r) { [e setScissorRect:r]; }
+      |                                                               ^
+../gfx/nvn/nvn_mtl.m:12840:65: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12840 |       if (!(g_ed.ok & ED_CULL) || g_ed.cull != cu) { enc_r_cull(en, (MTLCullMode)cu); g_ed.cull = cu; g_ed.ok |= ED_CULL; }
+       |                                                                 ^~
+../gfx/nvn/nvn_mtl.m:1286:60: note: passing argument to parameter 'e' here
+ 1286 | static inline void enc_r_cull(id<MTL4RenderCommandEncoder> e, MTLCullMode m) { [e setCullMode:m]; }
+      |                                                            ^
+../gfx/nvn/nvn_mtl.m:12841:68: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12841 |       if (!(g_ed.ok & ED_WIND) || g_ed.wind != wi) { enc_r_winding(en, (MTLWinding)wi); g_ed.wind = wi; g_ed.ok |= ED_WIND; }
+       |                                                                    ^~
+../gfx/nvn/nvn_mtl.m:1287:63: note: passing argument to parameter 'e' here
+ 1287 | static inline void enc_r_winding(id<MTL4RenderCommandEncoder> e, MTLWinding w) { [e setFrontFacingWinding:w]; }
+      |                                                               ^
+../gfx/nvn/nvn_mtl.m:12842:65: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12842 |       if (!(g_ed.ok & ED_FILL) || g_ed.fill != fi) { enc_r_fill(en, (MTLTriangleFillMode)fi); g_ed.fill = fi; g_ed.ok |= ED_FILL; }
+       |                                                                 ^~
+../gfx/nvn/nvn_mtl.m:1288:60: note: passing argument to parameter 'e' here
+ 1288 | static inline void enc_r_fill(id<MTL4RenderCommandEncoder> e, MTLTriangleFillMode m) { [e setTriangleFillMode:m]; }
+      |                                                            ^
+../gfx/nvn/nvn_mtl.m:12843:88: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12843 |       if (!(g_ed.ok & ED_BIAS) || memcmp(g_ed.bias, bi, sizeof bi)) { enc_r_depth_bias(en, bi[0], bi[1], bi[2]); memcpy(g_ed.bias, bi, sizeof bi); g_ed.ok |= ED_BIAS; }
+       |                                                                                        ^~
+../gfx/nvn/nvn_mtl.m:1289:66: note: passing argument to parameter 'e' here
+ 1289 | static inline void enc_r_depth_bias(id<MTL4RenderCommandEncoder> e, float u, float s, float c) { [e setDepthBias:u slopeScale:s clamp:c]; }
+      |                                                                  ^
+../gfx/nvn/nvn_mtl.m:12844:71: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12844 |       if (!(g_ed.ok & ED_CLIP) || g_ed.clip != cl) { enc_r_depth_clip(en, cl); g_ed.clip = cl; g_ed.ok |= ED_CLIP; }
+       |                                                                       ^~
+../gfx/nvn/nvn_mtl.m:1290:66: note: passing argument to parameter 'e' here
+ 1290 | static inline void enc_r_depth_clip(id<MTL4RenderCommandEncoder> e, BOOL v) { [e setDepthClipMode:v ? MTLDepthClipModeClip : MTLDepthClipModeClamp]; }
+      |                                                                  ^
+../gfx/nvn/nvn_mtl.m:12845:110: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12845 |       if (!(g_ed.ok & ED_BLEND) || memcmp(g_ed.blend, S.blend_color, sizeof g_ed.blend)) { enc_r_blend_color(en, S.blend_color[0], S.blend_color[1], S.blend_color[2], S.blend_color[3]); memcpy(g_ed.blend, S.blend_color, sizeof g_ed.blend); g_ed.ok |= ED_BLEND; } }
+       |                                                                                                              ^~
+../gfx/nvn/nvn_mtl.m:1292:67: note: passing argument to parameter 'e' here
+ 1292 | static inline void enc_r_blend_color(id<MTL4RenderCommandEncoder> e, float r, float g, float b, float a) { [e setBlendColorRed:r green:g blue:b alpha:a]; }
+      |                                                                   ^
+../gfx/nvn/nvn_mtl.m:12846:31: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12846 |     if (cur_pull) { pull_bind(en); g_hy_draws += !g_geo_mesh.on; }   // a pulling pipeline reads the streams itself (no conversion either: dm_fetch decodes every format)
+       |                               ^~
+../gfx/nvn/nvn_mtl.m:6735:52: note: passing argument to parameter 'en' here
+ 6735 | static void pull_bind(id<MTL4RenderCommandEncoder> en) {
+      |                                                    ^
+../gfx/nvn/nvn_mtl.m:12848:20: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12848 |         bind_vbufs(en);
+       |                    ^~
+../gfx/nvn/nvn_mtl.m:6692:53: note: passing argument to parameter 'en' here
+ 6692 | static void bind_vbufs(id<MTL4RenderCommandEncoder> en) {
+      |                                                     ^
+../gfx/nvn/nvn_mtl.m:12849:35: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12849 |         if (pr->sh[0]) vconv_bind(en, pr->sh[0], S.rast_discard, g_geo_vrange ? g_geo_vrange : dw, g_geo_vrange ? NULL : di);   // integer inputs fed float-type formats or 8 / 16-bit integers of the other sign (see vconv_ncomp, vconv_int); a lean geometry draw: the vertices its indices name
+       |                                   ^~
+../gfx/nvn/nvn_mtl.m:7205:53: note: passing argument to parameter 'en' here
+ 7205 | static void vconv_bind(id<MTL4RenderCommandEncoder> en, NvShader *vs, int tf, const p_draw *dw, const p_draw_idx *di) {   // tf: a transform feedback capture (no shadow inputs)
+      |                                                     ^
+../gfx/nvn/nvn_mtl.m:12857:15: warning: comparison of distinct pointer types ('id<MTL4RenderCommandEncoder>' and 'id<MTLRenderCommandEncoder>') [-Wcompare-distinct-pointer-types]
+ 12857 |     if (g_enc != en) {
+       |         ~~~~~ ^  ~~
+../gfx/nvn/nvn_mtl.m:12882:82: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12882 |             if (g_vis_cur >= 0 && g_enc_vis != g_vis_cur + 1) { enc_r_visibility(en, MTLVisibilityResultModeCounting, (NSUInteger)g_vis_cur * 8); g_enc_vis = g_vis_cur + 1; }
+       |                                                                                  ^~
+../gfx/nvn/nvn_mtl.m:1293:66: note: passing argument to parameter 'e' here
+ 1293 | static inline void enc_r_visibility(id<MTL4RenderCommandEncoder> e, MTLVisibilityResultMode m, NSUInteger o) { [e setVisibilityResultMode:m offset:o]; }
+      |                                                                  ^
+../gfx/nvn/nvn_mtl.m:12944:45: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12944 |         if (g_geo_count) enc_r_draw_indexed(en, mp, g_geo_count, MTLIndexTypeUInt32, g_geo_indices, g_geo_index_bytes, 1, 0, (uint32_t)g_draw_binst);   // geo_lean_tri's slots
+       |                                             ^~
+../gfx/nvn/nvn_mtl.m:1308:68: note: passing argument to parameter 'e' here
+ 1308 | static inline void enc_r_draw_indexed(id<MTL4RenderCommandEncoder> e, MTLPrimitiveType p, NSUInteger n, MTLIndexType t, uint64_t gpu, NSUInteger len, NSUInteger i, NSInteger bv, NSUInteger bi) { [e drawIndexedPrimitives:p indexCount:n indexType:t indexBuffer:gpu indexBufferLength:len instanceCount:i baseVertex:bv baseInstance:bi]; }
+      |                                                                    ^
+../gfx/nvn/nvn_mtl.m:12945:42: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12945 |         else enc_r_draw_indexed_indirect(en, mp, MTLIndexTypeUInt32, g_geo_indices, g_geo_index_bytes, g_geo_args);
+       |                                          ^~
+../gfx/nvn/nvn_mtl.m:1309:77: note: passing argument to parameter 'e' here
+ 1309 | static inline void enc_r_draw_indexed_indirect(id<MTL4RenderCommandEncoder> e, MTLPrimitiveType p, MTLIndexType t, uint64_t gpu, NSUInteger len, uint64_t ind) { [e drawIndexedPrimitives:p indexType:t indexBuffer:gpu indexBufferLength:len indirectBuffer:ind]; }
+      |                                                                             ^
+../gfx/nvn/nvn_mtl.m:12953:81: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12953 |         if (ixc_wanted(dw, di)) { if (e && e->args) enc_r_draw_indexed_indirect(en, mp, MTLIndexTypeUInt32, e->ixb, e->ixlen, e->args); else RED_ONCE(88, "indirect draw skipped: the arguments for primitive %d were not converted (argument address %#llx is in no memory pool, or the conversion pipeline was not created)", prim, (unsigned long long)ind); }
+       |                                                                                 ^~
+../gfx/nvn/nvn_mtl.m:1309:77: note: passing argument to parameter 'e' here
+ 1309 | static inline void enc_r_draw_indexed_indirect(id<MTL4RenderCommandEncoder> e, MTLPrimitiveType p, MTLIndexType t, uint64_t gpu, NSUInteger len, uint64_t ind) { [e drawIndexedPrimitives:p indexType:t indexBuffer:gpu indexBufferLength:len indirectBuffer:ind]; }
+      |                                                                             ^
+../gfx/nvn/nvn_mtl.m:12955:44: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12955 |         else if (dw) { enc_r_draw_indirect(en, mp, mdx ? mdx : ((__bridge id<MTLBuffer>)ab).gpuAddress + ao); if (mdx) mdx_chain(dw->mdi_cnt, dw->mdi_i, mp, MTLIndexTypeUInt32, 0, 0); }
+       |                                            ^~
+../gfx/nvn/nvn_mtl.m:1307:69: note: passing argument to parameter 'e' here
+ 1307 | static inline void enc_r_draw_indirect(id<MTL4RenderCommandEncoder> e, MTLPrimitiveType p, uint64_t gpu) { [e drawPrimitives:p indirectBuffer:gpu]; }
+      |                                                                     ^
+../gfx/nvn/nvn_mtl.m:12958:41: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12958 |             enc_r_draw_indexed_indirect(en, mp, ty, ig, il, mdx ? mdx : ((__bridge id<MTLBuffer>)ab).gpuAddress + ao); if (mdx) mdx_chain(di->mdi_cnt, di->mdi_i, mp, ty, ig, il); }
+       |                                         ^~
+../gfx/nvn/nvn_mtl.m:1309:77: note: passing argument to parameter 'e' here
+ 1309 | static inline void enc_r_draw_indexed_indirect(id<MTL4RenderCommandEncoder> e, MTLPrimitiveType p, MTLIndexType t, uint64_t gpu, NSUInteger len, uint64_t ind) { [e drawIndexedPrimitives:p indexType:t indexBuffer:gpu indexBufferLength:len indirectBuffer:ind]; }
+      |                                                                             ^
+../gfx/nvn/nvn_mtl.m:12961:48: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12961 |         if (dw->count >= 4) enc_r_draw_indexed(en, mp, (dw->count / 4) * 6, MTLIndexTypeUInt32, g_quad_gpu, g_quad_ib.length, dw->instances > 0 ? dw->instances : 1, dw->first, dw->base_instance);
+       |                                                ^~
+../gfx/nvn/nvn_mtl.m:1308:68: note: passing argument to parameter 'e' here
+ 1308 | static inline void enc_r_draw_indexed(id<MTL4RenderCommandEncoder> e, MTLPrimitiveType p, NSUInteger n, MTLIndexType t, uint64_t gpu, NSUInteger len, NSUInteger i, NSInteger bv, NSUInteger bi) { [e drawIndexedPrimitives:p indexCount:n indexType:t indexBuffer:gpu indexBufferLength:len instanceCount:i baseVertex:bv baseInstance:bi]; }
+      |                                                                    ^
+../gfx/nvn/nvn_mtl.m:12964:48: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12964 |         if (dw->count >= 3) enc_r_draw_indexed(en, mp, (dw->count - 2) * 3, MTLIndexTypeUInt32, g_fan_gpu, g_fan_ib.length, dw->instances > 0 ? dw->instances : 1, dw->first, dw->base_instance);
+       |                                                ^~
+../gfx/nvn/nvn_mtl.m:1308:68: note: passing argument to parameter 'e' here
+ 1308 | static inline void enc_r_draw_indexed(id<MTL4RenderCommandEncoder> e, MTLPrimitiveType p, NSUInteger n, MTLIndexType t, uint64_t gpu, NSUInteger len, NSUInteger i, NSInteger bv, NSUInteger bi) { [e drawIndexedPrimitives:p indexCount:n indexType:t indexBuffer:gpu indexBufferLength:len instanceCount:i baseVertex:bv baseInstance:bi]; }
+      |                                                                    ^
+../gfx/nvn/nvn_mtl.m:12966:89: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12966 |         if (dw->count && (dw->instances > 1 || dw->base_instance)) enc_r_draw_instanced(en, mp, dw->first, dw->count, dw->instances > 0 ? dw->instances : 1, dw->base_instance);
+       |                                                                                         ^~
+../gfx/nvn/nvn_mtl.m:1306:70: note: passing argument to parameter 'e' here
+ 1306 | static inline void enc_r_draw_instanced(id<MTL4RenderCommandEncoder> e, MTLPrimitiveType p, NSUInteger v, NSUInteger n, NSUInteger i, NSUInteger b) { [e drawPrimitives:p vertexStart:v vertexCount:n instanceCount:i baseInstance:b]; }
+      |                                                                      ^
+../gfx/nvn/nvn_mtl.m:12967:40: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12967 |         else if (dw->count) enc_r_draw(en, mp, dw->first, dw->count);
+       |                                        ^~
+../gfx/nvn/nvn_mtl.m:1305:60: note: passing argument to parameter 'e' here
+ 1305 | static inline void enc_r_draw(id<MTL4RenderCommandEncoder> e, MTLPrimitiveType p, NSUInteger v, NSUInteger n) { [e drawPrimitives:p vertexStart:v vertexCount:n]; }
+      |                                                            ^
+../gfx/nvn/nvn_mtl.m:12983:43: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12983 |             if (count) enc_r_draw_indexed(en, mp, count, MTLIndexTypeUInt32, g_cur_arena->gpu + off, (NSUInteger)count * 4, di->instances ? di->instances : 1, di->base_vertex, di->base_instance);
+       |                                           ^~
+../gfx/nvn/nvn_mtl.m:1308:68: note: passing argument to parameter 'e' here
+ 1308 | static inline void enc_r_draw_indexed(id<MTL4RenderCommandEncoder> e, MTLPrimitiveType p, NSUInteger n, MTLIndexType t, uint64_t gpu, NSUInteger len, NSUInteger i, NSInteger bv, NSUInteger bi) { [e drawIndexedPrimitives:p indexCount:n indexType:t indexBuffer:gpu indexBufferLength:len instanceCount:i baseVertex:bv baseInstance:bi]; }
+      |                                                                    ^
+../gfx/nvn/nvn_mtl.m:12993:36: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 12993 |                 enc_r_draw_indexed(en, mp, di->count, MTLIndexTypeUInt16, w->gpu, (NSUInteger)di->count * 2, di->instances ? di->instances : 1, di->base_vertex, di->base_instance);
+       |                                    ^~
+../gfx/nvn/nvn_mtl.m:1308:68: note: passing argument to parameter 'e' here
+ 1308 | static inline void enc_r_draw_indexed(id<MTL4RenderCommandEncoder> e, MTLPrimitiveType p, NSUInteger n, MTLIndexType t, uint64_t gpu, NSUInteger len, NSUInteger i, NSInteger bv, NSUInteger bi) { [e drawIndexedPrimitives:p indexCount:n indexType:t indexBuffer:gpu indexBufferLength:len instanceCount:i baseVertex:bv baseInstance:bi]; }
+      |                                                                    ^
+../gfx/nvn/nvn_mtl.m:13003:32: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 13003 |             enc_r_draw_indexed(en, mp, di->count, MTLIndexTypeUInt16, g_cur_arena->gpu + off, (NSUInteger)di->count * 2, di->instances ? di->instances : 1, di->base_vertex, di->base_instance);
+       |                                ^~
+../gfx/nvn/nvn_mtl.m:1308:68: note: passing argument to parameter 'e' here
+ 1308 | static inline void enc_r_draw_indexed(id<MTL4RenderCommandEncoder> e, MTLPrimitiveType p, NSUInteger n, MTLIndexType t, uint64_t gpu, NSUInteger len, NSUInteger i, NSInteger bv, NSUInteger bi) { [e drawIndexedPrimitives:p indexCount:n indexType:t indexBuffer:gpu indexBufferLength:len instanceCount:i baseVertex:bv baseInstance:bi]; }
+      |                                                                    ^
+../gfx/nvn/nvn_mtl.m:13010:43: warning: passing '__strong id<MTLRenderCommandEncoder>' to parameter of incompatible type 'id<MTL4RenderCommandEncoder>'
+ 13010 |         if (di->count) enc_r_draw_indexed(en, mp, di->count, di->itype == 1 ? MTLIndexTypeUInt16 : MTLIndexTypeUInt32, gpu, ((__bridge id<MTLBuffer>)mb).length - mo,
+       |                                           ^~
+../gfx/nvn/nvn_mtl.m:1308:68: note: passing argument to parameter 'e' here
+ 1308 | static inline void enc_r_draw_indexed(id<MTL4RenderCommandEncoder> e, MTLPrimitiveType p, NSUInteger n, MTLIndexType t, uint64_t gpu, NSUInteger len, NSUInteger i, NSInteger bv, NSUInteger bi) { [e drawIndexedPrimitives:p indexCount:n indexType:t indexBuffer:gpu indexBufferLength:len instanceCount:i baseVertex:bv baseInstance:bi]; }
+      |                                                                    ^
+62 warnings generated.

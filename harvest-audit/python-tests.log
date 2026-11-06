@@ -1,0 +1,16 @@
+Downloading unicorn (11.6MiB)
+ Downloaded unicorn
+Installed 1 package in 64ms
+............F..................
+======================================================================
+FAIL: test_index_is_current (dm.tools.tests.test_docs.PatchIndex.test_index_is_current)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/dm/tools/tests/test_docs.py", line 94, in test_index_is_current
+    self.assertEqual(docs_patches.OUT.read_text(), docs_patches.page(), 'docs/agents/game-patches.md is out of date: run dm/tools/docs_patches.py')
+AssertionError: '# Ga[18220 chars] 0 | 1 | 0 | 0 | `build` → `game` |\n| [The Le[59310 chars] |\n' != '# Ga[18220 chars] 0 | 2 | 0 | 0 | `build` → `game` |\n| [The Le[59476 chars] |\n' : docs/agents/game-patches.md is out of date: run dm/tools/docs_patches.py
+
+----------------------------------------------------------------------
+Ran 31 tests in 25.966s
+
+FAILED (failures=1)

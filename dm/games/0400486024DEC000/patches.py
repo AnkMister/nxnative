@@ -1,4 +1,4 @@
-"""Ocarina v131072's build-checked dynamic-resolution ceiling.
+"""Ocarina v131072's build-checked render ceiling and optional frame controller.
 
 The engine stores its final scale after dynamic and fixed-mode selection.
 State +0x10 holds the existing host DM_RENDER_SCALE setting.
@@ -35,9 +35,51 @@ def render_scale(ctx):
     ctx.render_scale = 1
 
 
-FRAME_STEP = {'e0f3ccfaf50065ae4ea01eb5aeb13b1a': render_scale}
+# v131072 main: the frame step (patch_nso.py "Frame step in whole vsyncs"). The game has its own frame-rate controller (main+0x3b4ef60, called once a frame with x20 = its
+# config): from the measured frame time it picks a vsync interval between config +0x0 and +0x4 (with hysteresis, +0x50 / +0x54), stores it at +0x48 and fps = 60 / interval
+# at +0x58, then at main+0x3b4f074 (where its paths meet) calls main+0x3b4f160, which hands +0x58 to setFrameRate (main+0x4dc0f0), and the framework's setInterval
+# (main+0x346c5c0) with +0x48, which sets the window's present interval (main+0xf49970) and the framework's fps (+0xfc = 60 / interval). So 30 fps (interval 2) is the game's
+# own mode, with its game time stepping by the interval. The stub at main+0x3b4f074 replaces the interval and fps with the host's step (state page +0x20, 1 = 60 fps, 2 = 30) while
+# a target fps is set (state +0x0, the launcher's Frame rate / DM_FPS_TARGET; 0 = the game's own choice), and counts the vsyncs stepped (+0x30) for the host's speed check
+def frame_step(ctx):
+    here, emit, fs_site, fs_put, FS_STATE_OFF = ctx.here, ctx.emit, ctx.site, ctx.put, ctx.state
+    site = 0x3b4f074
+    fs_site(site, 'e00314aa')   # mov x0,x20
+    start = here()
+    emit(0xa9bf47f0)  # preserve x16,x17
+    emit(0xa9bf7fe9)  # preserve x9 (and stack alignment)
+    emit(ADRP(16, here(), FS_STATE_OFF))
+    for w in (0xb9400211,   # ldr w17,[x16]           target fps (float bits; 0 = off)
+              0x34000151,   # cbz w17,restore (+10)
+              0xb9402211,   # ldr w17,[x16,#0x20]     step in vsyncs
+              0x34000111,   # cbz w17,restore (+8)       not decided yet
+              0xb9004a91,   # str w17,[x20,#0x48]     the controller's interval
+              0x52800789,   # mov w9,#60
+              0x1ad10929,   # udiv w9,w9,w17
+              0xb9005a89,   # str w9,[x20,#0x58]      its fps, which setFrameRate takes
+              0xf9401a09,   # ldr x9,[x16,#0x30]
+              0x8b314129,   # add x9,x9,w17,uxtw
+              0xf9001a09,   # str x9,[x16,#0x30]      vsyncs stepped
+              0xa8c17fe9,   # restore x9
+              0xa8c147f0,   # restore x16,x17
+              0xaa1403e0):  # orig: mov x0,x20
+        emit(w)
+    emit(B(here(), site + 4))
+    fs_put(site, [B(site, start)], "frame step: the frame-rate controller's interval and fps follow the host's vsyncs (state page target fps; 0 = the game's own choice)")
+
+
+def apply(ctx):
+    render_scale(ctx)
+    frame_step(ctx)  # target 0 preserves the game's controller; opt in with DM_FPS_TARGET=30/60
+
+
+FRAME_STEP = {'e0f3ccfaf50065ae4ea01eb5aeb13b1a': apply}
 
 BINDING = [
+    {'what': 'frame controller interval and fps follow the host step', 'now': 'build', 'goal': 'game', 'purpose': 'frame rate',
+     'why': 'the controller hands its interval to presentation and its fps to game time',
+     'blocked': 'frame-step stubs have no function-matched form; local game-speed acceptance remains open',
+     'checked': 'cheemu21 v131072 site guard; synthetic ARM64 execution only on this branch'},
     {'what': 'dynamic-resolution ceiling', 'now': 'build', 'goal': 'game', 'purpose': 'rendering',
      'why': "the game's final scale store follows its dynamic and fixed-mode choices",
      'blocked': 'the store and its role are verified for this main build only',

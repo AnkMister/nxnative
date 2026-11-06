@@ -1,0 +1,23 @@
+[dm] fs mount test: → /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs_directory.T6Knyq
+[dm] fs directory allocation /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs_directory.T6Knyq failed errno=12
+[dm] fs directory allocation /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-cheemu-wt/harvest-audit/scratch/t_fs_directory.T6Knyq failed errno=12
+PASS mount the synthetic folder
+PASS inject failure into the directory-handle allocation
+PASS failed allocation returns the filesystem resource failure
+PASS allocation error survives directory cleanup
+PASS failed open leaves the caller's handle untouched
+PASS the handler opened a real directory before allocation failed
+PASS failed open closes the real directory descriptor
+PASS inject failure into the directory-handle allocation
+PASS failed allocation returns the filesystem resource failure
+PASS allocation error survives directory cleanup
+PASS failed open leaves the caller's handle untouched
+PASS the handler opened a real directory before allocation failed
+PASS failed open closes the real directory descriptor
+PASS a later successful open publishes a handle
+PASS successful open keeps its directory descriptor alive
+PASS the successful handle counts the one synthetic file
+PASS the successful handle reads the file name, type and size
+PASS CloseDirectory releases the successful handle's descriptor
+PASS remove the synthetic fixture
+== fs directory: 19 checks, 0 failed ==

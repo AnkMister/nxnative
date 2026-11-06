@@ -1079,3 +1079,10 @@ Most service calls can be found before they crash, before the first boot or the 
 - **Cause:** an NRR with 1 in the byte at +5 (the Switch 2's) has a header 0x180 bytes longer. The same fields follow it: program ID +0x4b0, size +0x4b8, hash table +0x4c0, its count +0x4c4.
 - **Fix:** `hle_ro.c` and `nro_collect.py` read the table by that byte.
 - **Found on:** [Mario Tennis Fever](../../dm/games/0400D4201C6EA000/README.md).
+
+## RomFS overlays that differ by console mode
+
+- **Symptom:** a manually configured resolution replacement applies the same file in handheld and docked modes.
+- **Cause:** each `DM_ROMFS_OVERLAY` root was searched without a mode-specific layer.
+- **Fix:** at RomFS mount, prepend each root's existing `handheld/` or `docked/` directory according to `dm_opmode()`. Preserve root order, then fall back to the base RomFS. Changing mode later keeps the mounted selection until remount. Without an overlay or a mode directory, behavior stays the same. This is source from cheemu21's `26a2646e`; no replacement game files are included.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#optional-frame-controller-and-mode-overlays). Both mode selections and root/base fallbacks are tested with synthetic host files; game resolution acceptance remains open.
