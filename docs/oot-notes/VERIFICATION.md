@@ -1,6 +1,6 @@
 # Integrated verification
 
-## oot-hyper checkpoint
+## Earlier oot-hyper checkpoint (before final AOT/foliage merges)
 
 | Check | Result |
 | --- | --- |
@@ -31,3 +31,20 @@ No game, full shader build or regress.py run was performed.
 
 The second variant will be based on origin/main resolved at creation. Its checks
 and selected play-build basis will be recorded after integration.
+
+## Final oot-hyper source
+
+| Check | Result |
+| --- | --- |
+| Full tools discovery | PASS: 1,306 tests, 24 skips |
+| Full graphics Python discovery | PASS: 417 tests, 1 skip; source-built translator, GPU, Metal and native helpers enabled |
+| AOT archive fixture | PASS: three tests, archive-only startup, exact hits, strict miss accounting and learned-descriptor repack |
+| Crop and quality together under Metal validation | PASS: crop 88 checks, six quality cases of 239 checks |
+| Host build and focused host/memory fixtures | PASS: clocks, GPU-stop lifecycle, resolution, audio, filesystem, real dirty tracking, sanitizer/alias variants |
+| Stage cache | PASS: 25 tests; every FILES module covered, all merged options retained |
+| Chain and tools | PASS: clean default header `0d0146e341bb`; 64 distinct option combinations |
+
+The first graphics invocation omitted DM_GAME and failed module loading. The
+corrected full rerun above passes. Historical logs and both invocations remain
+in the external evidence folder. No test was weakened for that setup error.
+Final native graphics results follow when its complete run exits.

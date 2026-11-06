@@ -28,6 +28,7 @@ Set these consistently for shader splitting, module rewriting and shader buildin
 export GAME=0400486024DEC000 DM_GAME=0400486024DEC000
 export DMSH_OOT_VISUAL=1
 export DM_AOT=1 DM_AOT_STRICT=1
+export DM_PSO_PREPARE_THREADS=4
 export DMSH_WIDE_GROUP=0 DMSH_RAW_LOAD_QUADS=0 DMSH_CBUF_REUSE=0 DMSH_STORAGE_RUNS=0
 export DMSH_STAGECACHE=0 DMSH_STAGECACHE_WARM=0
 export DM_NVN_BORDER_SPLIT=0
@@ -67,6 +68,7 @@ settings; the integration does not write the user's Application Support env.txt.
 DM_SAFE_GPU=1
 DM_AOT=1
 DM_AOT_STRICT=1
+DM_PSO_PREPARE_THREADS=4
 DM_OOT_RENDER_RES=off
 DM_OOT_BRENT=0
 DM_NVN_POOL_SKIP_RETIRED=0
