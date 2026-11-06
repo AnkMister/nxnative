@@ -729,10 +729,12 @@ static void pool_res(int i) {
 enum { BIG_MIN = 512u << 20, BIG_S = 16u << 20, BIG_UNKNOWN = 64u << 20, BIG_MAX = 32 };
 typedef struct { uintptr_t lo, hi, a, b; const void *mem; int *chunk, full; NSMutableArray *old; } big_pool;   // chunk: stride → g_pools index + 1; full: the whole pool's entry + 1; old: buffers a longer chunk replaced, alive with the pool
 static big_pool g_big[BIG_MAX]; static int g_nbig;
-static NSMutableDictionary<NSValue *, id<MTLBuffer>> *g_up_big_src;   // exact upload ranges, under g_mu
+static NSMutableDictionary<NSValue *, id<MTLBuffer>> *g_up_big_src;   // exact upload wrappers, under g_mu; resident only while a batch uses them
+static NSCountedSet<id<MTLBuffer>> *g_up_src_users;   // one reference per active batch, under g_mu
+static NSMutableSet<id<MTLBuffer>> *g_up_sources;   // the open upload batch
 static void up_drop_pool(uint64_t lo, uint64_t hi) {   // caller holds g_mu
     NSMutableArray *keys = [NSMutableArray array];
-    for (NSValue *k in g_up_big_src) { NSRange r = k.rangeValue; if (r.location < hi && r.location + r.length > lo) { defer_obj_release(g_up_big_src[k]); [keys addObject:k]; } }
+    for (NSValue *k in g_up_big_src) { NSRange r = k.rangeValue; if (r.location < hi && r.location + r.length > lo) { [keys addObject:k]; } }
     [g_up_big_src removeObjectsForKeys:keys];
 }
 static int big_of(uint64_t addr) { for (int i = 0; i < g_nbig; i++) if (addr >= g_big[i].lo && addr < g_big[i].hi) return i; return -1; }
@@ -2940,6 +2942,7 @@ static void up_flush(void) {
     NSMutableArray *staging = g_up_keep;
     if (g_up_block && !up_retained(g_up_block, slot)) [staging addObject:g_up_block];
     NSMutableArray *views = g_up_views; g_up_views = nil;
+    NSSet *sources = g_up_sources; g_up_sources = nil;
     g_up_keep = nil; g_up_block = nil;
     g_up_block_off = g_up_block_size = g_up_staging_bytes = 0;
     NSMutableSet *targets = [NSMutableSet setWithArray:g_up_texs]; for (int i = 0; i < g_nup_blits; i++) if (g_up_blits[i].dst) [targets addObject:g_up_blits[i].dst];
@@ -2962,6 +2965,12 @@ static void up_flush(void) {
         @autoreleasepool {
             for (id<MTLResource> obj in staging) res_remove(obj);
             [staging removeAllObjects];
+            pthread_mutex_lock(&g_mu);
+            for (id<MTLBuffer> src in sources) {
+                [g_up_src_users removeObject:src];
+                if (![g_up_src_users countForObject:src]) res_remove(src);
+            }
+            pthread_mutex_unlock(&g_mu);
             [views removeAllObjects];   // upload-only integer views share their targets' residency
             res_commit();
         }
@@ -3167,11 +3176,18 @@ static id<MTLBuffer> up_big_src(uint64_t addr, uint64_t len, uint64_t *off) {
     int cache = p1444_stutter_on(); NSValue *key = [NSValue valueWithRange:NSMakeRange(a, b - a)];
     pthread_mutex_lock(&g_mu); id<MTLBuffer> buf = cache ? g_up_big_src[key] : nil;
     if (!buf) { buf = [g_dev newBufferWithBytesNoCopy:(void *)a length:b - a options:MTLResourceStorageModeShared deallocator:nil];
-        if (buf) { res_add(buf); if (cache) { if (!g_up_big_src) g_up_big_src = [NSMutableDictionary dictionary]; g_up_big_src[key] = buf; } } }
+        if (buf && cache) { if (!g_up_big_src) g_up_big_src = [NSMutableDictionary dictionary]; g_up_big_src[key] = buf; } }
+    if (buf && cache) {
+        if (!g_up_sources) g_up_sources = [NSMutableSet set];
+        if (![g_up_sources containsObject:buf]) {
+            if (!g_up_src_users) g_up_src_users = [NSCountedSet set];
+            if (![g_up_src_users countForObject:buf]) res_add(buf);
+            [g_up_src_users addObject:buf]; [g_up_sources addObject:buf];
+        }
+    } else if (buf) { res_add(buf); [g_up_keep addObject:buf]; }
     pthread_mutex_unlock(&g_mu);
     if (!buf) return nil;
-    if (cache) { if (!g_up_views) g_up_views = [NSMutableArray array]; [g_up_views addObject:buf]; }
-    else [g_up_keep addObject:buf]; *off = (uint64_t)addr - a;
+    *off = (uint64_t)addr - a;
     return buf;
 }
 static id<MTLTexture> pkg_upload_(const tex_t *t, uint64_t *stamp, id<MTLTexture> reuse, MTLTextureUsage keep) {
@@ -5537,7 +5553,7 @@ static id<MTLFunction> fn4_note(id<MTLFunction> f, id<MTLLibrary> lib, NSString 
     os_unfair_lock_lock(&g_fn4_lock);
     if (!g_fn4) g_fn4 = [[NSMapTable alloc] initWithKeyOptions:NSPointerFunctionsStrongMemory | NSPointerFunctionsObjectPointerPersonality valueOptions:NSPointerFunctionsStrongMemory capacity:0];   // by identity: a function made again from the same library and name (other constants: bf_fn) is another function
     [g_fn4 setObject:d forKey:f];
-    if (aot_learning() && lib.label.length && (cv || !f.functionConstantsDictionary.count)) {
+    if (lib.label.length && (cv || !f.functionConstantsDictionary.count)) {
         if (!g_fn4_refs) g_fn4_refs = [[NSMapTable alloc] initWithKeyOptions:NSPointerFunctionsStrongMemory | NSPointerFunctionsObjectPointerPersonality valueOptions:NSPointerFunctionsStrongMemory capacity:0];
         [g_fn4_refs setObject:cv ? @[lib.label, name, @[]] : @[lib.label, name] forKey:f];
     }
@@ -5547,7 +5563,7 @@ static id<MTLFunction> fn4_note(id<MTLFunction> f, id<MTLLibrary> lib, NSString 
 // Constant values have no public getter. Preserve the values at their writers,
 // including an empty list (specialize with defaults), rather than guessing them.
 static id<MTLFunction> fn4_values(id<MTLFunction> f, NSArray *values) {
-    if (!f || !aot_learning()) return f;
+    if (!f) return f;
     os_unfair_lock_lock(&g_fn4_lock);
     NSArray *ref = [g_fn4_refs objectForKey:f];
     if (ref) [g_fn4_refs setObject:@[ref[0], ref[1], values] forKey:f];
@@ -5560,7 +5576,7 @@ static MTL4FunctionDescriptor *fn4_of(id<MTLFunction> f) {
     return [d isKindOfClass:MTL4FunctionDescriptor.class] ? d : nil;
 }
 static id<MTLFunction> aot_function(id<MTLLibrary> lib, NSString *name) {
-    id<MTLFunction> f = [lib newFunctionWithName:name]; return aot_learning() ? fn4_note(f, lib, name, nil) : f;
+    id<MTLFunction> f = [lib newFunctionWithName:name]; return fn4_note(f, lib, name, nil);
 }
 // A function that declares function constants, specialized with cv (an empty set keeps every default). On the Metal 4 path the pipeline's descriptor specializes it (fn4_note
 // records cv, and MTL4Compiler compiles it with the pipeline), so the MTLFunction stays unspecialized: its reflection and argument encoders are the same. MTLLibrary's
@@ -8062,11 +8078,11 @@ static id<MTLRenderPipelineState> pso_build_ex(MTLRenderPipelineDescriptor *d, N
         return nil;
     }
     pso4_init();
-    NSDictionary *exact = aot_learning() ? aot_render_row(d, 0) : nil;
+    NSDictionary *exact = aot_render_row(d, 0);
     if (aot_learning()) aot_record(exact);
     // Exact AOT misses must reach the ordinary base/hybrid machinery. A whole
     // synchronous compile here bypassed stand-ins and froze cutscenes for seconds.
-    if (dm_aot_on()) { id ps = aot_lookup(exact, 0, e); if (ps) return ps; }
+    { id ps = aot_lookup(exact, 0, e); if (ps) return ps; }
     int rast = d.rasterizationEnabled;
     // A pipeline specialized from a base with open colour state gives its fragment function 0 for [[primitive_id]], where one built whole gives the real IDs (macOS 27.2, Apple M6: 4 triangles of a draw
     // counted per ID, 16384 0 0 0 against 4096 each, whatever the vertex function). So a fragment shader that reads the ID gets a whole pipeline, with no base to share. Fire Emblem Fortune's Weave's
@@ -9882,6 +9898,15 @@ static int encode_args_(id<MTLCommandEncoder> en, NvShader *sh, int nvn_stage, i
         id<MTLBuffer> ab; size_t off = arena_alloc(len, &ab);
         uint64_t *d = (uint64_t *)(g_cur_arena->cpu + off);
         memcpy(d, sh->ab_cpu, len);
+        id<MTLBuffer> raw_map = nil; int gmem_aid = -1; NvGmlLog *log = nil;
+        for (int i = 0; i < sh->rf.nb; i++) {
+            const nvn_rbind *b = &sh->rf.b[i];
+            if (b->kind != NVN_RB_GMEM && b->kind != NVN_RB_GMEML) continue;
+            if (!raw_map) raw_map = gmem_map();
+            if (b->kind == NVN_RB_GMEM) { d[b->aid] = raw_map.gpuAddress; gmem_aid = b->aid; }
+            else { d[b->aid] = gml_take(raw_map); log = g_gml_last; }
+        }
+        if (gmem_aid >= 0) gmem_slot_note(d + gmem_aid, (__bridge void *)log);
         for (int i = 0; i < sh->rf.nb; i++) { const nvn_rbind *b = &sh->rf.b[i]; if (b->kind != NVN_RB_CBUF) continue;
             int reg = b->reg; const p_bind_buf *u = reg < 16 ? &S.ubo[nvn_stage][reg] : NULL; void *mb; uint64_t mo, gpu;
             if (!u || !u->addr || !mtl_gpu_addr(u->addr, u->size ? u->size : 1, &mb, &mo, &gpu)) { d[b->aid] = zero_bank_gpu(); continue; }
@@ -10168,7 +10193,7 @@ full:;
     }
     #undef USE
     os_unfair_lock_unlock(&g_rmu);
-    if (g_cbchk) for (int i = 0; i < sh->rf.nb; i++) { int k = sh->rf.b[i].kind; if (k == NVN_RB_BORDER || k == NVN_RB_PUSH || k == NVN_RB_DRV0 || k == NVN_RB_DRV2 || k == NVN_RB_SUPPORT) g_cbchk[sh->rf.b[i].aid] = slots[sh->rf.b[i].aid]; }   // arena blocks made again with the same content
+    if (g_cbchk) for (int i = 0; i < sh->rf.nb; i++) { int k = sh->rf.b[i].kind; if (k == NVN_RB_GMEML || k == NVN_RB_BORDER || k == NVN_RB_PUSH || k == NVN_RB_DRV0 || k == NVN_RB_DRV2 || k == NVN_RB_SUPPORT) g_cbchk[sh->rf.b[i].aid] = slots[sh->rf.b[i].aid]; }   // arena blocks made again with the same content
     if (g_cbchk) { static uint64_t nc, nd; nc++; if (g_cbchk_len != arg_len || memcmp(g_cbchk, slots, arg_len)) { if (!nd++) { int w = -1; for (size_t i = 0; i < arg_len / 8; i++) if (g_cbchk[i] != slots[i]) { w = (int)i; break; }
             int kind = -1, reg = -1; for (int i = 0; i < sh->rf.nb; i++) if (sh->rf.b[i].aid == w) { kind = sh->rf.b[i].kind; reg = sh->rf.b[i].reg; }
             MLOG("[RED] uniform-only table differs from the full one: shader %s stage %d slot %d kind %d reg %d: fast %#llx full %#llx", sh->key, nvn_stage, w, kind, reg, w >= 0 ? (unsigned long long)g_cbchk[w] : 0ull, w >= 0 ? (unsigned long long)slots[w] : 0ull); }

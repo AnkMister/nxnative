@@ -160,6 +160,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - the residency set holds every memory pool a program's shader code lies in: in Ocarina of Time, 222 pools and 334 MB added through `mtl_addr` as the game sets its programs (the residency line's additions by source line). → [Pools that hold shader code made resident to key the shaders](../reference/memory.md#pools-that-hold-shader-code-made-resident-to-key-the-shaders)
 - the Mac grows unresponsive for hours, then panics, with the host still submitting work that fails. → [Repeated GPU out-of-memory failures end the game](../reference/memory.md#repeated-gpu-out-of-memory-failures-end-the-game)
 - chunk buffers and their older replacements remain retained after a raw-address pool gets a whole-pool mapping. → [Whole-pool mappings retire obsolete chunks](../reference/memory.md#whole-pool-mappings-retire-obsolete-chunks)
+- `DM_NVN_P1444_STUTTER=1` keeps guest upload source ranges resident after the upload finishes, until their pool is deleted. → [Cached upload sources retained idle residency](../reference/memory.md#cached-upload-sources-retained-idle-residency)
 
 ## Threads
 
@@ -986,6 +987,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - a raw global memory read of a memory pool made after the shader's arguments were encoded gets 0, though the pool exists when the GPU runs it; a task shader that reads both ends of a range this way loops `(0 - 1) >> 5` times and hangs the GPU. The memory report's `raw pool table words at commit` line counts the words that were out of date. → [Raw pool table words that predate the pools](../reference/shaders.md#raw-pool-table-words-that-predate-the-pools)
 - a mesh and pixel shader fail to link because a pixel input has no matching output, or a point mesh uses triangle indices. → [Mesh outputs required by paired pixel shaders](../reference/shaders.md#mesh-outputs-required-by-paired-pixel-shaders)
 - an Ampere shader using opcode `0x3a9` fails translation despite ordinary global atomics working. → [Global compare and swap on Ampere](../reference/shaders.md#global-compare-and-swap-on-ampere)
+- a mesh, helper, or exact render state already packed in the bundle compiles on first use with `DM_AOT=0`. → [Bundled exact pipelines skipped with AOT disabled](../reference/shaders.md#bundled-exact-pipelines-skipped-with-aot-disabled)
 
 ## Game state
 

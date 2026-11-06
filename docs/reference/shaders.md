@@ -2049,7 +2049,8 @@ Finding, keying and translating shaders (`dm/gfx/tools/shader_split.py`, `dmsh_b
 - **Cause:** an argument block holds the address of the pool table that was current when it was encoded (`gmem_map_gpu`). A pool made later in the same submission, or on another thread while it is encoded, is not in that table, and the table is rebuilt only for the next block that is encoded. A save load makes more than 4,000 pools in a burst, so many blocks are encoded with a table that lags.
 - **Fix:** the words are noted as they are encoded (`gmem_slot_note`) and, at each commit of the command buffer, whole or segment, pointed at a table of the pools as they are then (`gmem_commit_patch`). A new table is built when the pools changed, not refilled in place, as earlier segments may be reading the old one; the replaced one goes through the deferred release. The write log of a block is a bitmap of the entries of the table its shader searches, so the log follows its table (`NvGmlLog`): `gml_read` decodes its bits against the table the block holds at the commit, not the one it was encoded with. The idea is #1407's, which rewrites the words at commit in its own stack.
 - **Found on:** The Legend of Zelda: Ocarina of Time (`0400486024DEC000`, profile in PR #1299): on the author's stack, loading the outdoor save, 5,729 of 154,107 words held an older table than the current one by frame 5,100 and 2,582 held the current one behind the pools. Whether this is what is left of the hang in issue #1326, minutes after a clean table growth, is open.
-- **Check:** `t_gmem_words` (words noted, a pool made after them, an older table, a table that lags, a commit with no words).
+- **Uniform-only copies:** `DM_NVN_CB_FAST` must register the copied table word too. It rebuilds the GMEM/GMEML slots, takes a separate write log for the copied draw, and notes that word and log for commit. Otherwise a copied block can retain the old table even when the original block is refreshed.
+- **Check:** `t_gmem_words` covers words noted, later pools, older tables, and empty commits. Its task/mesh fixtures also encode full arguments, rebind a uniform through the fast copy, add a pool, commit, and verify the copied word and both write logs.
 ### Mesh outputs required by paired pixel shaders
 
 - **Symptom:** a mesh and pixel shader fail to link because a pixel input has no matching output, or a point mesh uses triangle indices.
@@ -2063,3 +2064,11 @@ Finding, keying and translating shaders (`dm/gfx/tools/shader_split.py`, `dmsh_b
 - **Cause:** the opcode table lacked `ATOMG.CAS`, whose expected operand comes from Rb and replacement from Rc.
 - **Fix:** source port `3604b403` adds the 32-bit compare-and-swap handler and rejects unsupported type or uniform-address forms. The translator regression checks that the expected and replacement operands arrive in the correct order.
 - **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md), reported by the community for foliage shaders. Local proof covers synthetic translation only.
+
+### Bundled exact pipelines skipped with AOT disabled
+
+- **Symptom:** a mesh, helper, or exact render state already packed in the bundle compiles on first use with `DM_AOT=0`.
+- **Cause:** the host gated portable function identities and archive lookup on AOT mode, although consuming an archive requires no compiler.
+- **Fix:** preserve portable identities and search all bundled archive parts independently of `DM_AOT`. A miss keeps the existing render base/hybrid path and its no-compile lookup. Mesh and helper misses keep their blocking fallback and report `[RED] gameplay compile`, the state identity, and duration once per state after the first game present. Startup inventory prewarm and strict AOT diagnostics remain controlled by `DM_AOT=1`.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#found-on-this-game), source review of `oot-latest`; gameplay stall frequency remains unmeasured.
+- **Check:** `t_aot` and `test_aot.py` use real split archive parts with `DM_AOT=0`, no learning, and no inventory prewarm. Exact render, mesh, and helper hits have zero compiler entries. Deliberate misses preserve render no-compile behavior and log blocking mesh/helper duration once per state.

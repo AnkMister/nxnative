@@ -1,5 +1,5 @@
 // Exact, portable descriptors shared by the offline planner and startup loader.
-// Default off. Function constants are explicit typed values; never inferred.
+// Archive consumption is independent of DM_AOT. Function constants are explicit typed values; never inferred.
 static os_unfair_lock g_aot_lock = OS_UNFAIR_LOCK_INIT;
 static NSMutableDictionary<NSData *, id> *g_aot_ps;
 static NSMutableSet<NSData *> *g_aot_seen;
@@ -156,31 +156,33 @@ static void aot_prewarm(void) {
     MLOG("%sAOT startup archive-only prewarm: %lu descriptors, %u misses (no compiler fallback)", misses ? "[RED] " : "", (unsigned long)rows.count, (unsigned)misses);
 }
 static id<MTLComputePipelineState> aot_compute(id<MTLFunction> f, NSError **e) {
-    NSDictionary *j = aot_compute_row(f); if (aot_learning()) aot_record(j); if (dm_aot_on()) { pso4_init(); id ps = aot_lookup(j, 0, e); if (ps) return ps; }
-    dm_aot_event("compute/helper", j ? [[NSString alloc] initWithData:aot_bytes(j) encoding:NSUTF8StringEncoding] : f.description, "device fallback", 1);
-    return [g_dev newComputePipelineStateWithFunction:fn_dev(f) error:e];
+    NSDictionary *j = aot_compute_row(f); if (aot_learning()) aot_record(j); { pso4_init(); id ps = aot_lookup(j, 0, e); if (ps) return ps; }
+    NSString *identity = [j[@"compute"] count] == 2 ? [j[@"compute"] componentsJoinedByString:@"/"] : j ? [[NSString alloc] initWithData:aot_bytes(j) encoding:NSUTF8StringEncoding] : f.description;
+    dm_aot_event("compute/helper", identity, "device fallback", 1);
+    uint64_t t0 = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    id ps = [g_dev newComputePipelineStateWithFunction:fn_dev(f) error:e];
+    dm_aot_compile_done("compute/helper", identity, t0); return ps;
 }
 static id<MTLRenderPipelineState> aot_render(MTLRenderPipelineDescriptor *d, NSError **e) {
-    NSDictionary *j = aot_render_row(d, 0); if (aot_learning()) aot_record(j); if (dm_aot_on()) { pso4_init(); id ps = aot_lookup(j, 0, e); if (ps) return ps; }
-    dm_aot_event("render/helper", j ? [[NSString alloc] initWithData:aot_bytes(j) encoding:NSUTF8StringEncoding] : d.description, "device fallback", 1);
-    return [g_dev newRenderPipelineStateWithDescriptor:d error:e];
+    NSDictionary *j = aot_render_row(d, 0); if (aot_learning()) aot_record(j); { pso4_init(); id ps = aot_lookup(j, 0, e); if (ps) return ps; }
+    NSString *identity = j ? [[NSString alloc] initWithData:aot_bytes(j) encoding:NSUTF8StringEncoding] : d.description;
+    dm_aot_event("render/helper", identity, "device fallback", 1);
+    uint64_t t0 = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    id ps = [g_dev newRenderPipelineStateWithDescriptor:d error:e];
+    dm_aot_compile_done("render/helper", identity, t0); return ps;
 }
 static id<MTLRenderPipelineState> aot_mesh(MTLMeshRenderPipelineDescriptor *d, NSError **e) {
-    NSDictionary *j = aot_render_row(d, 1); if (aot_learning()) aot_record(j); if (dm_aot_on()) { pso4_init(); id ps = aot_lookup(j, 0, e); if (ps) return ps; }
-    dm_aot_event("mesh", j ? [[NSString alloc] initWithData:aot_bytes(j) encoding:NSUTF8StringEncoding] : d.description, "device fallback", 1);
-    return [g_dev newRenderPipelineStateWithMeshDescriptor:d options:MTLPipelineOptionNone reflection:nil error:e];
+    NSDictionary *j = aot_render_row(d, 1); if (aot_learning()) aot_record(j); { pso4_init(); id ps = aot_lookup(j, 0, e); if (ps) return ps; }
+    NSString *identity = j ? [[NSString alloc] initWithData:aot_bytes(j) encoding:NSUTF8StringEncoding] : d.description;
+    dm_aot_event("mesh", identity, "device fallback", 1);
+    uint64_t t0 = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    id ps = [g_dev newRenderPipelineStateWithMeshDescriptor:d options:MTLPipelineOptionNone reflection:nil error:e];
+    dm_aot_compile_done("mesh", identity, t0); return ps;
 }
 
 // Used by the early deswizzle initialization as well as the regular prewarm.
 id<MTLComputePipelineState> dm_aot_helper_compute(id<MTLDevice> dev, id<MTLLibrary> lib, NSString *entry) {
     if (dev != g_dev) return nil;
-    if (!dm_aot_on()) {
-        // The caller creates the function for its device fallback. Its known
-        // helper identity is sufficient for learning; avoid creating it twice.
-        NSDictionary *j = lib.label.length && entry.length ? @{@"version": @1, @"chain": @(DMSH_CHAIN), @"class": @"compute", @"compute": @[lib.label, entry]} : nil;
-        aot_record(j); return nil;
-    }
-    id<MTLFunction> f = aot_function(lib, entry);
-    NSDictionary *j = aot_compute_row(f); aot_record(j);
-    pso4_init(); return aot_lookup(j, 0, nil);
+    NSDictionary *j = lib.label.length && entry.length ? @{@"version": @1, @"chain": @(DMSH_CHAIN), @"class": @"compute", @"compute": @[lib.label, entry]} : nil;
+    aot_record(j); pso4_init(); return aot_lookup(j, 0, nil);
 }

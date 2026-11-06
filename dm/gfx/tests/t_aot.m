@@ -13,14 +13,54 @@ uint64_t now_ns(void) { return bp_now(); }
 @implementation MeshBaseFixture
 - (MTL4PipelineDescriptor *)newRenderPipelineDescriptorForSpecialization { return desc; }
 @end
+static int runtime_off_tests(void) {
+    CHECK(!dm_aot_on() && !aot_learning());
+    CHECK(g_arch_bundles.count > 1);
+    uint64_t startup = dm_aot_compiler_count(0);
+    aot_prewarm(); CHECK(dm_aot_compiler_count(0) == startup);
+    CHECK(!g_aot_ps.count); // No eager inventory consumption with AOT disabled.
+    dm_aot_gameplay();
+    MTLRenderPipelineDescriptor *d = [MTLRenderPipelineDescriptor new];
+    d.vertexFunction = aot_function(lib_from_file([g_msl_dir stringByAppendingPathComponent:@"v_b.metallib"], nil), @"main0");
+    d.fragmentFunction = aot_function(lib_from_file([g_msl_dir stringByAppendingPathComponent:@"f_b.metallib"], nil), @"main0");
+    d.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA8Unorm; d.vertexDescriptor = [MTLVertexDescriptor new];
+    CHECK(pso_build_ex(d, nil, 0)); CHECK(dm_aot_compiler_count(1) == 0);
+    CHECK(g_pb_spec == 0 && g_pb_archived == 0); // Exact state, without base specialization.
+    MTLMeshRenderPipelineDescriptor *mesh = [MTLMeshRenderPipelineDescriptor new];
+    mesh.meshFunction = aot_function(lib_from_file([g_msl_dir stringByAppendingPathComponent:@"m_b.metallib"], nil), @"main0");
+    mesh.objectFunction = aot_function(lib_from_file([g_msl_dir stringByAppendingPathComponent:@"t_b.metallib"], nil), @"main0");
+    mesh.fragmentFunction = d.fragmentFunction;
+    mesh.maxTotalThreadsPerMeshThreadgroup = mesh.maxTotalThreadsPerObjectThreadgroup = 1; mesh.payloadMemoryLength = 16;
+    mesh.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA8Unorm;
+    CHECK(aot_mesh(mesh, nil)); CHECK(dm_aot_compiler_count(1) == 0);
+    id<MTLLibrary> helper = host_lib("ixc", nil); CHECK(helper);
+    CHECK(host_msl_compute(g_dev, helper, @"ixc_arrays", nil));
+    CHECK(aot_compute(aot_function(lib_from_file([g_msl_dir stringByAppendingPathComponent:@"c_b.metallib"], nil), @"main0"), nil));
+    CHECK(aot_render(d, nil)); CHECK(dm_aot_compiler_count(1) == 0);
+    fprintf(stderr, "runtime-off archive hits have zero compiler entries\n");
+    // Deliberate misses preserve the existing blocking helpers and mesh fallback.
+    g_aot_ps = nil; g_arch4p = @[]; g_arch4 = @[];
+    d.label = PSO_WHOLE;
+    CHECK(!pso_build_ex(d, nil, 0)); CHECK(dm_aot_compiler_count(1) == 0);
+    for (int i = 0; i < 2; i++) {
+        CHECK(aot_mesh(mesh, nil));
+        CHECK(aot_compute(aot_function(helper, @"ixc_arrays"), nil));
+        CHECK(host_msl_compute(g_dev, helper, @"ixc_arrays", nil));
+    }
+    CHECK(dm_aot_compiler_count(1) == 6);
+    fprintf(stderr, "runtime-off misses preserve render no-compile and blocking mesh/helpers\n");
+    return 0;
+}
 int main(int argc, char **argv) { @autoreleasepool {
     int tool = mtl_pso_aot_tool(); if (tool) return tool < 0 ? -tool : 0;
     int compute_only = argc == 5 && !strcmp(argv[4], "compute-archive");
-    if (argc != 4 && !compute_only) { fprintf(stderr, "usage: t_aot <libraries> <archive> <seen>\n"); return 2; }
-    setenv("DM_AOT", compute_only ? "0" : "1", 1); setenv("DM_AOT_STRICT", compute_only ? "0" : "1", 1); setenv("DM_PSO_BUNDLE", argv[2], 1);
+    int runtime_off = argc == 5 && !strcmp(argv[4], "runtime-off");
+    if (argc != 4 && !compute_only && !runtime_off) { fprintf(stderr, "usage: t_aot <libraries> <archive> <seen>\n"); return 2; }
+    setenv("DM_AOT", compute_only || runtime_off ? "0" : "1", 1); setenv("DM_AOT_STRICT", compute_only ? "0" : "1", 1); setenv("DM_PSO_BUNDLE", argv[2], 1);
     setenv("DM_PSO_ARCHIVE", "off", 1); setenv("DM_PSO_SEEN", argv[3], 1);
     setenv("DM_SHARPEN", "0.2", 1);
     g_dev = MTLCreateSystemDefaultDevice(); CHECK(g_dev); g_msl_dir = @(argv[1]); pso4_init(); CHECK(g_arch_bundle);
+    if (runtime_off) { setenv("DM_PSO_LEARN", "0", 1); return runtime_off_tests(); }
     if (compute_only) {
         NvShader *cs = [NvShader new]; strcpy(cs->key, "c_b"); cs->stage = 5;
         id<MTLLibrary> lib = lib_from_file([g_msl_dir stringByAppendingPathComponent:@"c_b.metallib"], nil);

@@ -2,6 +2,8 @@
 import importlib.util
 import json
 import os
+import re
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -92,6 +94,26 @@ class Planning(unittest.TestCase):
             preflight = json.loads((root / 'out/aot-preflight.json').read_text())
             self.assertEqual(preflight['layer_bases'], 1)
             self.assertEqual(preflight['classes']['mesh'], 2)
+            # Use the actual compiler batch archives as separate bundle parts.
+            # Exact hits must search beyond the first part without AOT prewarm.
+            split = root / 'split'; split.mkdir()
+            pieces = sorted((root / 'work' / f'batches.{arch}').rglob('*.mtl4a'))
+            self.assertGreater(len(pieces), 1)
+            meta = []
+            for i, piece in enumerate(pieces):
+                name = f'{arch}{"." + str(i) if i else ""}.mtl4a'
+                shutil.copyfile(piece, split / name)
+                meta.append(f'part\t{name}\t{piece.stat().st_size}')
+            (split / 'archive.tsv').write_text('\n'.join(meta) + '\n')
+            runtime = subprocess.run([os.environ['DM_TEST_AOT'], str(lib), str(split), str(root / 'off-seen.jsonl'), 'runtime-off'], capture_output=True, text=True,
+                                     env=dict(os.environ, DM_PSO_LEARN='0'))
+            self.assertEqual(runtime.returncode, 0, runtime.stdout + runtime.stderr)
+            self.assertIn('runtime-off archive hits have zero compiler entries', runtime.stderr)
+            diagnostics = re.findall(r'\[RED\] gameplay compile class=(\S+) duration=(\d+\.\d+) ms', runtime.stderr)
+            self.assertEqual(sorted(kind for kind, _ in diagnostics), ['compute/helper', 'mesh'])
+            self.assertTrue(all(float(ms) >= 0 for _, ms in diagnostics))
+            self.assertNotIn('[RED] AOT phase=gameplay', runtime.stderr)
+            self.assertFalse((root / 'off-seen.jsonl').exists())
             learned = root / 'learned.jsonl'
             compute_run = subprocess.run([os.environ['DM_TEST_AOT'], str(lib), str(root / 'out'), str(learned), 'compute-archive'], capture_output=True, text=True)
             self.assertEqual(compute_run.returncode, 0, compute_run.stdout + compute_run.stderr)

@@ -15,6 +15,38 @@ static int table_has(uint64_t table_gpu, uint64_t guest) {
     for (unsigned k = 1, n = (unsigned)(g_gmem_buf.length / DMSH_GMEM_MAP_ENTRY); k < n; k++) { uint64_t lo; memcpy(&lo, t + (size_t)k * DMSH_GMEM_MAP_ENTRY, sizeof lo); if (lo == guest) return 1; }
     return 0;
 }
+static void fast_copy(uint8_t *mem, int stage, int logged) {
+    NvShader *sh = [NvShader new]; strcpy(sh->key, "gmem-fast-fixture");
+    MTLArgumentDescriptor *arg = [MTLArgumentDescriptor argumentDescriptor]; arg.dataType = MTLDataTypePointer;
+    sh->ae = [g_dev newArgumentEncoderWithArguments:@[arg]]; sh->arg_len = 24;
+    sh->rf.nb = logged ? 3 : 2;
+    sh->rf.b[0] = (nvn_rbind){.kind = NVN_RB_CBUF, .aid = 0};
+    sh->rf.b[1] = (nvn_rbind){.kind = NVN_RB_GMEM, .aid = 1};
+    sh->rf.b[2] = (nvn_rbind){.kind = NVN_RB_GMEML, .aid = 2};
+    mtl_pool_add(mem, 4u << 20); mtl_pool_addressed(mem, 4u << 20);
+    mtl_sub_begin();
+    p_bind_buf u = {.stage = stage, .index = 0, .addr = (uint64_t)(uintptr_t)mem + 256, .size = 64};
+    state_op(OP_BIND_UBO, &u);
+    CHECK("full argument encoding succeeds", encode_args_(nil, sh, stage, 0));
+    uint64_t *original = (uint64_t *)sh->ab_cpu;
+    NvGmlLog *old_log = logged ? g_gml_last : nil;
+    uint64_t count = g_stat_args_cb;
+    u.addr += 256; state_op(OP_BIND_UBO, &u);
+    CHECK("uniform rebind encodes", encode_args_(nil, sh, stage, 0));
+    uint64_t *copy = (uint64_t *)sh->ab_cpu;
+    NvGmlLog *log = logged ? g_gml_last : nil;
+    CHECK("uniform rebind takes the actual fast copy", g_stat_args_cb == count + 1 && copy != original);
+    CHECK("uniform slot is rebound", copy[0] != original[0]);
+    if (logged) CHECK("copied draw gets its own write log", log && log != old_log && copy[2] != original[2]);
+    uint64_t before = copy[1], a = (uint64_t)(uintptr_t)mem + 8 * (1u << 20);
+    mtl_pool_add((void *)(uintptr_t)a, 4u << 20); mtl_pool_addressed((void *)(uintptr_t)a, 4u << 20);
+    CHECK("copied table does not yet contain the new pool", !table_has(before, a));
+    CHECK("fast-copy submission completes", mtl_wait(mtl_sub_commit(), 5000000000ull));
+    CHECK("copied and original words follow the commit table", copy[1] == g_gmem_buf.gpuAddress && original[1] == copy[1] && copy[1] != before);
+    CHECK("copied word reaches the new pool", table_has(copy[1], a));
+    if (logged) CHECK("both logs follow their commit table", log->map == g_gmem_buf && old_log->map == g_gmem_buf);
+    CHECK("fast-copy submission has no GPU error", !mtl_last_commit_error());
+}
 int main(void) { @autoreleasepool {
     mtl_init();
     const uint64_t MB = 1ull << 20;
@@ -65,5 +97,7 @@ int main(void) { @autoreleasepool {
     CHECK("and its log is read against that table, not the older one", lg->map == g_gmem_buf && lg->map != t3buf);
     CHECK("submission completes", mtl_wait(mtl_sub_commit(), 5000000000ull));
     CHECK("GPU has no submission error", !mtl_last_commit_error());
+    fast_copy(mem + 40 * MB, 3, 0);
+    fast_copy(mem + 48 * MB, 4, 1);
     printf("t_gmem_words: %d checks, %d failed\n", checks, failed); return failed != 0;
 } }

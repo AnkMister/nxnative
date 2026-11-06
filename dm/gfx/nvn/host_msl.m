@@ -70,9 +70,20 @@ void dm_aot_event(const char *kind, NSString *identity, const char *reason, int 
     for (; *p; p++) { h ^= *p; h *= 1099511628211ull; }
     const char *strict = getenv("DM_AOT_STRICT");
     HLOG("%sAOT phase=%s class=%s descriptor=%016llx reason=%s identity=%s",
-         play && compiler && strict && !strcmp(strict, "1") ? "[RED] " : "", play ? "gameplay" : "startup", kind,
+         play && compiler && dm_aot_on() && strict && !strcmp(strict, "1") ? "[RED] " : "", play ? "gameplay" : "startup", kind,
          (unsigned long long)h, reason, identity.UTF8String ?: "unknown");
     dm_aot_summary();
+}
+void dm_aot_compile_done(const char *kind, NSString *identity, uint64_t start) {
+    uint64_t elapsed = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - start;
+    if (!atomic_load(&aot_play)) return;
+    static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT; static NSMutableSet<NSString *> *seen;
+    NSString *key = [NSString stringWithFormat:@"%s/%@", kind, identity ?: @"unknown"];
+    os_unfair_lock_lock(&lock);
+    if (!seen) seen = [NSMutableSet set];
+    int first = ![seen containsObject:key]; if (first) [seen addObject:key];
+    os_unfair_lock_unlock(&lock);
+    if (first) HLOG("[RED] gameplay compile class=%s duration=%.3f ms identity=%s", kind, elapsed / 1e6, identity.UTF8String ?: "unknown");
 }
 void dm_aot_gameplay(void) { if (!atomic_exchange(&aot_play, 1)) { HLOG("AOT phase=gameplay (first game present; includes title/loading screens)"); } dm_aot_summary(); }
 uint64_t dm_aot_compiler_count(int gameplay) { return atomic_load(&aot_count[!!gameplay][1]); }
@@ -81,8 +92,9 @@ uint64_t dm_aot_compiler_count(int gameplay) { return atomic_load(&aot_count[!!g
 __attribute__((weak)) id<MTLComputePipelineState> dm_aot_helper_compute(id<MTLDevice> dev, id<MTLLibrary> lib, NSString *entry) { (void)dev; (void)lib; (void)entry; return nil; }
 id<MTLComputePipelineState> host_msl_compute(id<MTLDevice> dev, id<MTLLibrary> lib, NSString *entry, NSError **e) {
     NSString *identity = [NSString stringWithFormat:@"%@/%@", lib.label, entry];
-    const char *learn = getenv("DM_PSO_LEARN");
-    if (dm_aot_on() || (learn && !strcmp(learn, "1"))) { id<MTLComputePipelineState> ps = dm_aot_helper_compute(dev, lib, entry); if (ps) return ps; }
+    id<MTLComputePipelineState> ps = dm_aot_helper_compute(dev, lib, entry); if (ps) return ps;
     dm_aot_event("compute/helper", identity, "host archive miss/device fallback", 1);
-    return [dev newComputePipelineStateWithFunction:[lib newFunctionWithName:entry] error:e];
+    uint64_t t0 = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    ps = [dev newComputePipelineStateWithFunction:[lib newFunctionWithName:entry] error:e];
+    dm_aot_compile_done("compute/helper", identity, t0); return ps;
 }

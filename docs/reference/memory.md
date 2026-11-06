@@ -513,3 +513,11 @@ The guest address space, heaps, pools, virtual address memory and the allocators
 - **Cause:** the mapping added a full buffer without removing redundant chunk entries.
 - **Fix:** community commit `1c1d4533` retires those buffers behind their GPU fence and clears the chunk index. Only pools with exposed addresses are promoted, preserving upstream selection.
 - **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md). `t_pool_chunks` checks that the full mapping replaces the chunk entries.
+
+### Cached upload sources retained idle residency
+
+- **Symptom:** `DM_NVN_P1444_STUTTER=1` keeps guest upload source ranges resident after the upload finishes, until their pool is deleted.
+- **Cause:** the upload cache kept zero-copy buffers in residency for the lifetime of each cached wrapper.
+- **Fix:** cache the wrappers but hold residency only for active upload batches. Count each buffer once per batch under the pool mutex. The last batch completion removes residency; reuse restores it. Pool deletion drops cache entries while active batches retain their buffers and residency until completion.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#found-on-this-game), source review of `oot-latest`; scene memory pressure remains unmeasured.
+- **Check:** `t_upload_sources` covers duplicate use within a batch, overlapping batches, idle wrapper reuse, pool deletion during an upload, and copied bytes with the Metal debug layer, including deferred encoding.

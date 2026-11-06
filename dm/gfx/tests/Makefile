@@ -563,3 +563,10 @@ check_t_dispatch_overlap: t_dispatch_overlap
 	MTL_DEBUG_LAYER=1 ./t_dispatch_overlap
 	DM_NVN_ENC_THREAD=1 MTL_DEBUG_LAYER=1 ./t_dispatch_overlap
 	MTL_DEBUG_LAYER=1 ./t_dispatch_overlap off
+
+t_upload_sources: t_upload_sources.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_upload_sources.m $(MTL_T_SRC) $(FW)
+check_t_upload_sources: t_upload_sources
+	DM_NVN_ENC_THREAD=0 MTL_DEBUG_LAYER=1 ./t_upload_sources
+	DM_NVN_ENC_THREAD=1 MTL_DEBUG_LAYER=1 ./t_upload_sources
+.PHONY: check_t_upload_sources

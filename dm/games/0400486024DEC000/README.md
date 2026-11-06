@@ -105,6 +105,10 @@ The per-PR decisions, conflicts and build evidence are in [the integration repor
 
 ## Found on this game
 
+- Resolved in host tests: [uniform-only raw table copies](../../../docs/reference/shaders.md#raw-pool-table-words-that-predate-the-pools), including task/mesh commit refresh and separate write logs. Gameplay validation is open.
+- Resolved in host tests: [bundled exact pipelines with AOT disabled](../../../docs/reference/shaders.md#bundled-exact-pipelines-skipped-with-aot-disabled). Archive misses can still compile; gameplay frequency is open.
+- Resolved in host tests: [cached upload source residency](../../../docs/reference/memory.md#cached-upload-sources-retained-idle-residency). Wrappers remain cached but completed batches release residency. Gameplay memory validation is open.
+
 - [A control section's words read as a BAHS entry](../../../docs/reference/shaders.md#a-control-sections-words-read-as-a-bahs-entry): six map rows that were no shaders, one of them failing the build; `tera_common` gave its variation pairs once its row was gone.
 - [Freeing a memory pool during a texture ID walk](../../../docs/reference/nvn-objects.md#freeing-a-memory-pool-during-a-texture-id-walk): the `-[NvPkg buffer]: unrecognized selector` crash after a save or a scene change.
 - [HMMA chains keep their matrices in the SIMD-group](../../../docs/reference/shaders.md#hmma-chains-keep-their-matrices-in-the-simd-group): the NDVE movie networks behind the title and the opening, 14.8 → 11.4 ms of compute a frame on this M6.
