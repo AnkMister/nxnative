@@ -70,6 +70,8 @@ t_nvn: t_nvn.c ../nvn/hle_nvn.c ../../host/crash.c ../../host/hle_bigstack.c $(G
 	clang $(CFLAGS) -fobjc-arc -o $@ t_nvn.c ../../host/crash.c ../../host/hle_bigstack.c $(GFX) $(FW)
 t_dirty_slots: t_dirty_slots.c ../nvn/nvn_dirty.c ../../host/crash.c ../nvn/nvn_dirty.h $(GAME_H)
 	clang $(CFLAGS) -o $@ t_dirty_slots.c ../../host/crash.c ../nvn/nvn_dirty.c
+t_dirty_dedupe: t_dirty_dedupe.c ../nvn/nvn_dirty.c ../../host/crash.c ../nvn/nvn_dirty.h $(GAME_H)
+	clang $(CFLAGS) -o $@ t_dirty_dedupe.c ../../host/crash.c
 t_dirty_race: t_dirty_race.c ../nvn/nvn_dirty.c ../../host/crash.c ../nvn/nvn_dirty.h $(GAME_H)
 	clang $(CFLAGS) -o $@ t_dirty_race.c ../../host/crash.c
 t_dirty_retire_race: t_dirty_retire_race.c ../nvn/nvn_dirty.c ../../host/crash.c ../nvn/nvn_dirty.h $(GAME_H)
@@ -563,3 +565,13 @@ t_nanscan_pass: t_nanscan_pass.m $(MTL_T_DEP)
 .PHONY: check_t_nanscan_pass
 check_t_nanscan_pass: t_nanscan_pass
 	python3 test_nanscan_pass.py ./t_nanscan_pass
+t_tex_dedupe: t_tex_dedupe.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_tex_dedupe.m $(MTL_T_SRC) $(FW)
+check_t_tex_dedupe: RUN_ENV = MTL_DEBUG_LAYER=1
+t_upload_trim: t_upload_trim.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_upload_trim.m $(MTL_T_SRC) $(FW)
+.PHONY: check_t_upload_trim
+check_t_upload_trim: t_upload_trim
+	MTL_DEBUG_LAYER=1 DM_NVN_UPLOAD_TRIM=0 ./t_upload_trim
+	MTL_DEBUG_LAYER=1 DM_NVN_UPLOAD_TRIM=1 ./t_upload_trim
+

@@ -249,6 +249,10 @@ Current static measurement on the supplied update, independent of the v0 profile
 
 The SDK destinations are x0 (14), x8 (11), x11 (1), x20 (7), x21 (9) and x22 (3). Every measured site can use the optional [integer-only counter entry](../../../docs/reference/rewriter.md#counter-reads-save-a-full-simd-context). The update's SDK uses the Switch 2 frequency of 31.25 MHz. Static sites do not establish dynamic read frequency or total CPU saving. Runtime counts, gameplay A/B, audio/pacing checks and machine sleep/wake validation remain open. TLS specialization was deferred to keep executable offset fixups outside the clock change.
 
+- Open Mac memory experiment: [cold uploaded guest texture copies](../../../docs/reference/memory.md#cold-uploaded-guest-texture-copies-mac-experiment). Default off; this branch has unit-test evidence only, with no game A/B.
+
+- Open Mac memory experiment: [release idle upload staging](../../../docs/reference/memory.md#upload-staging-retained-after-loading-mac-experiment). Default off; synthetic Metal checks pass, game savings remain unmeasured.
+
 ## Open
 
 - The opt-in [idle and hidden-window host policies](../../../docs/reference/frame-rate.md#repeated-scan-out-and-unwatched-window-work) have unit and offscreen Metal coverage only. Ocarina skip rates, energy, wakeups and real focus/occlusion transitions remain unvalidated. The detector skips repeat scan-out without intervening submissions; it never omits the game's draw/compute work.

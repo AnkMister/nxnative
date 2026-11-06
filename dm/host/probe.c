@@ -104,6 +104,7 @@ static void probe_dump_once(void) {
     if (!m || !o || !n) { LOG("DM_PROBE_DUMP format: module:offset:length[:file]"); return; }
     char def[512]; snprintf(def, sizeof def, "%s%s/run/platform/probe_dump.bin", getenv("DM_ROOT") ?: getenv("HOME"), getenv("DM_ROOT") ? "" : "/dm-work");
     FILE *fp = fopen(f ? f : def, "wb"); if (!fp) return;
+    dm_guest_read_prepare(m->base + strtoull(o, 0, 16), strtoull(n, 0, 16));
     fwrite(m->base + strtoull(o, 0, 16), 1, strtoull(n, 0, 16), fp); fclose(fp);
     LOG("probe dump %s+%s length %s → %s", mod, o, n, f ? f : def);
 }
