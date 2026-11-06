@@ -181,6 +181,8 @@ For a replaced DSP renderer the size query keeps the service's work-buffer contr
 ### The update lock read off `UpdateImpl` (SDK 22)
 
 Ported from upstream d7a43c2a. Enable DM_OOT_BRENT=1 on this branch.
+PR #1444's 634305a6 makes the same `UpdateImpl` offset discovery as the
+existing #1345 port. Keep the existing implementation and its opt-in once.
 The gameplay results below are upstream reports; this branch checks the decoder
 with synthetic prologues and has not run the game.
 

@@ -54,3 +54,59 @@ All experiments remain default-off except inherited/profile defaults; the play
 recipe explicitly enables reviewed correctness/stability and srgb. Complete
 pipeline coverage and image/gameplay acceptance remain parent gates. No game,
 full shader build, push or PR ran. Final results and cleanup are in docs/oot-notes.
+
+## PR #1444 services and profile port
+
+The p1444-svc lane starts at oot-hyper-main 64a163ba. The lead integrates onto
+the separately pinned oot-play base e8c3bc222b06413347d533fca7e060a69943c57a.
+Only local commits are authorized. Existing experiments and notes are retained.
+
+Compared 634305a6 with the existing #1345 audio port. The offset-discovery code
+is equivalent; keep the existing DM_OOT_BRENT=1 gate. The audio virtual-device
+and prepo AsyncContext implementations already match #1444, so no second forced
+registration or another implementation was added.
+
+Ported the remaining finite eventfd wait policy behind DM_SDK22_SERVICES=1.
+The original 23 eventfd checks stay and four checks cover the opt-in timeout,
+wakeup, counter and negative-timeout slice. Added the Ounce vibration query
+with #1434's false result, consistent with advertised Switch 1 actuators.
+Reused oot-brent2-cloud's loader gate and lookup checks byte for byte. Other
+#1434 hooks remain on that separate lane. The lead owns independent review.
+
+The user explicitly approved the Ocarina game.tsv changes as defaults. No
+DM_OOT_PROFILE_1444 flag was added. Existing render_cond and safe_gpu stay on;
+the new memory/upload/timestamp values and old values for rollback are in the
+game note. The inherited e9d71e27 and eab0aaac implementations were not copied
+or changed. The registered v0 row and resolution-only patches.py remain;
+upstream's v131072/1.1.1 versus prose 1.2.0 discrepancy is flagged.
+
+The game note and frame-rate reference explain the native 60 fps cadence.
+DM_FPS_TARGET cannot unlock this main. The 4K 120 Hz display recipe uses
+DM_PRESENT_LINK=2, DM_PRESENT_HZ=60 and DM_PRESENT_INTERVAL=game, with
+DM_FPS_TARGET=0. The M4 Max's 1440p override and SDR/HDR limits are explicit.
+Neither 60 fps at the new resolution nor native HDR is claimed locally.
+
+Verification runs at nice -n 19 with at most two native make jobs per command.
+The first host-test attempts exposed the inherited nvn_eco_wait link omission
+in SDK-including tests. Link the real nvn_eco.c into language, shared-font,
+NFC and system-event tests; no runtime stub was added. Docs, profile tests,
+host tests and the host build have separate logs in the external work folder.
+Final results and exact generated storage cleanup are in p1444-svc.md there.
+No game, regression gameplay, full shader build or third-party binary ran.
+
+Before the user's compute pause, the host build completed with 57 warnings,
+the focused eventfd test passed 27 checks, HID passed 157 checks, symbol lookup
+passed, 42 profile/survey/env tests passed and 11 documentation tests passed.
+The full host run remains incomplete and SIGSTOPped by user request. Its make
+PID is 73048 and its memory-test PIDs are 3152 and 3587, all in group 73048.
+No build, test, compile, restore or SIGCONT is permitted until the user sends
+RESUME. Preserve the generated host, gen directory and test build directory
+while those processes remain pending. The lead owns integrated verification.
+
+The pstack feature checklist is adapted to this assigned implementation lane.
+Direct source comparison supplies the subsystem investigation; a new design
+exercise and nested delegation are unnecessary for the fixed port. Blocking
+work was baseline and overlap comparison. There is one local write owner and
+no shared checkout edits. Host-only checks establish the port's local gate;
+the lead owns merged graphics, shaders, display and gameplay acceptance. PR
+creation is skipped because the task permits local commits only.

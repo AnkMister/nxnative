@@ -4,7 +4,119 @@ The Switch 2 base dump reaches its title screen on the Mac. VideoToolbox decodes
 
 ## Profile
 
-SDK 22.2.8, NVN API 231.40, with Nintendo's sead, agl and gsys. The three loaded modules are `main`, `subsdk0` (NintendoSDK_movie), and `sdk`. The NPDM declares 48 MiB of system resources. Startup requests a 6.20 GiB heap, which fits in the profile's 12 GiB reservation with the stack and alias regions. The registered build is the supplied base dump (`v0`).
+SDK 22.2.8, NVN API 231.40, with Nintendo's sead, agl and gsys. The three loaded modules are `main`, `subsdk0` (NintendoSDK_movie), and `sdk`. The NPDM declares 48 MiB of system resources. Startup requests a 6.20 GiB heap. The profile now separates a 9.125 GiB heap region from a 16 GiB alias region; the Mac expands only the alias region to 64 GiB. The registered build is the supplied base dump (`v0`). The startup request fits within that heap region; local gameplay acceptance remains open.
+
+## Complete-profile port from PR #1444 (current, gameplay acceptance open)
+
+[Upstream PR #1444](https://github.com/seedds/nxnative/pull/1444) reports native
+60 fps gameplay through Dodongo's Cavern on an M5 Pro, with frame p50
+16.29–16.73 ms and GPU p50 10.8–13.9 ms. Its continuous session covered
+274,851 frames without a crash. Those are the author's measurements. The
+combined M4 Max branch has host-only verification and still needs matching
+shaders, pipeline archives and gameplay checks.
+
+The requested profile values are Ocarina defaults. `render_cond on` was already
+present. `mem_alias 0x400000000`, `mem_reserve 0x668000000` and
+`mem_map_limit on` replace the small alias region and enable physical-pool
+charging. `tex_flush_upload on` and `tex_dirty_upload on` keep streamed CPU
+texture writes visible. `gpu_timestamps segment` reports the segment containing
+the guest's timestamp. `safe_gpu on`, our resolution hooks, and all existing
+findings below are retained.
+
+For rollback, the previous values were `mem_reserve 0x300000000`,
+`mem_alias 0x98000000`, with `mem_map_limit`, `tex_flush_upload` and
+`tex_dirty_upload` absent (off), and `gpu_timestamps` absent (`submission`).
+Changing the keys requires rebuilding the host. The inherited upstream Mac
+64 GiB alias layout remains active with either profile. `DM_ALIAS_SIZE` changes
+only the alias region, never the heap budget or the physical pool. See
+[profile partition accounting](../../../docs/reference/memory.md#profile-partition-accounting-with-a-larger-mac-alias-region).
+
+The SDK 22 audio lock fix from #1345 already matches #1444's 634305a6, apart
+from our `DM_OOT_BRENT=1` opt-in. Keep that one implementation. The existing
+virtual microphone list returns zero devices through one forced registration;
+the existing prepo takeover constructs a completed `AsyncContext(Result)` in
+the caller's `x8` result storage. Neither needs another copy.
+
+`DM_SDK22_SERVICES=1` enables the Ounce vibration query and #1444's longer
+finite eventfd poll wait. The query reports false because our advertised
+actuators are Switch 1 LRAs, matching #1434 rather than claiming Switch 2
+actuators as #1444 does. The same loader gate is used by the parallel
+`oot-brent2-cloud` service port. The remaining #1434 hooks are separate work.
+Found on this game: [SDK 22 actuator query](../../../docs/reference/services.md#switch-2-vibration-actuator-query)
+and [eventfd timeout slices](../../../docs/reference/services.md#eventfd-finite-timeouts-longer-than-one-slice).
+
+The upstream table labels `v131072` as `1.1.1` with exactly the same module build
+IDs as our `v0` row, while the PR prose calls it 1.2.0 and claims both dumps.
+The existing registration is retained here. Confirm metadata against the
+user's dump before adding or relabelling builds. No fixed-address patch may be
+extended based on the prose alone.
+
+### 60 fps recipe
+
+Use a complete candidate build after the parallel #1444 ports are integrated.
+Select 3840×2160 at 120 Hz in macOS and use the game's fullscreen window on that
+display. For the M4 Max, start with the stock game resolution and these runtime
+settings in the candidate's environment file:
+
+```text
+DM_SAFE_GPU=1
+DM_AOT=1
+DM_OOT_BRENT=1
+DM_SDK22_SERVICES=1
+DM_OPMODE=1
+DM_PRESENT_LINK=2
+DM_PRESENT_HZ=60
+DM_PRESENT_INTERVAL=game
+DM_FPS_TARGET=0
+DM_PRESENT_COLORSPACE=srgb
+DM_UPSCALER=game
+DM_QUALITY=off
+DM_OOT_RENDER_RES=off
+```
+
+`DM_AOT=1` must also be used while packing the candidate's offline pipelines.
+Runtime `DM_AOT=1` cannot fill an incomplete archive without compiler fallback.
+Check the AOT logs for gameplay compiler entries. `DM_AOT_STRICT=1` diagnoses
+such entries but still compiles fallback pipelines. Preserve the integrated
+build's other shader and correctness flags; the list above is the service,
+pacing and display part of that recipe.
+
+Ocarina's own Switch 2 code supplies the cadence. #1444 has no `fps_target` or
+`fps_max` profile rows and no game `patches.py` at all. Our `patches.py` contains
+resolution observations only, with no `FRAME_STEP` or frame-step state page.
+There is no Ocarina entry in the host's engine limiter. Consequently
+`DM_FPS_TARGET=60` is ignored by `fps_present_cap` with a log explaining the
+missing frame step/engine limiter; it cannot unlock 60 or 120 fps. `0` above
+explicitly keeps the native limit. `DM_FPS_HOLD=off` controls the host's dynamic
+frame-step path and supplies no Ocarina speed fix. No selectable in-game
+performance-mode change is specified by #1444. See
+[native cadence](../../../docs/reference/frame-rate.md#native-60-fps-without-a-frame-step-patch).
+
+`DM_PRESENT_LINK=2` requests a 120 Hz display link. With
+`DM_PRESENT_HZ=60 DM_PRESENT_INTERVAL=game`, interval-1 game frames occupy two
+display-link ticks. The display can show 60 game frames per second without
+changing simulation speed. It does not create 120 game frames. Verify the
+actual display-link rate in the log and use link mode 1 if the display cannot
+provide 120 Hz. Avoid `DM_PRESENT_HZ=0` and a forced `display` interval for play.
+
+After stock-resolution visual acceptance, try `DM_OOT_RENDER_RES=1440` alone.
+It requests a real 2560×1440 scene and final game image, which presentation then
+scales to the 4K drawable. It needs main rewritten with our three resolution
+gates and the matching main build ID. A host-only rebuild cannot add them.
+The change increases scene pixels by 1.778 times relative to 1080p; 60 fps on
+the M4 Max remains unmeasured. Keep the safe GPU guard enabled. An AOT archive
+prepared for stock rendering may need additional pipeline coverage at 1440p.
+Follow the [resolution checks](#required-kokiri-forest-checks), including NDSR's
+1:1 path, before accepting it. `DM_RENDER_SCALE` has no Ocarina state page and
+does not implement this option.
+
+`DM_PRESENT_COLORSPACE=srgb` tags the 8-bit BGRA presentation layer as SDR and
+sets `wantsExtendedDynamicRangeContent=NO`. An HDR-capable display or macOS HDR
+setting does not turn the game output into native HDR. MetalFX's internal HDR
+colour-processing mode also does not establish an HDR scanout path. Use SDR
+for the reference comparison; HDR output is separate, unimplemented work in
+this selected base. `DM_SAFE_GPU=1` remains an independent fail-stop safeguard,
+not a frame-rate or image-quality setting.
 
 ## Mac dry run
 

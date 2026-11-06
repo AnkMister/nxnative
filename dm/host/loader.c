@@ -225,11 +225,26 @@ static void force_init(void) {
             if (!strcmp(g_force[g_fidx[j] - 1].name, g_force[i].name)) die("duplicate entry in the forced takeover list: %s", g_force[i].name);
         }
 }
+// PR #1434's SDK 22 service hooks are opt-in. Disabled entries must miss here so relocation keeps the SDK's original definition.
+static int force_enabled(const char *name) {
+    const char *e = getenv("DM_SDK22_SERVICES");
+    if (e && !strcmp(e, "1")) return 1;
+    static const char *const sdk22[] = {
+        "_ZN2nn2pl17RequestLoadNxFontEPvm",
+        "_ZN2nn3hid29IsOunceVibrationDeviceMountedERKNS0_21VibrationDeviceHandleE",
+        "_ZN2nn3hid20FinalizeSensorFusionEv",
+        "_ZN2nn4pctl33CheckAgcPermissionUnderMinimumAgeERKNS_7account3UidE",
+        "nnsocketGetAddrInfoWithOptions",
+    };
+    for (unsigned i = 0; i < sizeof sdk22 / sizeof *sdk22; i++) if (!strcmp(name, sdk22[i])) return 0;
+    return 1;
+}
 static void *force_lookup(const char *name) {
     if (!g_fmask) return NULL;
     for (unsigned j = sym_hash(name) & g_fmask; g_fidx[j]; j = (j + 1) & g_fmask) {
         unsigned i = g_fidx[j] - 1;
         if (!strcmp(g_force[i].name, name)) {
+            if (!force_enabled(name)) return NULL;
             if (!g_force_hits[i]++ && g_flag.imports) LOG("force %s  (%s)", name, g_force[i].why);
             void *hlecount_wrap(const char *, const char *, void *); return hlecount_wrap("FORCE", name, g_force[i].fn);   // A counting stub when DM_HLECOUNT is set
         }
@@ -238,11 +253,14 @@ static void *force_lookup(const char *name) {
 }
 // Generic host: the list serves several games, so entries a game does not reference are only noted; with DM_FORCE_STRICT=1 it still fails loudly (for checking a mistyped list)
 static void force_check(void) {
-    unsigned unused = 0; int strict = getenv("DM_FORCE_STRICT") != NULL;
-    for (unsigned i = 0; i < g_nforce; i++)
-        if (!g_force_hits[i]) { if (strict || g_flag.imports) LOG("forced takeover entry with no reference at all: %s", g_force[i].name); unused++; }
+    unsigned hit = 0, unused = 0; int strict = getenv("DM_FORCE_STRICT") != NULL;
+    for (unsigned i = 0; i < g_nforce; i++) {
+        if (!force_enabled(g_force[i].name)) continue;
+        if (g_force_hits[i]) hit++;
+        else { if (strict || g_flag.imports) LOG("forced takeover entry with no reference at all: %s", g_force[i].name); unused++; }
+    }
     if (unused && strict) die("forced takeover list is wrong");
-    LOG("force: %u entries hit, %u not referenced by this game", g_nforce - unused, unused);
+    LOG("force: %u entries hit, %u not referenced by this game", hit, unused);
 }
 
 // Read the rewriter table header (segment boundaries, slot numbers); any row beyond the header means an old-format build output (code modified at load time), which is rejected

@@ -490,6 +490,14 @@ The guest address space, heaps, pools, virtual address memory and the allocators
 - **Check:** `make -C dm/gfx/tests GAME=0400486024DEC000 check_t_upload_trim` runs with the flag off and on under Metal validation. A GPU gate holds staging in flight past the age threshold. The test checks that those buffers survive, verifies copied bytes, checks the idle age boundary and destruction through weak references, and verifies another upload after trimming. The synthetic test reclaims 64 MiB from one slot. Game savings remain unmeasured; the ceiling across three slots is 192 MiB, and peak loading footprint may not change.
 - **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md), source survey for Mac memory efficiency. Gameplay and allocation churn after return visits remain open.
 
+### Profile partition accounting with a larger Mac alias region
+
+- **Symptom:** growing `mem_alias` alone shrinks the heap region and can turn a previously valid startup heap request into a refusal. Removing the physical mapping limit can instead leave scene allocators mapping without recycling cached blocks.
+- **Cause:** `mem_reserve` includes a 256 MiB front region, heap, stacks and the profile alias region. The Mac's 64 GiB alias expansion adds virtual address space after that partition; it adds neither heap capacity nor physical pool memory.
+- **Fix:** keep upstream e9d71e27's `max(mem_alias, 64 GiB)` Mac alias and #1373/eab0aaac's provisional heap-accounting repair. Ocarina's PR #1444 profile sets reserve `0x668000000`, alias `0x400000000`, stack `0x10000000` and front `0x10000000`, leaving heap capacity `0x248000000` (9.125 GiB). With a 64 GiB Mac alias, total virtual reservation is `0x1268000000` (73.625 GiB); the `app_pool` stays 9 GiB. `mem_map_limit on` uses the existing map/unmap charges and `GetInfo` accounting to return `0x10801` (`ResultLimitReached`) when the physical budget is exceeded. The 6.20 GiB startup heap request fits within the partition. `DM_ALIAS_SIZE` changes only the alias term, leaving the heap and physical budget unchanged.
+- **Check:** host memory/profile tests exercise the shared partition and accounting code. Upstream #1444 reports a continuous gameplay session with these profile values; local Ocarina startup, map pressure and long-session recovery need gameplay acceptance.
+- **Found on:** [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md#complete-profile-port-from-pr-1444-current-gameplay-acceptance-open). Earlier profile values and rollback are recorded there.
+
 ## Integrated upstream alias layout
 
 The oot-hyper-main variant uses upstream e9d71e27's Mac alias region and layout.

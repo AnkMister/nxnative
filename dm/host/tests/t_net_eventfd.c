@@ -13,6 +13,7 @@ static int g_wfd;
 static void *late_write(void *p) { (void)p; dm_guest_sleep_ns(50000000); h_sk_EventFdWrite(g_wfd, 3); return NULL; }
 
 int main(void) {
+    unsetenv("DM_SDK22_SERVICES");
     uint64_t v = 0;
     // gRPC's availability check: EventFd(0, 0), then close
     int a = h_sk_EventFd(0, 0);
@@ -47,6 +48,19 @@ int main(void) {
     CHECK(got == 1 && p[0].revents == SK_POLLIN && now_ms() - t0 < 1000, "a write from another thread wakes the poll");
     pthread_join(th, NULL);
     CHECK(h_sk_EventFdRead(fd, &v) == 0 && v == 3, "and its value is read");
+
+    // A finite poll must outlast the first empty 100 ms slice when opted in.
+    setenv("DM_SDK22_SERVICES", "1", 1);
+    t0 = now_ms();
+    CHECK(dm_sk_poll(p, 2, 250) == 0 && now_ms() - t0 >= 225, "SDK 22 opt-in: an empty poll waits the full finite timeout");
+    g_wfd = fd; pthread_create(&th, NULL, late_write, NULL);
+    got = dm_sk_poll(p, 2, 2000);
+    CHECK(got == 1 && p[0].revents == SK_POLLIN, "SDK 22 opt-in: a write still wakes the poll");
+    pthread_join(th, NULL);
+    CHECK(h_sk_EventFdRead(fd, &v) == 0 && v == 3, "SDK 22 opt-in: the wakeup counter is preserved");
+    t0 = now_ms();
+    CHECK(dm_sk_poll(p, 2, -1) == 0 && now_ms() - t0 >= 90, "SDK 22 opt-in: an endless idle poll returns after its 100 ms slice");
+    unsetenv("DM_SDK22_SERVICES");
 
     // select on the same descriptors
     uint64_t rset[16] = {0}, wset[16] = {0}; int64_t tv[2] = {0, 0};
