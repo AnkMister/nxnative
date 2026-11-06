@@ -77,6 +77,7 @@ int main(void) { @autoreleasepool {
     setenv("DM_PRESENT_HZ", "0", 1);
     setenv("DM_PRESENT_ABSOLUTE", "1", 1);
     mtl_init();
+    mtl_present_layer(1, 1);   // a square layer for the square fixtures: a picture is shown in the layer's shape (16:9 by default since 2202d610), which would bar 24 of their 64 pixels
     g_test_layer = offscreen_layer(); g_layers = [NSMutableArray new];
     // Display-link mode without a link thread: link_sync sees a started link that is not there yet, the present thread leaves the queue to the callback
     g_dm_present_link = 1; g_link_started = 1; g_link_owns_layer = 1; g_delegate = [NvMetalDisplayLinkDelegate new];

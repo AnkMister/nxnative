@@ -54,3 +54,18 @@ All experiments remain default-off except inherited/profile defaults; the play
 recipe explicitly enables reviewed correctness/stability and srgb. Complete
 pipeline coverage and image/gameplay acceptance remain parent gates. No game,
 full shader build, push or PR ran. Final results and cleanup are in docs/oot-notes.
+
+## Brent round 2 host/runtime harvest
+
+The assigned audit compares a14fb78c (oot-hyper-main), c83c48f2 (origin/main),
+and Brent 89a0ff52. No dependency installs or third-party binaries are used.
+
+Ported upstream correctness commit 2202d610 (issue #949), with fixture correction
+51ea3df8. A layer crop selects texels; layer shape controls display proportions.
+It is already in origin/main, so no experiment flag is added. Metal build and
+t_present_crop / t_present_alloc need a Mac. Linux checks follow below.
+
+PR #1418 is skipped because omitted texture mips reduce image quality. PR #1436
+is 01cce669 (poolstat/texstat), confirmed through gh pr view, and is skipped
+because the task explicitly assigns those diagnostics to the Mac agent.
+Our existing PR #1391 guard and DM_SAFE_GPU remain in place.
