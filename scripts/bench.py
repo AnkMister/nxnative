@@ -30,11 +30,12 @@ def newest(paths):   # the newest version folder (v<number>) of a glob
     return vs[-1] if vs else None
 
 
-SHADER_FOLDERS = ('shader.noindex', 'shader')   # the NSP script's shader folder (its SHADER), then its name in a build folder no build has run in since
+SHADER_FOLDERS = ('shader', 'shader.noindex')
 
 
 def shader_folder(build):
-    return next((build / n for n in SHADER_FOLDERS if (build / n).is_dir()), build / SHADER_FOLDERS[0])
+    names = SHADER_FOLDERS[::-1] if os.environ.get('DM_BUILD_NOINDEX') == '1' else SHADER_FOLDERS
+    return next((build / n for n in names if (build / n).is_dir()), build / names[0])
 
 
 def routes(gid):
