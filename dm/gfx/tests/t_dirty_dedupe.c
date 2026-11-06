@@ -80,6 +80,20 @@ static int allow(void *ctx, uintptr_t lo, uintptr_t hi) { (void)lo; (void)hi; ++
 static uint8_t *g_rd; static _Atomic int g_rd_bad;
 static void *reader(void *arg) { (void)arg; for (int k = 0; k < NP; k++) if (bad_bytes(g_rd + (size_t)k * g_pg, g_pg, 1)) atomic_fetch_add(&g_rd_bad, 1); return NULL; }
 
+static _Atomic int gpu_entered, gpu_access, kernel_released;
+static void *gpu_consumer(void *p) {
+    atomic_store(&gpu_entered, 1);
+    nvn_dirty_require(p, g_pg);   // the same gate used before pool/raw-map residency
+    atomic_store(&gpu_access, 1);
+    return NULL;
+}
+static void *kernel_releaser(void *p) {
+    for (int i = 0; i < 256; i++) {
+        int skip; size_t n = nvn_dirty_release(p, NP * g_pg, nvn_dirty_now(), NULL, NULL, &skip);
+        if (n) atomic_fetch_add(&kernel_released, 1);
+    }
+    return NULL;
+}
 static void *restore_thread(void *p) { nvn_dirty_require(p, g_pg); return NULL; }
 
 int main(void) {
@@ -200,6 +214,10 @@ int main(void) {
     EXPECT("file matches released texture bytes", 0, memcmp(check, m, g_pg));
     EXPECT("kernel-visible range cannot be re-released", 0, nvn_dirty_release(m, n, st7, NULL, NULL, &skip));
     EXPECT("second file write remains accessible", g_pg, pwrite(fd, m, g_pg, 0));
+    pthread_t releaser; pthread_create(&releaser, NULL, kernel_releaser, m);
+    for (int i = 0; i < 64; i++) EXPECT("concurrent kernel write", g_pg, pwrite(fd, m, g_pg, 0));
+    pthread_join(releaser, NULL);
+    EXPECT("concurrent release cannot reclaim kernel-visible range", 0, atomic_load(&kernel_released));
     free(check); close(fd); nvn_dirty_remove_range(m); munmap(m, n);
 
     m = mmap(NULL, n, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
@@ -209,9 +227,13 @@ int main(void) {
     g_dd_test_lose = 1; atomic_store(&read_hold, 1); atomic_store(&read_entered, 0);
     pthread_t restorer; pthread_create(&restorer, NULL, restore_thread, m);
     while (!atomic_load(&read_entered)) sched_yield();
+    pthread_t consumer; pthread_create(&consumer, NULL, gpu_consumer, m);
+    while (!atomic_load(&gpu_entered)) sched_yield();
     EXPECT("timeout cannot authorize a GPU consumer", 0, nvn_dirty_restore(m, g_pg));
     EXPECT("unfinished bytes remain inaccessible", VM_PROT_NONE, prot_of(m));
-    atomic_store(&read_hold, 0); pthread_join(restorer, NULL);
+    EXPECT("residency consumer cannot pass incomplete bytes", 0, atomic_load(&gpu_access));
+    atomic_store(&read_hold, 0); pthread_join(restorer, NULL); pthread_join(consumer, NULL);
+    EXPECT("residency consumer proceeds only after restoration", 1, atomic_load(&gpu_access));
     EXPECT("completed restoration authorizes access", 1, nvn_dirty_restore(m, g_pg));
     EXPECT("completed bytes match texture", 0, bad_bytes(m, g_pg, 1));
     EXPECT("restore timeout disables future release (keep guest copy)", 0, nvn_dirty_release(m, n, st8, NULL, NULL, &skip));

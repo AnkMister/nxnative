@@ -226,3 +226,8 @@ NVN 234 in each mode; fs 138 checks. Full tools discovery 1217 tests passed,
 No game, regress.py or full shader build was run. Timeout failure can terminate
 the host; kernel-visible pools retain their guest copies, reducing savings.
 Front-ends: no new flag. Dedupe and upload trim remain default off.
+
+The final concurrency extension additionally blocks a residency consumer at
+nvn_dirty_require while the backup pread is held, proves it cannot proceed,
+then lets it proceed only after restoration. A concurrent release worker races
+64 real file writes and cannot reclaim the kernel-visible pool. Both pass.
