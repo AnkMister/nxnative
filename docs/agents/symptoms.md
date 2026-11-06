@@ -49,6 +49,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - `[RED] the NSP is damaged: a filesystem's own tables fail the NCA's hash check`, exit code 3, right after the build IDs; before 2026-11-04, `[RED] nx_extract exit code -6` with an unhandled `ResultFsNonRealDataVerificationFailed (2002-4604)` under `RomfsHeader`. The ExeFS reads, and the build IDs and name are printed, since only the RomFS is hit. → [A damaged RomFS's own tables](../reference/packing.md#a-damaged-romfss-own-tables)
 - a build packed with `--allow-damaged` crashes or draws wrongly in game code, the same way on each run, at a place unrelated to the host's last work. The log gave no sign of damage; the build log's list (`logs/extract_<version>.log`) is the only record, and it is not part of a bug report's run log. → [A crash from a damaged NSP's file looks like a host bug](../reference/packing.md#a-crash-from-a-damaged-nsps-file-looks-like-a-host-bug)
 - for a game with no profile, the NSP script stops at `build ID lookup · main of the base game` with `[RED] nx_extract exit code -6`; `<title ID>_survey/logs/exefs.log` ends in `ResultFsNonRealDataVerificationFailed (2002-4604): Hash error!` from `PartitionFileSystemMetaCore.QueryMetaDataSize` under `Nca.OpenFileSystem`, although every NCA in both NSPs matches its content ID (the SHA-256 that names it) and the base game with its update extracts cleanly. → [The survey's build ID lookup stops on the base game alone with a hash error](../reference/packing.md#the-surveys-build-id-lookup-stops-on-the-base-game-alone-with-a-hash-error)
+- Spotlight consumes CPU while the shader build writes many temporary and generated files. → [Spotlight indexes shader build outputs](../reference/packing.md#spotlight-indexes-shader-build-outputs)
 
 ## Rewriter
 
@@ -152,6 +153,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - a GPU hang or ignored submission is followed by more failed submissions, or a residency burst leaves too little wired memory for the desktop. → [Fail-stop GPU safety for a Mac shared with other apps](../reference/memory.md#fail-stop-gpu-safety-for-a-mac-shared-with-other-apps)
 - a CPU-written texture occupies both swizzled guest memory and a private Metal texture after upload. → [Cold uploaded guest texture copies (Mac experiment)](../reference/memory.md#cold-uploaded-guest-texture-copies-mac-experiment)
 - upload staging stays allocated after the game stops uploading textures. → [Upload staging retained after loading (Mac experiment)](../reference/memory.md#upload-staging-retained-after-loading-mac-experiment)
+- GPU allocated memory grows while an unfocused game stops submitting, and the game may fail to resume. → [Retired pool buffers accumulate while no submissions complete](../reference/memory.md#retired-pool-buffers-accumulate-while-no-submissions-complete)
 
 ## Threads
 
@@ -323,6 +325,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - a Switch 2 game presents at 720p, with its upscaler at the matching low size. → [The display's largest buffer](../reference/services.md#the-displays-largest-buffer)
 - `registered NROs not found` from `nro_collect.py` in a game whose RomFS has an NRR, or `[RED] ro::LoadModule: no rewritten NRO with SHA-256 …`. `main` is small (about 600 KB of code) beside a data segment of random-looking bytes. → [A game that decodes its code at run time](../reference/services.md#a-game-that-decodes-its-code-at-run-time)
 - a crash in `ro::RegisterModuleInfo`, or an NRR that seems to register millions of hashes: the words at +0x340 and +0x344 are random. → [NRR version 1](../reference/services.md#nrr-version-1)
+- Opening the Ocarina note aborts through an unserved hid service (#1433). Other SDK 22 imports can enter unserved font, parental-control and resolver services. → [SDK 22 service imports without host takeovers](../reference/services.md#sdk-22-service-imports-without-host-takeovers)
 
 ## Movies
 
@@ -408,6 +411,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - `game called nn::diag abort: Result 0xe15` under `nn::codec::GetHardwareOpusDecoderManagerWorkBufferSize` (`sdk+0x323180`), the game's sound setup. → [SDK 21's hardware Opus decoder manager](../reference/audio.md#sdk-21s-hardware-opus-decoder-manager)
 - the light limiter crashed on a null state pointer (`ApplyLightLimiterEffect`, `sdk+0x228494`). → [At least one rendered frame between two updates](../reference/audio.md#at-least-one-rendered-frame-between-two-updates)
 - the sound runs about 50 times faster than the output; the loop runs 11,000 updates a second on one core. → [A sound driver that never waits on the renderer event](../reference/audio.md#a-sound-driver-that-never-waits-on-the-renderer-event)
+- AV1 movies play slowly or fall behind their audio when the game presents fewer pictures than the movie contains. A host stall can leave playback behind the audio. → [AV1 decoding and movie presentation clocks](../reference/audio.md#av1-decoding-and-movie-presentation-clocks)
 
 ## Frame rate
 
@@ -557,6 +561,8 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - the host stops with `NSInvalidArgumentException: -[NvPkg buffer]: unrecognized selector sent to instance` under `tex_by_id` (via `pool_entry`, `pool_gpu`, `encode_args_`, `draw_`, `mesh_tasks_draw`); not a GPU hang, no `kIOGPU` errors. Or a `[RED] texture serial N has a packaged entry but is not CPU-written` line. → [A packaged texture entry handed out as the texture](../reference/nvn-objects.md#a-packaged-texture-entry-handed-out-as-the-texture)
 - a Switch 2 load makes private textures and their tiled guest copies resident together. Bindless descriptor scans can also allocate fresh zero-filled textures for retired objects whose aliases have already been replaced, triggering more alias takeovers and table rebuilds. → [A raw address table pins CPU-only pools and revives retired textures](../reference/nvn-objects.md#a-raw-address-table-pins-cpu-only-pools-and-revives-retired-textures)
 - a large mixed queue of completed and pending GPU references stalls cleanup on the CPU. → [Deferred releases repeatedly shift pending entries](../reference/nvn-objects.md#deferred-releases-repeatedly-shift-pending-entries)
+- GPU allocations retain chunk buffers after a whole pool is mapped, and texture pool table rebuilds repeatedly allocate and register buffers. → [Redundant chunk mappings and repeated pool table allocations](../reference/nvn-objects.md#redundant-chunk-mappings-and-repeated-pool-table-allocations)
+- Deferred uniform updates close render passes even when the outstanding GPU writes concern unrelated memory. → [Wide writes collide with unrelated uniform pages](../reference/nvn-objects.md#wide-writes-collide-with-unrelated-uniform-pages)
 
 ## Rendering
 
@@ -632,6 +638,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - an abort at the first present: `[RED] upload batches belong to the submit thread only: up_begin called on thread 'nvn-present-link'`, with `pkg_upload`, `tex_mtl` and `present_now` in the backtrace. → [A CPU-written window texture resolved where the present is queued](../reference/rendering.md#a-cpu-written-window-texture-resolved-where-the-present-is-queued)
 - a game that renders below the screen's resolution looks soft on a phone, in a large Mac window or on a 4K screen. → [The present upscales through MetalFX](../reference/rendering.md#the-present-upscales-through-metalfx)
 - in handheld mode the picture fills only two thirds of the screen's width and height, in the bottom-left corner (the top-left with the upper-left origin), the rest black. → [The NVN present crops by the vi layer crop](../reference/rendering.md#the-nvn-present-crops-by-the-vi-layer-crop)
+- a scene turns narrow, with black bars at its sides, while the swapchain or window textures keep their size; circles come out as tall ovals. The log has `vi::SetLayerCrop 0,0 1200x960` and `present upscaling: ... 1200x960 → 1800x1440` in a 2560x1440 window. → [A crop only picks texels; the picture has the layer's shape](../reference/rendering.md#a-crop-only-picks-texels-the-picture-has-the-layers-shape)
 - one-draw passes on one target, hundreds of times a frame, with the same attachments each time (a `DM_NVN_GPUPROF` frame: `load` and `store` of the whole target in every line); a low frame rate that follows the target's size. → [Setting the same targets again continues the pass](../reference/rendering.md#setting-the-same-targets-again-continues-the-pass)
 - a pass on a very large target costs about the same however little it draws; `DM_NVN_GPUPROF` shows time proportional to the target's area. → [A render area for passes on very large targets](../reference/rendering.md#a-render-area-for-passes-on-very-large-targets)
 - `[RED] NVN unimplemented function called: nvnCommandBufferShadingRateImagePalette`, or `nvnCommandBufferBindShadingRateImage` or `nvnCommandBufferSetShadingRatePaletteMode`, every frame. → [Variable rate shading ignored](../reference/rendering.md#variable-rate-shading-ignored)
@@ -731,6 +738,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - ground textures blur at oblique angles, mip boundaries remain visible, or reconstructing a larger presentation image loses its benefit when sharpening is enabled. → [Opt-in filtering and supersampled presentation](../reference/rendering.md#opt-in-filtering-and-supersampled-presentation)
 - with *Picture shape* at 1.43:1 (`DM_SCREEN_ASPECT`) the game renders 1920x1344, but on an iPhone Duo in Fit (the default) the picture comes out smaller than the 16:9 one, with black bars on all four sides; it fills the screen only in Fill. On the Mac a click lands off the point under the pointer (it was mapped on a 16:9 rectangle of the window). → [The picture laid out in the shape the game presents](../reference/rendering.md#the-picture-laid-out-in-the-shape-the-game-presents)
 - the same SDR picture can have different saturation on a wide-gamut Mac display. Source audit; console/display visual parity remains unverified. → [Mac SDR output without a source colour space](../reference/rendering.md#mac-sdr-output-without-a-source-colour-space)
+- Metal reports access revoked after GPU errors, pictures stop and guest waits can remain blocked. → [Revoked GPU access leaves the game running without pictures](../reference/rendering.md#revoked-gpu-access-leaves-the-game-running-without-pictures)
 
 ## Shaders
 

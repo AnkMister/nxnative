@@ -1072,3 +1072,10 @@ Most service calls can be found before they crash, before the first boot or the 
 - **Cause:** an NRR with 1 in the byte at +5 (the Switch 2's) has a header 0x180 bytes longer. The same fields follow it: program ID +0x4b0, size +0x4b8, hash table +0x4c0, its count +0x4c4.
 - **Fix:** `hle_ro.c` and `nro_collect.py` read the table by that byte.
 - **Found on:** [Mario Tennis Fever](../../dm/games/0400D4201C6EA000/README.md).
+
+### SDK 22 service imports without host takeovers
+
+- **Symptom:** Opening the Ocarina note aborts through an unserved hid service (#1433). Other SDK 22 imports can enter unserved font, parental-control and resolver services.
+- **Cause:** The host takes over older forms of these calls but does not register the SDK 22 forms.
+- **Fix:** The source port of #1434 adds five forced takeovers. `DM_SDK22_SERVICES=1` enables their registration; the default leaves the original SDK path intact. Font loading uses the existing stand-in fonts, the controller reports no Switch 2 actuator, sensor-fusion shutdown does nothing, parental-control permission is false and address resolution returns EAI_FAIL.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#second-host-source-harvest-open). Mac gameplay verification remains open.

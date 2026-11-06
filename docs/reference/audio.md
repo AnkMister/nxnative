@@ -384,3 +384,10 @@ with synthetic prologues and has not run the game.
 - **Fix:** an update with a full queue waits (at most 50 ms) for the render thread to play one queued frame, so catch-up frames keep real time (`hle_audren.c`). The render thread then only plays queued frames, and the driver's updates render every frame. A queued frame does not signal the renderer event (the SDK signals it in each render): signalled, an ordinary game woke, updated with nothing rendered since and rendered the next catch-up frame, so every frame became one ([Big Brain Academy: Brain vs. Brain](../../dm/games/0100620012D6E000/README.md), about 38,000 catch-up renders instead of 37).
 - **Found on:** [DRAGON QUEST XI S: Echoes of an Elusive Age – Definitive Edition](../../dm/games/01006C300E9F0000/README.md).
 - **Check:** `audren: rendered 12000 frames, N of them not silent` shows whether a game's sound reaches the output.
+
+### AV1 decoding and movie presentation clocks
+
+- **Symptom:** AV1 movies play slowly or fall behind their audio when the game presents fewer pictures than the movie contains. A host stall can leave playback behind the audio.
+- **Cause:** Synchronous dav1d decoding holds the decoder lock, and returning every decoded picture follows the game's frame rate instead of the movie timestamps. Resetting the playback clock after every long host stall preserves the delay.
+- **Fix:** The source ports of #1377 and #1379 add separate opt-ins. `DM_AV1_PARALLEL=1` enables dav1d frame threads, queued packet timestamps and decoding outside the picture lock. The default retains synchronous decoding. `DM_CV_LATE=1` uses the guest clock to discard overdue pictures, catches up after host stalls and restarts after a game pause, loss of focus or timestamp loop. It reduces the number of pictures displayed during overload to preserve playback speed; it does not change decoded pixels. Both flags default off.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#second-host-source-harvest-open). Portable clock and gate checks pass; full codec and gameplay checks remain open on Mac. M4 hardware AV1 decoding may bypass dav1d.

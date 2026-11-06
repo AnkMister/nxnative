@@ -54,3 +54,15 @@ All experiments remain default-off except inherited/profile defaults; the play
 recipe explicitly enables reviewed correctness/stability and srgb. Complete
 pipeline coverage and image/gameplay acceptance remain parent gates. No game,
 full shader build, push or PR ran. Final results and cleanup are in docs/oot-notes.
+
+## Second Brent host harvest
+
+Audited the requested round-two host/runtime sources against oot-hyper-main and
+origin/main. Ported missing SDK, AV1, pool lifetime, revoked GPU and packing
+changes behind default-off flags. The already-upstream crop correction stays
+on. Preserved our stable fixes and skipped NDVE replacement, mip removal and
+the Mac agent's poolstat/texstat work. Independent review found and fixed AV1
+lock ordering and stale shader-directory selection. The same-interpreter tools
+comparison has no new failure names; Mac builds and gameplay remain open.
+The source table, commit list, Linux evidence and Mac checklist are in
+[the harvest report](docs/oot-notes/brent2-cloud.md).
