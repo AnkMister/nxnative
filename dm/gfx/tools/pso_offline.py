@@ -12,15 +12,15 @@
 #     no specialized function from a library (applegpu-nt: "cannot find private metadata"), nor the function unspecialized ("cannot lower module with unresolved function constants")
 # --aot with --seen/--user captures exact final states and typed constants. Constant descriptors use the matching local Mac --host compiler/serializer instead of metal-tt.
 # Output folder (what the app bundles as pso/, the host's DM_PSO_BUNDLE):
-#   <arch>.mtl4a     one archive per GPU architecture (applegpu_g18p = A19 / A19 Pro); the host opens the one named after its device's architecture
+#   <arch>.mtl4a     first archive per GPU architecture; additional parts are <arch>.<n>.mtl4a (n >= 1)
 #   prebuilt.tsv     what the archives cover, in the host's stamp format (pso_prebuild): chain version, depth mode, the pair lists' size and SHA-256. The host skips its prebuild when
 #                    it matches and a probe of a few bases finds them in the archive
 #   rest_pairs.tsv   the pairs the device still builds (only when there are any)
-#   archive.tsv      what was built: architectures, OS minimum, toolchain, bases (for people and logs; the host does not read it)
+#   archive.tsv      what was built: architectures, OS minimum, toolchain, bases and part sizes (the host checks that every listed part is present)
 # Each archive is made again only when its compiler inputs change (key.<arch> in the work folder): the complete pipeline configuration without library locations,
 # the referenced libraries' bytes, architecture, platform, minimum OS and metal-tt version. Chain/profile stamps are validated and refreshed independently.
 # More bases than --batch-size are compiled in bounded groups (batches.<arch>/<index>/ in the work folder, each cached by its own inputs) and merged with metal-pack: one metal-tt on
-# Super Mario Odyssey's 32,864 bases runs an 8 GB Mac out of paging space (docs/reference/shaders.md, Bounded groups for the offline pipeline compiler). The output is the same single file.
+# Super Mario Odyssey's 32,864 bases runs an 8 GB Mac out of paging space (docs/reference/shaders.md, Bounded groups for the offline pipeline compiler). Large outputs are split below PACK_LIMIT; every part ships in the bundle.
 # DM_PSO_J: independent cached batch workers; DM_METAL_PACK_THREADS: merge threads (both default 1).
 # Usage: pso_offline.py --msl <b-<chain> folder> --out <folder> --work <folder> [--game <id>] [--pairs <shader_pairs.tsv> [--pairs <pso_pairs.tsv>]] [--gpu g18p[,g17p]]
 #          [--depth gl|zero] [--platform ios|macos] [--os-min 27.0] [--script-only] [--batch-size N]
@@ -44,6 +44,7 @@ AOT_SHADER_MAP = None
 AOT_ZERO = False
 
 LAYER = b'render_target_array_index'
+PACK_LIMIT = 7 * (1 << 29)   # 3.5 GiB: leave headroom below a GPU Mach-O slice's 4 GiB offsets
 BATCH = 1000   # bases per metal-tt run: Odyssey's largest compiler lifetime footprint at this size was 2.065 GiB on an 8 GB M2
 COLOUR = ('pixel_format', 'write_mask', 'blending_state', 'alpha_blend_operation', 'rgb_blend_operation', 'destination_alpha_blend_factor', 'destination_rgb_blend_factor',
           'source_alpha_blend_factor', 'source_rgb_blend_factor')
@@ -352,7 +353,7 @@ def compile_aot_batch(lib_dir, bases, work, arch, platform, osmin, toolchain):
 
 
 def compile_batches(lib_dir, bases, work, part, arch, platform, osmin, toolchain, batch_size, aot=False, rejected=None):
-    """Limit compiler input size, then combine every completed group into the usual single archive.
+    """Limit compiler input size, then combine every completed group into the size-bounded archives.
 
     This bounds input count, not memory: a single pipeline can still exceed Apple's compiler resources.
     On M2, merged archives passed archive-only lookups of two synthetic pipelines and all 32,864 Odyssey bases.
@@ -385,17 +386,30 @@ def compile_batches(lib_dir, bases, work, part, arch, platform, osmin, toolchain
     pieces = [piece for ready, bad in results for piece in ready]
     if rejected is not None: rejected.extend(item for ready, bad in results for item in bad)
     if not pieces: raise SystemExit('[RED] pso_offline: every descriptor was refused')
-    part.unlink(missing_ok=True)
+    packed, size = [[]], 0
+    for piece in pieces:
+        n = piece.stat().st_size
+        if n > PACK_LIMIT: raise SystemExit(f'[RED] pso_offline: single batch exceeds archive size limit: {piece}')
+        if packed[-1] and size + n > PACK_LIMIT:
+            packed.append([]); size = 0
+        packed[-1].append(piece); size += n
     need, free = max(2 << 30, sum(p.stat().st_size for p in pieces)), shutil.disk_usage(work).free
     if free < need: sys.exit(f'[RED] pso_offline: {free / 2**30:.1f} GB free before merging; need at least {need / 2**30:.1f} GB')
-    print(f'pso_offline: {arch}: merging {total} batches', flush=True)
-    cmd = ['xcrun', '-sdk', sdk(platform), 'metal-pack', '-nthreads', str(pack_threads), *map(str, pieces), '-o', str(part)]
-    log_path = work / f'metal-pack.{arch}.log'
-    with log_path.open('w') as log:
-        r = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, env=dict(os.environ, TMPDIR=str(work)))
-    if r.returncode or not part.is_file() or not part.stat().st_size:
-        part.unlink(missing_ok=True)
-        sys.exit(f'[RED] pso_offline: metal-pack failed for {arch} (exit {r.returncode}): {log_path.read_text()[-2000:]}')
+    outputs = [part if i == 0 else part.with_name(f'{arch}.{i}.mtl4a.partial') for i in range(len(packed))]
+    try:
+        for i, (group, output) in enumerate(zip(packed, outputs)):
+            output.unlink(missing_ok=True)
+            print(f'pso_offline: {arch}: merging {len(group)} pieces into part {i + 1}/{len(packed)}', flush=True)
+            cmd = ['xcrun', '-sdk', sdk(platform), 'metal-pack', '-nthreads', str(pack_threads), *map(str, group), '-o', str(output)]
+            log_path = work / f'metal-pack.{arch}.{i}.log'
+            with log_path.open('w') as log:
+                r = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, env=dict(os.environ, TMPDIR=str(work)))
+            if r.returncode or not output.is_file() or not 0 < output.stat().st_size <= PACK_LIMIT:
+                sys.exit(f'[RED] pso_offline: metal-pack failed or exceeded size limit for {arch} part {i} (exit {r.returncode}): {log_path.read_text()[-2000:]}')
+    except BaseException:
+        for output in outputs: output.unlink(missing_ok=True)
+        raise
+    return outputs
 
 
 def main(argv=None):
@@ -495,20 +509,32 @@ def main(argv=None):
     for arch, key in keys.items():
         dst, kf = out / f'{arch}.mtl4a', work / f'key.{arch}'
         rejected_file = out / f'aot-refused.{arch}.json'
-        if dst.is_file() and kf.is_file() and kf.read_text().strip() == key:
+        manifest = work / f'parts.{arch}.json'
+        saved = json.loads(manifest.read_text()) if manifest.is_file() else {}
+        complete = saved.get('limit') == PACK_LIMIT and bool(saved.get('parts')) and all((out / name).is_file() and (out / name).stat().st_size == size for name, size in saved['parts'].items())
+        if complete and dst.is_file() and kf.is_file() and kf.read_text().strip() == key:
             rejected_archs[arch] = json.loads(rejected_file.read_text()) if rejected_file.is_file() else []
             print(f'pso_offline: {arch}: reused ({dst.stat().st_size / 2**20:.0f} MB)'); continue
-        kf.unlink(missing_ok=True); dst.unlink(missing_ok=True)
+        kf.unlink(missing_ok=True)
+        (out / 'prebuilt.tsv').unlink(missing_ok=True)
+        for old in out.glob(f'{arch}*.mtl4a'):
+            if old.stem.split('.')[0] == arch: old.unlink()
         part = work / f'{arch}.mtl4a.partial'; part.unlink(missing_ok=True)
         t1 = time.time(); print(f'pso_offline: {arch}: metal-tt, {len(bases)} bases (minutes) ...', flush=True)
         refused_rows = []
         if a.aot or a.batch_size and len(bases) > a.batch_size:
-            compile_batches(lib_dir, bases, work, part, arch, a.platform, osmin, tv, a.batch_size or len(bases), a.aot, refused_rows)
+            parts = compile_batches(lib_dir, bases, work, part, arch, a.platform, osmin, tv, a.batch_size or len(bases), a.aot, refused_rows)
         else:
             write_script(js, script(real_libraries(lib_dir, bases, work), bases))
             compile_archive(js, part, work, arch, a.platform, osmin, len(bases))
             clear_real_libraries(work)
-        os.replace(part, dst)
+            parts = [part]
+        published = {}
+        for piece in parts:
+            target = out / piece.name.removesuffix('.partial')
+            os.replace(piece, target)
+            published[target.name] = target.stat().st_size
+        manifest.write_text(json.dumps({'limit': PACK_LIMIT, 'parts': published}) + '\n')
         rejected_tmp = rejected_file.with_suffix('.partial')
         rejected_tmp.write_text(json.dumps(refused_rows, indent=2) + '\n')
         os.replace(rejected_tmp, rejected_file)
@@ -534,13 +560,15 @@ def main(argv=None):
         if os.environ.get('DM_AOT_STRICT') == '1' and any(not row.get('base') and identity(row) in denied for row in rows):
             raise SystemExit('[RED] strict AOT: an exact descriptor was refused; see aot-preflight.json (no app should be packed)')
     for f in out.glob('*.mtl4a'):   # architectures no longer asked for
-        if f.stem not in archs: f.unlink()
+        if f.stem.split('.')[0] not in archs: f.unlink()
     (out / 'prebuilt.tsv').write_text(st)
     rp = out / 'rest_pairs.tsv'
     if rest: rp.write_text(''.join(f'{v}\t{f}\n' for v, f in rest))
     else: rp.unlink(missing_ok=True)
-    (out / 'archive.tsv').write_text(f'# the pipeline archive made offline (dm/gfx/tools/pso_offline.py); the host reads prebuilt.tsv, not this file\narch\t{" ".join(archs)}\n'
+    (out / 'archive.tsv').write_text(f'# the pipeline archive made offline (dm/gfx/tools/pso_offline.py); the host reads prebuilt.tsv for coverage and checks the parts listed here\narch\t{" ".join(archs)}\n'
                                      f'platform\t{a.platform}\t{osmin}\ntoolchain\t{tv}\nbases\t{len(bases) - (len(denied) if a.aot else 0)}\nrest\t{len(rest)}\n')
+    with (out / 'archive.tsv').open('a') as metadata:
+        for f in sorted(out.glob('*.mtl4a')): metadata.write(f'part\t{f.name}\t{f.stat().st_size}\n')
     return 0
 
 
