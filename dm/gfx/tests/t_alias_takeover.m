@@ -8,8 +8,10 @@ uint64_t now_ns(void) { return bp_now(); }
 static int checks, failed;
 #define CHECK(c, label) do { checks++; if (!(c)) { failed++; fprintf(stderr, "FAIL: %s (line %d)\n", label, __LINE__); } } while (0)
 
+static uint8_t storage[65536];
+static pool_t storage_pool = {.magic=MAGIC('P','O','O','L'), .mem=storage, .size=sizeof storage, .flags=NVN_MEMORY_POOL_FLAGS_CPU_NO_ACCESS | NVN_MEMORY_POOL_FLAGS_GPU_CACHED};
 static tex_t tex(uint64_t serial, NVNformat format, int w) {
-    tex_t t = {.magic = MAGIC('T','E','X',0), .serial = serial};
+    tex_t t = {.magic = MAGIC('T','E','X',0), .serial = serial, .pool=&storage_pool, .mem=storage};
     t.d = (nvn_texdesc){.target = NVN_TEXTURE_TARGET_2D, .format = format, .width = w, .height = w, .depth = 1, .levels = 1, .samples = 1};
     nvn_tex_layout(&t.d, &t.L);
     return t;
@@ -36,7 +38,7 @@ int main(int argc, char **argv) { @autoreleasepool {
     CHECK(tb && tb != ta && shared(ta) && shared(tb), "another description over the storage leaves the texture a live object resolves to");
     mtl_tex_release(&a);
     CHECK(!held(ta) && shared(ta), "the finalized object's texture is no longer held, and stays shared until its storage is taken");
-    for (int i = 0; i <= ALIAS_IDLE; i++) next_submission();
+    for (int i = 0; i <= alias_idle_limit(); i++) next_submission();
     id<MTLTexture> tc = tex_mtl(&c);
     CHECK(tc && !shared(ta), "a texture nothing resolves to goes when another description takes its storage");
     CHECK(shared(tb) && shared(tc), "the live objects' textures stay");
@@ -57,7 +59,7 @@ int main(int argc, char **argv) { @autoreleasepool {
     CHECK(view && view.parentTexture == tb, "fixture is a real Metal texture view");
     tex_put(s1, view); mtl_tex_release(&b);
     CHECK(held(tb) && held(view), "a serial naming a view also holds its parent");
-    for (int i = 0; i <= ALIAS_IDLE; i++) next_submission();
+    for (int i = 0; i <= alias_idle_limit(); i++) next_submission();
     tex_t d = tex(91004, NVN_FORMAT_R16F, 64); mtl_tex_init(&d);
     CHECK(tex_mtl(&d) && shared(tb), "takeover preserves storage named only through a view");
     tex_put(s1, view);

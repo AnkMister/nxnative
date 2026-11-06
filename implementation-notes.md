@@ -517,3 +517,78 @@ the final host build passed. Native AOT, PSO archive and remaining upload test
 execution is pending. The user stopped the final gfx build and forbids all
 builds, tests, compiles and restores until an explicit RESUME. Preserve its
 processes and generated outputs for that continuation. No cleanup was run.
+## PR #1444 texture lane (static-ready, verification paused)
+
+Branch `p1444-tex` starts at `64a163ba`. Source inputs are upstream `a15c0415`
+and `e03bdc8f`, local `oot-review3` (`b3e29584`), and local `oot-1439`
+(`575f834e`). No third-party binary, game, shader-chain build, push or PR ran.
+
+`DM_NVN_P1444_TEX=1` enables the ported texture behavior. It unwraps texture
+parents, replaces placement-heap textures in their actual heap, updates serial
+and ghost entries in place, preserves #1439 ancestor counts, and records each
+affected serial with `ser_note`. It recreates a sampling view only for compatible
+sRGB/linear storage. Image preparation persists IMAGE intent and upgrades integer
+image views before opening a pass. Attachment resolution suppresses first-use
+CPU snapshots. Alias eviction records serial notes, protects every view ancestor,
+keeps upstream's 512-submission idle interval, and marks evicted retired descriptor
+views gone. Retired packaged IDs skip unbound pool walks while #1393's explicit
+pool skip and submission-local view lifetime remain intact. VIRTUAL pools skip
+flush tracking; NULL pool/buffer queries are guarded. Readback retains our tighter
+16-buffer/16-MiB cap with upstream's eviction policy.
+
+`DM_NVN_DISPATCH_CLAMP=1` enables upstream's GPU dispatch-dimension clamp; the
+texture gate also enables it unless explicitly overridden with 0. Missing clamp
+pipelines and misaligned arguments refuse the dispatch. #1439 counting stays
+behind `DM_NVN_SERIAL_HELD=1`, with `DM_NVN_SERIAL_HELD_CHECK=1` for a debug walk.
+
+The indirect mesh path already existed locally. The lane carries over review3's
+GPU snapshot, count cap, overflow rejection and refusal path under the existing
+default-off `DM_NVN_MESH_INDIRECT=1`. The upstream kernel also interprets its two
+words as count then first. Its reported 274,851-frame gameplay session supports
+that interpretation for this title, but neither the commit nor PR supplies a
+producer disassembly proving the ABI. The interpretation remains provisional.
+
+The dynamic #1360 GMEM table and its per-submission commit words remain intact.
+The upstream fixed GMEM_RUN cache would regress that design. The pool test now
+also checks all 521 contiguous 64-KiB pools. #1390's exact GPU-written ranges
+remain intact, including for 260/68 terrain tiles, rather than adding size
+exceptions that could ignore a GPU write over a tile. #1394 residency, #1420,
+DM_SAFE_GPU and the existing AOT/visual/foliage paths are preserved. The local
+lookahead suite already contains every upstream case plus stronger conditional,
+depth and compute-reader cases, so it is retained. `nvn_dirty` has no e03 changes
+to port; this lane does not add unused copy-absorption helpers from a15.
+
+NEW work, absent from e03: `DM_NVN_BCRT=1` redirects plain BC1/BC4 colour targets
+to uncompressed full-resolution shadows and GPU-encodes their selected mip and
+slice back after the pass. Static evidence was `rt_view_fmt` refusing a plain BC
+format, `attach` clearing its attachment, and `rp_begin_ex_` refusing a pass with
+no usable target. The existing block-sized integer-view path stays intact. The
+new path supports BC1 including sRGB and BC4 UNORM, preserves Load/Clear, and
+refuses layered draws. It is lossy compression with simple endpoint fitting,
+not a proven match for the game's compressor. The new GPU test checks encoded
+mips with an independent CPU decoder, GPU sampling, and unchanged neighboring
+mips/slices. Gameplay and visual acceptance remain unverified.
+
+Ownership stays separate from the stutter lane's `pkg_upload`, `up_big_src`,
+`g_pkg_alias`, `tex_mtl_` alias lookup/insertion and `mtl_tex_release` retention.
+`mtl_alias_drop_pool` overlaps only at cleanup: retain the stutter lane's package
+cache cleanup and this lane's serial notes and descriptor-before-CPU cleanup.
+The lead owns flag/build docs and final integrated verification on pinned
+`oot-play` commit `e8c3bc222b06413347d533fca7e060a69943c57a`.
+
+Validation is pending. A nice-19, two-job focused test build first exposed a
+duplicate alias_sweep and a missing forward declaration. Both were corrected in
+source. The replacement build was SIGSTOPped by the user before completion.
+No test executable ran; the attempted test runner exited because the first
+binary did not yet exist. No host build ran. The user forbids builds, tests,
+compiles, restores and process resumes until explicit RESUME. Only static
+inspection and `git diff --check` ran after that pause. Stopped outputs predate
+later source edits and are not final-build evidence.
+
+Storage cleanup removed nothing. Generated host headers under `dm/host/gen`,
+test outputs, and task scratch/log files are retained because the paused build
+still owns them and verification is pending. No install or dependency update ran.
+
+### PR 1444 final texture integration (verification paused)
+
+Merged p1444-tex 604dca800071916f094f4c5275dd794fa6faedf6 onto final oot-play plus the other three lanes. Kept packaged-cache eviction together with per-serial alias notes and descriptor-before-CPU cleanup. Retained final oot-play's live-shared and current-submission exemptions in both retired-ID policies. Kept the conservative depth-reader classification and its DM_NVN_FB_DSELF condition: removing pool readers without proving their depth access could alter feedback. Combined the existing alias diagnostics, the 521-pool dynamic-map fixture and upload-buffer deletion checks. NEW BC1/BC4 encoding remains opt-in and lossy; its source and GPU fixture have not run. No build, test, compile, restore or stopped process was started or resumed during the user pause.

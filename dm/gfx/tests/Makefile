@@ -631,3 +631,7 @@ t_gpu_lost: t_gpu_lost.m t_gpu_lost_front.c $(MTL_T_DEP)
 check_t_gpu_lost: t_gpu_lost
 	MTL_DEBUG_LAYER=1 ./t_gpu_lost default
 	MTL_DEBUG_LAYER=1 ./t_gpu_lost
+
+t_bcrt: t_bcrt.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_bcrt.m $(MTL_T_SRC) $(FW)
+check_t_bcrt: RUN_ENV = MTL_DEBUG_LAYER=1
