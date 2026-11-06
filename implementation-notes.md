@@ -54,3 +54,14 @@ All experiments remain default-off except inherited/profile defaults; the play
 recipe explicitly enables reviewed correctness/stability and srgb. Complete
 pipeline coverage and image/gameplay acceptance remain parent gates. No game,
 full shader build, push or PR ran. Final results and cleanup are in docs/oot-notes.
+
+
+# Ocarina play build implementation notes
+
+Basis: `oot-hyper-main` (`64a163ba`). Work branch: `oot-play-fixes`.
+Follow `docs/oot-notes/PLAY-BUILD.md`; preserve the baseline as read-only.
+Build into a separate output root; APFS-clone extraction only. No shader cache reuse.
+Use the existing Python and .NET; install nothing. No game launch or env installation.
+Play flags produce chain `992d6981956f`; bundled tools pass the lock check.
+Four shader workers and four rewrite workers follow the recipe. Disable heap/region
+launch probes explicitly. Build/runtime environment and evidence remain external.
