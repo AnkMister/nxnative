@@ -446,3 +446,9 @@ brightness in gameplay remain unverified.
 Found on this game: the [raw lookup grouping extension](../../../docs/reference/shaders.md#adjacent-raw-global-memory-reads)
 accepts the heavy mesh programs' read-only pool table under `DMSH_WIDE_GROUP=1`.
 Keep this off until matching host/shader builds pass image comparison.
+
+### AV1 movie experiments (Mac validation open)
+
+`DM_AV1_PARALLEL=1` enables timestamped burst delivery outside the buffer lock and dav1d frame threading. It defaults off. The M4 Max normally uses VideoToolbox, so dav1d throughput gains apply only when fallback is used or `DM_AV1_DAV1D=1` is set. `DM_CV_LATE=1` opts into the [movie clock](../../../docs/reference/movies.md#a-game-slower-than-its-movie-plays-it-by-the-movies-clock), also default off. It skips overdue pictures to keep pace with sound and distinguishes a game pause from a host stall. Pixels are unchanged, but fewer movie pictures may be displayed.
+
+The NDVE direct bilinear scale (#1331, b6367705, 76c20edb and 943b0bea) was deliberately skipped. It bypasses the game reconstruction and changes its filtering. Fixing the reconstruction remains open; the quality-first profile keeps the original path.
