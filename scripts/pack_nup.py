@@ -288,7 +288,8 @@ def control(k, out, fallback=None):   # the package's control data beside its Ex
     meta.update(k.meta())
     nacp_bytes = meta.get(T_NACP)
     icons = localized(meta.get(T_LICONS, b''))
-    icon = meta.get(T_ICON) or pick(icons, 'en-US') or next(iter(icons.values()), None)
+    image = lambda d: d if d and d[:2] == b'\xff\xd8' or d and d[:8] == b'\x89PNG\r\n\x1a\n' else None   # a JPEG or PNG: some packers put other control files in the icon record (a BYML of light settings on one Switch 2 NUP), which sips cannot read
+    icon = (image(meta.get(T_ICON)) or image(pick(icons, 'en-US')) or next((d for d in map(image, icons.values()) if d), None)) if os.environ.get('DM_OOT_BRENT') == '1' else (meta.get(T_ICON) or pick(icons, 'en-US') or next(iter(icons.values()), None))
     for name, data in (('control.nacp', nacp_bytes), ('icon.jpg', icon)):
         if data: (out / name).write_bytes(data)
         else: (out / name).unlink(missing_ok=True)

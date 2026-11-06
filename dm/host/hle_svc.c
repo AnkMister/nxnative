@@ -47,7 +47,14 @@ static void mem_init_once(void) {
         die("guest address-space profile has invalid native boundaries");
     // DM_ALIAS_SIZE=<bytes>: an alias region of that size instead of the profile's, the heap and stacks as they are; the block grows with it. A Switch-sized one (64 GB) holds what
     // a game reserves unchanged, for measuring its address regions on the Mac (the NSP script's heap check); an iPhone has no room for more than the profile's
-    size_t alias = DM_GAME_MEM_ALIAS; const char *as = getenv("DM_ALIAS_SIZE");
+    int expanded = 0;
+#if !TARGET_OS_IPHONE
+    expanded = getenv("DM_OOT_BRENT") && !strcmp(getenv("DM_OOT_BRENT"), "1");
+#endif
+    // e9d71e27: reserve address space only. Keep this experiment off on iOS.
+    const size_t switch_alias = UINT64_C(0x1000000000);
+    size_t alias = expanded && DM_GAME_MEM_ALIAS < switch_alias ? switch_alias : DM_GAME_MEM_ALIAS;
+    const char *as = getenv("DM_ALIAS_SIZE");
     if (as && *as) { alias = (size_t)strtoull(as, NULL, 0); if (alias < 0x10000000 || (alias & (pg - 1))) die("DM_ALIAS_SIZE %s: at least 256 MB, in whole host pages", as); }
     g_reserve = RESERVE - DM_GAME_MEM_ALIAS + alias;
     g_as = mmap(NULL, g_reserve, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0);
@@ -58,12 +65,23 @@ static void mem_init_once(void) {
     //   and resource loading then MapPhysicalMemory's into the alias region after the node area on demand. With a 1.25 GB alias region only about 256 MB was left there, and 3 MB-class layout archives (WipeCourseIn / WipeWarp)
     //   got no address, were skipped, and crashed on a null pointer when used (main +0x373e04). So alias = node area + 1.75 GB + slack; the heap needs only 1.47 GB, and 2.625 GB is plenty.
     // The alias and stack sizes come from the game profile (mem_alias / mem_stack), the heap takes the rest; Mario: alias 0xB8000000, stack 0x10000000 → stack at +0xC8000000, heap at +0xD8000000
-    g_alias = g_as + 0x10000000; g_alias_cap = alias;
-    g_stack = g_alias + g_alias_cap; g_stack_cap = DM_GAME_MEM_STACK;
-    g_heap  = g_stack + g_stack_cap; g_heap_cap  = g_reserve - (size_t)(g_heap - g_as);
+    if (expanded) {
+        // Keep the heap and stacks before the large alias region to reduce
+        // exposure to guest pointers truncated to the Switch's 39 bits.
+        g_heap = g_as + 0x10000000;
+        g_heap_cap = RESERVE - DM_GAME_MEM_ALIAS - DM_GAME_MEM_STACK - 0x10000000;
+        g_stack = g_heap + g_heap_cap; g_stack_cap = DM_GAME_MEM_STACK;
+        g_alias = g_stack + g_stack_cap; g_alias_cap = alias;
+    } else {
+        g_alias = g_as + 0x10000000; g_alias_cap = alias;
+        g_stack = g_alias + g_alias_cap; g_stack_cap = DM_GAME_MEM_STACK;
+        g_heap  = g_stack + g_stack_cap; g_heap_cap  = g_reserve - (size_t)(g_heap - g_as);
+    }
     if (!(g_alias_bits = calloc((g_alias_cap >> 18) + 1, sizeof *g_alias_bits))) die("alias region page bitmap calloc");
     if (!(g_alias_exposed = calloc(g_alias_cap / pg / 64 + 1, sizeof *g_alias_exposed))) die("alias exposure bitmap calloc");
     LOG("guest AS %p +%#llx  heap %p alias %p stack %p", g_as, (unsigned long long)g_reserve, g_heap, g_alias, g_stack);
+    if (expanded && (uint64_t)(uintptr_t)g_alias > (UINT64_C(1) << 39))
+        LOG("[mem] heap and stacks reach past 2^39; guest pointer truncation remains possible with DM_OOT_BRENT=1");
     const char *aw = getenv("DM_ALIAS_WINDOWS");
     if (aw && atoi(aw) > 0) { pthread_t th; if (!pthread_create(&th, NULL, alias_windows_thread, (void *)(uintptr_t)atoi(aw))) pthread_detach(th); }
     const char *rf = getenv("DM_REGIONS");

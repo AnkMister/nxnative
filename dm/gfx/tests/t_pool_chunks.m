@@ -133,6 +133,17 @@ int main(void) { @autoreleasepool {
     mtl_sub_begin(); uint64_t log_gpu = gml_take(map); finish();
     id<MTLBuffer> wide_log = g_gml_free.lastObject;
     CHECK("the write bitmap grows with the table", wide_log.gpuAddress == log_gpu && wide_log.length >= cap / 8);
+    setenv("DM_OOT_BRENT", "1", 1);
+    id<MTLBuffer> obsolete = [g_dev newBufferWithLength:DMSH_GMEM_MAP_ENTRIES / 8 options:MTLResourceStorageModeShared];
+    res_add(obsolete);
+    [g_gml_free insertObject:obsolete atIndex:0];
+    mtl_sub_begin(); uint64_t reused = gml_take(map); finish();
+    CHECK("a suitable completed log is reused", reused == wide_log.gpuAddress);
+    CHECK("smaller free logs are removed even below the reused one", ![g_gml_free containsObject:obsolete]);
+    pthread_mutex_lock(&g_res_mu);
+    CHECK("the obsolete log leaves residency", ![g_res_objects containsObject:obsolete]);
+    pthread_mutex_unlock(&g_res_mu);
+    unsetenv("DM_OOT_BRENT");
     memset(wide_log.contents, 0, wide_log.length);
     ((uint32_t *)wide_log.contents)[last / 32] = 1u << (last % 32);
     gml_read(wide_log, map, -1, 0);

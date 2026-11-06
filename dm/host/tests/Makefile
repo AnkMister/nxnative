@@ -317,6 +317,8 @@ $(B)/t_svc_memory_dirty: $(MEM_DEPS) ../../gfx/nvn/nvn_dirty.c ../../gfx/nvn/nvn
 	$(CLANG) $(MEM_FLAGS) -DTEST_REAL_DIRTY -o $@ t_svc_memory.c ../../gfx/nvn/nvn_dirty.c
 .PHONY: memory memory-tsan memory-dirty memory-profile
 memory: $(B)/t_svc_memory $(B)/t_svc_memory_unlimited $(B)/t_svc_memory_16k
+	DM_OOT_BRENT=1 $(B)/t_svc_memory --brent-alias-probe
+	DM_OOT_BRENT=1 DM_ALIAS_SIZE=0x10000000 $(B)/t_svc_memory --brent-alias-probe
 	$(B)/t_svc_memory
 	$(B)/t_svc_memory_unlimited
 	$(B)/t_svc_memory_16k

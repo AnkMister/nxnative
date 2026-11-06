@@ -555,11 +555,17 @@ static struct { int on, miss; NvShader *ts, *ms; uint32_t first, count; uint64_t
 static void draw_(const p_draw *dw, const p_draw_idx *di);
 static uint64_t g_mtk_n;
 static nvn_hmap g_pso_mtk = {.klen = sizeof(pso_key)};   // demand and warm results are installed on the submit thread
+static id<MTLFunction> mtk_nofrag(void) {   // the fragment function of a task / mesh program with no pixel stage (depth only): a mesh pipeline must have one
+    static id<MTLFunction> fn; static dispatch_once_t once;
+    dispatch_once(&once, ^{ NSError *e = nil; id<MTLLibrary> lib = [g_dev newLibraryWithSource:@"#include <metal_stdlib>\nfragment void dm_mesh_nofrag() {}\n" options:nil error:&e];
+        fn = [lib newFunctionWithName:@"dm_mesh_nofrag"]; if (!fn) MLOG("[RED] task / mesh: the empty fragment function did not compile: %s", e.localizedDescription.UTF8String); });
+    return fn;
+}
 static id<MTLRenderPipelineState> mtk_build(const pso_key *k, NvShader *ts, NvShader *ms, NvShader *fs, NSError **error) {
     MTLRenderPipelineDescriptor *d = pso_desc(k, nil, fs, nil, 0);
     if (!pso_ds_valid((uint32_t)d.depthAttachmentPixelFormat, (uint32_t)d.stencilAttachmentPixelFormat)) return nil;
     MTLMeshRenderPipelineDescriptor *m = [MTLMeshRenderPipelineDescriptor new];
-    m.meshFunction = ms->fn; m.fragmentFunction = d.fragmentFunction; m.maxTotalThreadsPerMeshThreadgroup = ms->mesh_threads;
+    m.meshFunction = ms->fn; m.fragmentFunction = d.fragmentFunction ?: (nvn_visual_on() ? mtk_nofrag() : nil); m.maxTotalThreadsPerMeshThreadgroup = ms->mesh_threads;
     if (ts) { m.objectFunction = ts->fn; m.payloadMemoryLength = (ts->mesh_payload + 15u) & ~15u; m.maxTotalThreadsPerObjectThreadgroup = ts->mesh_threads; }
     m.rasterSampleCount = d.rasterSampleCount; m.alphaToCoverageEnabled = d.alphaToCoverageEnabled;
     for (int i = 0; i < 8; i++) m.colorAttachments[i] = d.colorAttachments[i];
@@ -650,6 +656,7 @@ static void mesh_tasks_draw(const p_draw *dw) {
     if (ts && ts->mesh_kind != 1) ts = nil;
     if (!ms || ms->mesh_kind != 2 || !ms->fn || (ts ? !ts->fn : !ms->mesh_notask)) {
         RED_ONCE(150, "DrawMeshTasks without its task and mesh shaders (task %s mesh %s): draw skipped", ts ? ts->key : "-", ms ? ms->key : "-"); return; }
+    if (nvn_visual_on() && !pr->sh[1] && pr->fs_wait) return;
     image_prepare(pr, 1u << 3 | 1u << 4);
     if (g_nubd && (nvn_visual_on() || mesh_indirect_on() || g_enc || ubd_lazy()) && ((dw->ind && ubd_hits(dw->ind, dw->ind + 8)) || (ts && ubd_conflict_sh(ts, 3)) || ubd_conflict_sh(ms, 4))) {
         g_ubd_conflicts++; rp_end(); ubd_land();

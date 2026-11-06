@@ -1487,3 +1487,12 @@ Digimon Story Cyber Sleuth: Complete Edition (Media.Vision's MVGL engine, SDK 6.
 - **Fix:** opt in with `DM_PRESENT_COLORSPACE=srgb` or `auto` (both tag the SDR source as sRGB). `p3` converts sRGB to Display P3 in linear light before tagging the layer Display P3. Matching offscreen captures carry the same tag; raw texture dumps remain sRGB. All modes keep SDR full range. Unset preserves legacy output. `DM_NVN_VQA=1` logs source-format changes and HDR status queries and exposes skipped-pipeline draws without requiring PASSDUMP. With `DM_NVN_TSV`, it adds `@compile_ms` for synchronous library and pipeline creation.
 - **Diagnostics:** `DM_NVN_NANSCAN=1`, optionally `DM_NVN_NANSCAN_EVERY=N`, scans stored float render attachments on the main GPU timeline. `[nanscan]` lines give frame, pass, target, level, layer, non-finite pixel count and candidate fragment keys. Counts cover all RGBA components and multisample samples, once per pixel. Discarded, unreadable and 3D targets are explicitly skipped. A hit can originate in loaded data or earlier compute work; pass keys do not prove which draw caused it. `scripts/oot_vqa.py <run folder>` summarizes the log and sibling `frames.tsv`; `--window start,length` matches `oot_ab.py`.
 - **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md), source audit and synthetic Metal/ColorSync tests, without a new gameplay run. HDR passthrough is still open; `vi` reports SDR and discards layer HDR metadata.
+## A depth-only native mesh pipeline needs a fragment function
+
+Symptom: Metal rejects a native mesh program with no pixel stage.
+Cause: the mesh pipeline descriptor had a nil fragmentFunction.
+Fix: with DM_NVN_VISUAL=1, use an empty fragment function for a genuinely
+depth-only program. A declared pixel shader that failed to load still skips its
+draw. Ported from oot-combined's #1368 resolution 9a7a5ff0.
+Found on: [Ocarina](../../dm/games/0400486024DEC000/README.md).
+

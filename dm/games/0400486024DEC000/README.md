@@ -411,3 +411,15 @@ Against the configured top docked 1920x1080 scene, 1440p has 1.778 times the sce
 
 A useful planning model is `fixed + scene_factor * scene_cost + final_factor * final_cost + reconstruction_cost`, with factors `(1.778, 1)` for 1440p and `(4, 2.25)` for 2160p. Memory depends on actual engine allocations, aliasing and live buffer sizes; do not multiply total resident memory by the scene factor. The M4 Max and 30 fps cap do not establish enough headroom for either setting. Measure GPU pass costs and memory after visual acceptance. Presentation supersampling from `DM_QUALITY=max` is a separate additional cost.
 
+## Source harvest pending gameplay acceptance
+
+Current source experiments from oot-combined are opt-in and have not been tested
+in the game on this branch. They add [LDSM shared-memory ordering](../../../docs/reference/shaders.md#ldsm-reads-rows-other-lanes-stored),
+[SDK 22 audio lock discovery](../../../docs/reference/audio.md#the-update-lock-read-off-updateimpl-sdk-22),
+[retired descriptor policy](../../../docs/reference/nvn-objects.md#finalized-textures-made-again-by-pool-tables),
+[Mac alias layout](../../../docs/reference/memory.md#optional-mac-alias-region-from-oot-combined)
+and [depth-only mesh pipelines](../../../docs/reference/rendering.md#a-depth-only-native-mesh-pipeline-needs-a-fragment-function).
+The source comparison, activation flags and remaining integration checks are in
+[brent-compare.md](../../../brent-compare.md). Existing open gameplay findings
+remain open until a matching shader build and host are tested.
+

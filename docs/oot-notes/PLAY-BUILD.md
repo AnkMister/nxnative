@@ -1,9 +1,13 @@
 # Recommended Ocarina play build
 
-**Release blocked until oot-stable-fix and oot-visual-fix land.** Review 2
-found a false-stop watchdog race, a residency teardown race and integer-output
-corruption in Float16 variants. Do not ship DM_SAFE_GPU's watchdog default-on
-before oot-stable-fix. The settings below are the intended post-fix recipe.
+The reviewed visual and stable replacements are integrated. The Float16/integer
+selector, watchdog snapshot and auxiliary residency races are repaired.
+`DM_SAFE_GPU=1` is restored in the recommended play environment.
+
+**Offline pipeline coverage is still an acceptance gate.** The forthcoming
+oot-aot branch addresses complete offline pipeline coverage and compile counters.
+No variant is a finished play package until the no-runtime-compilation rule is
+verified. Branch selection follows the integrated checks recorded below.
 
 This recipe enables correctness and stability. Performance experiments stay off.
 It describes the parent's later build; this integration did not run a game, full
@@ -26,6 +30,7 @@ export DMSH_OOT_VISUAL=1
 export DMSH_RAW_LOAD_QUADS=0 DMSH_CBUF_REUSE=0 DMSH_STORAGE_RUNS=0
 export DMSH_STAGECACHE=0 DMSH_STAGECACHE_WARM=0
 export DM_NVN_BORDER_SPLIT=0
+export DM_OOT_RENDER_RES=off DM_OOT_BRENT=0
 export DM_FAST_CLOCK=0 DM_REWRITE_J=4 J=4
 export DMSH_TARGETS=mac XLATE_DEBUG=1 XLATE_REDUCED=1
 export DOTNET_ROOT="$HOME/.dotnet"
@@ -33,6 +38,12 @@ export PATH="${OOT_PYTHON_BIN}:$HOME/.dotnet:$PATH"
 export TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch
 unset IOSOUT XLATE SPIRV_CROSS DMSH_CAS DMSH_PREFILL WORK DM_GAMES_DIR
 ```
+
+**The next app build must re-rewrite main with the merged Ocarina profile.**
+It adds three build-bound observation hooks for DM_OOT_RENDER_RES. A host-only
+rebuild cannot install them, even if the option is later enabled at runtime.
+Leave the resolution override off for this recipe. DM_FAST_CLOCK separately
+remains off at rewrite time.
 
 Re-split the independent shader inputs with `DMSH_OOT_VISUAL=1`. The entry-wise
 NDSR reader recovers SMAA-weights key `d17eefaff4f0bc23`; confirm it enters the
@@ -53,6 +64,9 @@ settings; the integration does not write the user's Application Support env.txt.
 
 ```ini
 DM_SAFE_GPU=1
+DM_OOT_RENDER_RES=off
+DM_OOT_BRENT=0
+DM_NVN_POOL_SKIP_RETIRED=0
 DM_NVN_VISUAL=1
 DM_NVN_MESH_INDIRECT=1
 DM_PRESENT_COLORSPACE=srgb

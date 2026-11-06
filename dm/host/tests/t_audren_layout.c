@@ -7,7 +7,15 @@
 #include <sys/wait.h>
 #include "../hle_audren.c"
 
-void *guest_sym(const char *name) { (void)name; return NULL; }
+static uint32_t lock_code[40];
+static const char *lock_symbol;
+static int use_os_lock;
+void *guest_sym(const char *name) {
+    if (!lock_symbol) return NULL;
+    if (!strcmp(name, lock_symbol)) return lock_code;
+    if (!strcmp(name, use_os_lock ? "_ZN2nn2os9LockMutexEPNS0_9MutexTypeE" : "_ZN2nn2os12SdkMutexType4LockEv")) return lock_code + 32;
+    return NULL;
+}
 void *objmap_get(const void *key) { (void)key; return NULL; }
 void objmap_put(const void *key, void *value) { (void)key; (void)value; }
 void *objmap_del(const void *key) { (void)key; return NULL; }
@@ -187,7 +195,28 @@ static void test_two_renderers(void) {
     memset(g_ar, 0, sizeof g_ar);
 }
 
+static void test_update_lock(void) {
+    const char *symbols[] = {"_ZN2nn5audio6server17AudioRenderSystem10UpdateImplEPvmS3_mPKvm", "_ZN2nn5audio6server17AudioRenderSystem6UpdateEPvmS3_mPKvm"};
+    for (int sdk = 0; sdk < 2; sdk++) {
+        lock_symbol = symbols[sdk]; use_os_lock = sdk;
+        unsigned want = sdk ? 0x1f8 : 0x2d8;
+        memset(lock_code, 0, sizeof lock_code);
+        lock_code[0] = 0x91000013 | (want << 10); // add x19, x0, #offset
+        lock_code[1] = 0xaa1303e0; // mov x0, x19
+        lock_code[2] = 0x94000000 | 30; // bl the bound lock target
+        size_t off = 0; int os_mutex = -1;
+        assert(update_lock(lock_symbol, &off, &os_mutex));
+        assert(off == want && os_mutex == sdk);
+        lock_code[2]++;
+        assert(!update_lock(lock_symbol, &off, &os_mutex));
+    }
+    lock_symbol = NULL;
+    size_t off = 0; int os_mutex = 0;
+    assert(!update_lock(symbols[0], &off, &os_mutex));
+}
+
 int main(int argc, char **argv) {
+    test_update_lock();
     test_two_renderers();
     if (argc == 2 && !strcmp(argv[1], "--histogram")) { test_histogram(); return 0; }
     if (argc == 2 && !strcmp(argv[1], "--malformed")) { test_malformed(16, 0); return 0; }

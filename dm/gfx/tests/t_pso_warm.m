@@ -243,6 +243,12 @@ static void native_mesh(NSString *dir) {
     NvShader *live = shader_load(@"warm-ms", 4, 0), *fragment = shader_load(@"warm-fs", 1, 0);
     EXPECT("native mesh fixture loaded", 1, live != nil && fragment != nil);
     if (!live || !fragment) return;
+    uint32_t no_color[8] = {0}; pso_key depth_state;
+    pso_key_fill(&depth_state, live, nil, no_color, MTLPixelFormatDepth32Float, 0, 1, 0);
+    NSError *depth_error = nil;
+    id<MTLRenderPipelineState> depth_only = mtk_build(&depth_state, nil, live, nil, &depth_error);
+    EXPECT("depth-only mesh gets an empty fragment function", 1, depth_only != nil);
+
 
     pso_key state;
     pso_key_fill(&state, live, fragment, g_pass.cfmt, 0, 0, 1, 0);

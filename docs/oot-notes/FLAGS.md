@@ -13,8 +13,8 @@ The complete repository inventory remains [env_switches.tsv](../env_switches.tsv
 Review-1 replacements are integrated: oot-stack-fix, oot-idle-fix, oot-mem-fix
 and oot-1203-fix replace their parents. Memory dedupe, upload trim and border
 splitting remain default-off. Hidden pause now preserves queued audio and remains
-opt-in; actual hide/resume and dialogue acceptance is still open. Review 2 blocks
-shipping the visual set and default-on safety watchdog until their fix branches.
+opt-in; actual hide/resume and dialogue acceptance is still open. Review-2 visual and stable replacements are also integrated. Their regression
+fixtures still need to pass in this combined stack.
 The growing-pool correctness change remains unconditional; the numeric readable-
 tile memo is now opt-in, preserving the original string-key lookup when off.
 
@@ -159,10 +159,10 @@ unknown implementations. Crop, colour and all quality cases run with validation.
 
 | Env var or build flag | Default | Visual risk | Expected gain | Source branch |
 | --- | --- | --- | --- | --- |
-| `DMSH_OOT_VISUAL=1` (split and shader build) | Off in source; **ON for the user's build (correctness)** after oot-visual-fix | Known mixed integer/Float16 attachment corruption pending fix; correctness ports change numeric lowering, atomics, handles and Float16 outputs; game/console picture acceptance remains open | Restores missing effects/foliage and supported shader translations; no frame gain claimed | oot-visual |
+| `DMSH_OOT_VISUAL=1` (split and shader build) | Off in source; **ON for the user's build (correctness)**; oot-visual-fix merged | Mixed integer/Float16 attachment defect repaired; correctness ports change numeric lowering, atomics, handles and Float16 outputs; game/console picture acceptance remains open | Restores missing effects/foliage and supported shader translations; no frame gain claimed | oot-visual |
 | `DM_NVN_VISUAL=1` | Off; ON in recommended play build | Changes image aliases, texture write ranges, mesh prewarm and output-limit PSOs; gameplay still needs checking | Host half of visual correctness ports | oot-visual |
 | `DM_NVN_MESH_INDIRECT=1` | Off; separately enabled in recommended play build | HIGH: provisional NVN2 `{count, first}` record layout; logs first eight records for acceptance | Enables otherwise missing indirect mesh draws; console layout remains unverified | oot-visual |
-| `DM_SAFE_GPU` | **On for Ocarina Mac**, off elsewhere; **do not ship watchdog default-on until oot-stable-fix** | Known watchdog false-stop and auxiliary residency cleanup races (review 2); stops the process on GPU errors, stalled feedback or memory pressure; cannot guarantee driver recovery | GPU memory capped at 70% of recommendedMaxWorkingSetSize, conservative system wired-memory cap, no submission after refusal | oot-stable |
+| `DM_SAFE_GPU` | **On for Ocarina Mac**, off elsewhere; oot-stable-fix merged | Watchdog and auxiliary residency races repaired; stops the process on GPU errors, stalled feedback or memory pressure; cannot guarantee driver recovery | GPU memory capped at 70% of recommendedMaxWorkingSetSize, conservative system wired-memory cap, no submission after refusal | oot-stable |
 | `DM_NVN_RES_LIMIT_MB` | Existing working-set guard; safe mode enforces its stricter cap | Lower limit can stop early; higher values or `0` cannot bypass safe mode | Optional lower cap for prevention; no FPS gain | oot-stable, #1391 |
 | `DM_NVN_GMEM_ALL=1` | Off | Exposes all raw pools and increases residency pressure; leave off | Diagnostic comparison against address-mark filtering | oot-stable, #1394 |
 | `DM_TEST_GPU_HANG` | Off | Fault injection stops safe-mode process; never set for play | Synthetic callback/diagnostic test only, no real GPU hang required | oot-stable, #1382 |
@@ -186,3 +186,18 @@ The recommended choices and build/runtime boundary are in [PLAY-BUILD.md](PLAY-B
 The play build requires full ahead-of-time shaders. Lazy shaders and partial
 seen-only builds stay off; source-compiling diagnostics stay unset. See the
 release blockers in [PLAY-BUILD.md](PLAY-BUILD.md).
+
+## Additional source harvest and internal resolution
+
+| Env var or build flag | Default | Visual risk | Expected gain | Source branch |
+| --- | --- | --- | --- | --- |
+| `DM_OOT_RENDER_RES=1440` / `2160` | Off; exact values only | HIGH: engine hooks change scene/final dimensions and disable dynamic reduction; NDSR 1:1, effects, UI, allocation capacity and images unverified | More internal detail with higher GPU/memory cost; no gameplay result | oot-res, 51c75925 |
+| `DM_OOT_ORIGINAL_MAIN` | Unset | Test-only read-only original-NSO input | Audits original hook instructions; no runtime gain | oot-res |
+| `DM_OOT_BRENT=1` | Off | Alias layout, audio-lock discovery and resource cleanup need acceptance; packaging checks may refuse bad inputs | SDK lock correctness, completed-log reclamation and build reuse; no measured frame gain | oot-brent |
+| `DM_NVN_POOL_SKIP_RETIRED=1` | Off | HIGH: a finalized handle can legally read surviving storage; can omit visible textures | Avoids remaking retired textures; game savings unmeasured | oot-brent, #1393 |
+| `DM_ALIAS_SIZE` | Existing profile/host policy; Brent opt-in on oot-hyper reserves at least 64 GB | Guest address layout and pointer truncation; reserves address space, not RAM | Explicit override preserved; upstream-main variant uses upstream alias implementation | oot-brent, upstream main |
+
+The resolution feature needs main re-rewritten with the merged profile and a
+rebuilt host; no shader rebuild is required solely for its three engine hooks.
+DMSH_OOT_VISUAL also enables Brent's LDSM ordering and validated splitter changes.
+The new tensor translator source enters FILES and translation-stage fingerprints.
