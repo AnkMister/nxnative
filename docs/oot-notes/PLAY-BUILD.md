@@ -80,7 +80,7 @@ DM_OOT_RENDER_RES=off
 DM_OOT_BRENT=0
 DM_NVN_POOL_SKIP_RETIRED=0
 DM_NVN_VISUAL=1
-DM_NVN_MESH_INDIRECT=1
+DM_NVN_MESH_INDIRECT=0
 DM_PRESENT_COLORSPACE=srgb
 DM_QUALITY=off
 DM_ANISO=0
@@ -123,10 +123,14 @@ The safety net defaults on for this Ocarina Mac profile and caps GPU memory at
 70% of recommendedMaxWorkingSetSize. Its source fixes remain active. It cannot
 guarantee survival of a kernel/driver failure.
 
-`DM_NVN_MESH_INDIRECT=1` enables a correctness candidate whose NVN2 record layout
-is still provisional. The first eight records are logged after completion. The
-parent must check those records and missing geometry against console/reference
-images. `DM_QUALITY=max` is a separate optional image-enhancement experiment;
+`DM_NVN_MESH_INDIRECT` stays off. Static analysis proves that this SDK consumes
+two words, but the field order and the game's producer remain unverified.
+Enabling it is a separate diagnostic run. The converter refuses counts above
+its cap and first-task overflow. The host waits for the converted snapshot and
+checks every record before submitting the mesh draw, logging the first eight
+raw records. The waits cost performance. Missing indirect geometry remains an
+open visual limitation while the flag is off. See [record evidence](mesh-indirect-layout.md).
+`DM_QUALITY=max` is a separate optional image-enhancement experiment;
 it is left off here so the game's filtering and reconstruction remain selected.
 Crop and all quality configurations pass Metal validation as synthetic tests;
 that does not prove game pictures, GPU safety or display colour acceptance.

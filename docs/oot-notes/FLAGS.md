@@ -161,7 +161,7 @@ unknown implementations. Crop, colour and all quality cases run with validation.
 | --- | --- | --- | --- | --- |
 | `DMSH_OOT_VISUAL=1` (split and shader build) | Off in source; **ON for the user's build (correctness)**; oot-visual-fix merged | Mixed integer/Float16 attachment defect repaired; correctness ports change numeric lowering, atomics, handles and Float16 outputs; game/console picture acceptance remains open | Restores missing effects/foliage and supported shader translations; no frame gain claimed | oot-visual |
 | `DM_NVN_VISUAL=1` | Off; ON in recommended play build | Changes image aliases, texture write ranges, mesh prewarm and output-limit PSOs; gameplay still needs checking | Host half of visual correctness ports | oot-visual |
-| `DM_NVN_MESH_INDIRECT=1` | Off; separately enabled in recommended play build | HIGH: provisional NVN2 `{count, first}` record layout; logs first eight records for acceptance | Enables otherwise missing indirect mesh draws; console layout remains unverified | oot-visual |
+| `DM_NVN_MESH_INDIRECT=1` | Off, including play recipe | HIGH: field order remains unverified; bounded conversion and a GPU wait before every converted batch | Diagnostic only; logs first eight raw records and refuses overflow before mesh submission | oot-visual |
 | `DM_SAFE_GPU` | **On for Ocarina Mac**, off elsewhere; oot-stable-fix merged | Watchdog and auxiliary residency races repaired; stops the process on GPU errors, stalled feedback or memory pressure; cannot guarantee driver recovery | GPU memory capped at 70% of recommendedMaxWorkingSetSize, conservative system wired-memory cap, no submission after refusal | oot-stable |
 | `DM_NVN_RES_LIMIT_MB` | Existing working-set guard; safe mode enforces its stricter cap | Lower limit can stop early; higher values or `0` cannot bypass safe mode | Optional lower cap for prevention; no FPS gain | oot-stable, #1391 |
 | `DM_NVN_GMEM_ALL=1` | Off | Exposes all raw pools and increases residency pressure; leave off | Diagnostic comparison against address-mark filtering | oot-stable, #1394 |
@@ -199,6 +199,11 @@ release blockers in [PLAY-BUILD.md](PLAY-BUILD.md).
 
 The resolution feature needs main re-rewritten with the merged profile and a
 rebuilt host; no shader rebuild is required solely for its three engine hooks.
+On the upstream-main basis, VOTEU's uniform destination and guarded-handle
+resolution stay unconditional. Only local additions are controlled by the visual
+flag. Review 3 checks those fixes against an independently source-built upstream
+reference and checks enabled output against 64a163ba.
+
 DMSH_OOT_VISUAL also enables Brent's LDSM ordering and validated splitter changes.
 The new tensor translator source enters FILES and translation-stage fingerprints.
 

@@ -606,3 +606,30 @@ continuation. Removed the abandoned synthetic t_pso_bundle.7XIAj6 folder only
 after checking it had no Git metadata, open files or process working directories.
 Its failed invocation log is retained as initial-bundle-cwd-error.log in the
 external evidence folder. The successful fixture cleaned its own generated root.
+
+## Follow-up design for DM_AOT_STRICT=reject
+
+Design only. The current `DM_AOT_STRICT=1` policy stays report-only, including
+its visible synchronous fallback. No runtime enforcement changes are made here.
+The string `reject` is not implemented and must not be used as an enforcement
+setting in a current build.
+
+A future `reject` mode should serve only an exact pipeline from a matching
+archive after startup preparation. An uncovered render, compute or mesh request
+must fail before entering any compiler-capable API. Every device fallback,
+function-constant specialization, base specialization and source-compiling
+helper must use the same rejection policy. Startup compilation remains a
+separate preparation phase, and the phase transition must be explicit.
+
+On rejection, emit `[RED]` with phase, pipeline kind, exact descriptor key,
+shader keys, library/archive digests and the missing coverage reason. Stop the
+play session with a visible failure. Do not silently omit a draw, substitute a
+pipeline or pretend that a counter proves coverage. Learning runs continue to
+use reporting mode and record missing descriptors for repacking.
+
+Acceptance needs a compiler spy at every compiler-capable boundary. Covered
+archive requests must succeed with zero compiler entries. Missing archives,
+format changes, fragment variants, task/mesh combinations, constants and
+helpers must reject with zero compiler entries. A representative title, loading
+and gameplay route must also complete with zero cumulative gameplay entries.
+An archive-only miss test is necessary but does not establish route coverage.

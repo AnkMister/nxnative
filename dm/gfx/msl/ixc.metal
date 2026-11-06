@@ -4,8 +4,12 @@ using namespace metal;
 struct ajob { device const uint *rec; device uint *args; uint prim, cap; };
 kernel void ixc_arrays(device const ajob *j [[buffer(0)]], uint i [[threadgroup_position_in_grid]]) {
   device const uint *s = j[i].rec;
-  if (j[i].prim == 0x40) { // DM_PRIM_MESH_TASKS: count, first task → grid XYZ and first workgroup uniform
-    device uint *d = j[i].args; d[0] = s[0]; d[1] = 1; d[2] = 1; d[3] = 0; d[4] = s[1]; return;
+  if (j[i].prim == 0x40) { // Experimental NV layout; SDK proves two words, field order remains open.
+    device uint *d = j[i].args;
+    uint count = s[0], first = s[1];
+    bool invalid = count > j[i].cap || first > 0xffffffffu - count;
+    d[0] = invalid ? 0u : count; d[1] = 1; d[2] = 1; d[3] = 0; d[4] = first;
+    d[5] = count; d[6] = first; d[7] = uint(invalid); return;
   }
   uint n = s[0], c = j[i].prim == 7 ? n / 4 * 6 : n >= 3 ? (n - 2) * 3 : 0;
   device uint *d = j[i].args; d[0] = min(c, j[i].cap); d[1] = s[1]; d[2] = 0; d[3] = s[2]; d[4] = s[3]; }

@@ -16,8 +16,8 @@ int main(void) { @autoreleasepool {
     mtl_init(); size_t bytes = (size_t)getpagesize();
     uint32_t *guest = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
     assert(guest != MAP_FAILED); mtl_pool_add(guest, bytes);
-    id<MTLBuffer> seed = [g_dev newBufferWithLength:16 options:MTLResourceStorageModeShared];
-    const uint32_t input[] = {3, 17, 0, 23}; memcpy(seed.contents, input, sizeof input); res_add(seed);
+    id<MTLBuffer> seed = [g_dev newBufferWithLength:32 options:MTLResourceStorageModeShared];
+    const uint32_t input[] = {3, 17, 0, 23, IXC_CAP, 0, IXC_CAP + 1, 0}; memcpy(seed.contents, input, sizeof input); res_add(seed);
     void *buffer; uint64_t offset;
     assert(mtl_addr((uintptr_t)guest, sizeof input, &buffer, &offset));
     mtl_sub_begin();
@@ -26,7 +26,7 @@ int main(void) { @autoreleasepool {
     const p_draw draw_0 = {.prim=DM_PRIM_MESH_TASKS, .ind=(uintptr_t)(guest + 2)};
     ixc_run(&draw_3, NULL); ixc_run(&draw_0, NULL);
     const ixc_ent *a = ixc_find(&draw_3, NULL), *b = ixc_find(&draw_0, NULL);
-    assert(a && a->args && b && b->args && guest[0] == 0);
+    assert(a && a->args && b && b->args && guest[0] == 3);
     id<MTLBuffer> converted = g_cur_arena->buf;
     size_t ao = (size_t)(a->args - converted.gpuAddress), bo = (size_t)(b->args - converted.gpuAddress);
     assert(ao + 20 <= converted.length && bo + 20 <= converted.length);
@@ -39,11 +39,20 @@ int main(void) { @autoreleasepool {
     assert(queued && queued->args && !g_nubd);
     size_t qo = (size_t)(queued->args - converted.gpuAddress);
     assert(qo + 20 <= converted.length);
+    const p_draw at_cap = {.prim=DM_PRIM_MESH_TASKS, .ind=(uintptr_t)(guest + 8)};
+    const p_draw over_cap = {.prim=DM_PRIM_MESH_TASKS, .ind=(uintptr_t)(guest + 10)};
+    const p_draw wrap = {.prim=DM_PRIM_MESH_TASKS, .ind=(uintptr_t)(guest + 12)};
+    guest[8] = IXC_CAP; guest[9] = 0;
+    guest[10] = IXC_CAP + 1; guest[11] = 0;
+    guest[12] = 2; guest[13] = UINT32_MAX;
+    ixc_run(&at_cap, NULL); ixc_run(&over_cap, NULL); ixc_run(&wrap, NULL);
+    assert(ixc_find(&at_cap, NULL)->args);
+    assert(!ixc_find(&over_cap, NULL)->args && !ixc_find(&wrap, NULL)->args);
     mtl_sub_commit(); mtl_drain();
     const uint32_t expected_3[] = {3, 1, 1, 0, 17}, expected_0[] = {0, 1, 1, 0, 23};
     assert(!memcmp((const uint8_t *)converted.contents + ao, expected_3, sizeof expected_3));
     assert(!memcmp((const uint8_t *)converted.contents + bo, expected_0, sizeof expected_0));
     assert(!memcmp((const uint8_t *)converted.contents + qo, expected_3, sizeof expected_3));
     res_remove(seed); mtl_pool_del(guest); mtl_drain(); munmap(guest, bytes);
-    puts("GPU-written mesh arguments: grid, first task and zero-work dispatch PASS");
+    puts("GPU-written mesh arguments: grid, first task and zero-work dispatch, cap and overflow rejection PASS");
 } return 0; }

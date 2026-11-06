@@ -847,6 +847,14 @@ The replay on Metal (`dm/gfx/nvn/nvn_mtl.m`) and the Vulkan and OpenGL layers. E
 - **Found on:** [Hyrule Warriors: Age of Calamity](../../dm/games/01002B00111A2000/README.md) (its GPU-driven effects are indirect quads).
 - **Check:** `DM_NVN_IXCLOG=<n>` logs the first n conversions (record → arguments) once the GPU has run them.
 
+### Unverified NVN2 indirect mesh records
+
+- **Symptom:** indirect mesh geometry is omitted with the flag off; enabling an unverified record layout can dispatch implausible work.
+- **Cause:** the Ocarina SDK's indirect command consumes two words, but the indirect macro and game producer have not established their field order. Vulkan NV and EXT define different records.
+- **Fix:** keep `DM_NVN_MESH_INDIRECT` off for play. Its diagnostic converter rejects count above `IXC_CAP` or first-plus-count overflow instead of truncating. It snapshots raw words on the GPU. The host waits and validates every snapshot before submitting mesh draws, refuses invalid or unavailable results with `[RED]`, and logs the first eight records. The waits affect only the experimental path. Layout and image acceptance remain open; [static evidence](../oot-notes/mesh-indirect-layout.md).
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md).
+- **Check:** `t_mesh_indirect` covers GPU and deferred writes, zero count, the cap and overflow rejection. Synthetic records do not prove the guest ABI.
+
 ### Indirect-count multi-draws
 
 - **Symptom:** an empty G-buffer pass (the title screen showed only the UI); later, the submitting thread waiting for the GPU before each such draw (36–54 fps in Kamura Village on an iPhone). MIO also reported missing level geometry with maxima of 4,594 and 8,192 draws.

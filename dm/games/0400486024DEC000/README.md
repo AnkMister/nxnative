@@ -119,6 +119,8 @@ The [BAHS record-boundary finding](../../../docs/reference/shaders.md#a-bahs-sca
 
 ## Found on this game
 
+- [Unverified NVN2 indirect mesh records](../../../docs/reference/rendering.md#unverified-nvn2-indirect-mesh-records). Current: two-word SDK consumption proven; producer and field order remain open. Keep the experimental flag off for play.
+
 - Open experiment: [visual source ports](../../../docs/reference/shaders.md#ocarina-visual-source-ports-experimental) are default-off on `oot-visual`. Ten extracted v131072 targets now translate and compile on the M4 Max, including the foliage, output-payload task, float-reduction, SMAA and deep-expression compute targets. Numeric GPU and focused host fixtures pass. The Open entries below describe the earlier runtime findings; visual/gameplay acceptance remains open.
 
 - Open: [pipeline creation after offline translation](../../../docs/reference/shaders.md#pipeline-creation-remains-after-offline-shader-translation) has opt-in archive coverage and descriptor learning. Synthetic fixtures pass; no gameplay zero-compile or image result is established.

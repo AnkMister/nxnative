@@ -97,6 +97,9 @@ class GuardedWrites(Translated):
         msl = self.translate(inst(*ur4) + inst(*txd) + inst(*used) + inst(*EXIT))
         self.assertIn('gradient', msl)
 
+
+
+class GuardedHandles(Translated):
     # A handle built under a guard from two words of the game's uniform buffer, read under a guard the translator cannot tie to it, so that a phi reaches the read with the first word and what the
     # register held before: Unreal Engine 5.4's single-layer water and a global pixel shader in Yoshi and the Mysterious Book. The read was deleted. Each ends in the result's atomic add, so it stays
     def test_handle_under_a_uniform_vote_of_the_reads_guard(self):

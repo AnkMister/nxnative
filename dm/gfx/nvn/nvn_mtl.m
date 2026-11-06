@@ -11425,6 +11425,7 @@ static const ixc_ent *ixc_find(const p_draw *dw, const p_draw_idx *di) {
 static void ixc_take(const p_draw *dw, const p_draw_idx *di) {
     if (g_ixc_n < IXC_MAX && !ixc_find(dw, di)) g_ixc[g_ixc_n++] = (ixc_ent){dw ? dw->ind : di->ind, dw ? 0 : di->ibuf, dw ? dw->prim : di->prim, dw ? -1 : di->itype, 0, 0, 0};
 }
+static int mdi_wait(void);
 static void ixc_run(const p_draw *dw, const p_draw_idx *di) {
     static id<MTLComputePipelineState> ps[2]; static id<MTL4ArgumentTable> at; static int failed;
     if (failed) return;
@@ -11466,7 +11467,7 @@ static void ixc_run(const p_draw *dw, const p_draw_idx *di) {
         if (e->prim == DM_PRIM_MESH_TASKS) {
             if (rec & 3) continue;
             e->args = ag + 32 * (uint64_t)i;
-            aj[na++] = (ajob){rec, e->args, DM_PRIM_MESH_TASKS, 0};
+            aj[na++] = (ajob){rec, e->args, DM_PRIM_MESH_TASKS, IXC_CAP};
         } else if (e->itype < 0) {   // DrawArraysIndirect quads / fans: the shared index buffers, one thread per record
             if (e->prim == 7) quad_ib_make(); else fan_ib_make();
             e->ixb = e->prim == 7 ? g_quad_gpu : g_fan_gpu; e->ixlen = (uint32_t)(e->prim == 7 ? g_quad_ib.length : g_fan_ib.length);
@@ -11484,6 +11485,25 @@ static void ixc_run(const p_draw *dw, const p_draw_idx *di) {
     }
     if (na) { [at setAddress:ag + (uint64_t)n * 32 atIndex:0]; [ce setComputePipelineState:ps[0]]; [ce dispatchThreadgroups:MTLSizeMake((NSUInteger)na, 1, 1) threadsPerThreadgroup:MTLSizeMake(1, 1, 1)]; }
     enc_c_end(ce);
+    // Validate the converter's snapshot after its GPU producers, before any mesh
+    // draw is submitted. The unproven layout stays an opt-in diagnostic path.
+    int have_mesh = 0;
+    for (int i = n0; i < g_ixc_n; i++) if (g_ixc[i].prim == DM_PRIM_MESH_TASKS && g_ixc[i].args) have_mesh = 1;
+    if (have_mesh) {
+        int ready = mdi_wait();
+        static unsigned layout_checks;
+        for (int i = n0; i < g_ixc_n; i++) {
+            ixc_ent *e = &g_ixc[i];
+            if (e->prim != DM_PRIM_MESH_TASKS || !e->args) continue;
+            const uint32_t *arg = (const uint32_t *)((const uint8_t *)ab.contents + (e->args - ab.gpuAddress));
+            if (!ready) { MLOG("[RED] mesh indirect validation: GPU snapshot unavailable; draw refused"); e->args = 0; continue; }
+            if (layout_checks++ < 8) MLOG("mesh indirect raw at %#llx: %08x %08x; provisional NV count=%u first=%u cap=%u (field order unverified)", (unsigned long long)e->ind, arg[5], arg[6], arg[5], arg[6], IXC_CAP);
+            if (arg[7] || arg[5] > IXC_CAP || arg[6] > UINT32_MAX - arg[5]) {
+                MLOG("[RED] mesh indirect validation: implausible count=%u first=%u cap=%u; draw refused", arg[5], arg[6], IXC_CAP);
+                e->args = 0;
+            }
+        }
+    }
     args_dirty_all();
     if (!g_ixc_runs++) MLOG("indirect draw conversion: first time, %d draws (quads, fans, 8-bit indices or mesh tasks converted on the GPU before rendering)", n);
     else if (g_ixc_runs % 3600 == 0) MLOG("indirect draw conversion: %llu times, render pass split %llu times", (unsigned long long)g_ixc_runs, (unsigned long long)g_ixc_splits);
@@ -11556,7 +11576,6 @@ static void wide_run(const p_draw_idx *di) {
 }
 // Diagnostic DM_NVN_UBP_CHECK=1: each shadow made from memory (ubp_get) is checked against the GPU. The pass ends, the deferred updates land, the replay waits for the GPU (as an indirect-count
 // multi-draw does), and the bytes the draw would have read from the shadow are compared with memory, which now holds exactly what the GPU reads. The draw then goes on as without the shadows
-static void mdi_wait(void);
 static uint64_t g_ubpk_same, g_ubpk_diff;
 static int ubp_check_on(void) { static int v = -1; if (v < 0) { v = getenv("DM_NVN_UBP_CHECK") != NULL; if (v) MLOG("DM_NVN_UBP_CHECK: every uniform shadow made from memory is compared with the GPU's memory after the updates land (slow)"); } return v; }
 static void ubp_check(uint64_t lo, uint64_t hi, const uint8_t *sh) {
@@ -11605,7 +11624,7 @@ static int ubd_conflict_cs(NvShader *cs, uint64_t ind) { return (ind && ubd_hits
 // converts, and records or counts in no Metal buffer) wait here: before the first such draw after GPU writes (a dispatch, copy, update or fill since the last wait, g_wr_epoch; or a new
 // submission) the replay ends the render pass, commits what it has encoded and waits for it, then reads the count on the CPU; later draws of the group use the same value
 static id<MTLSharedEvent> g_mdi_ev; static uint64_t g_mdi_v, g_mdi_waits, g_mdi_epoch = ~0ull, g_mdi_sub, g_mdi_addr; static uint32_t g_mdi_count;
-static void mdi_wait(void) {
+static int mdi_wait(void) {
     rp_end(); ubd_land();
     if (g_blit) { enc_b_end(g_blit); g_blit = nil; }
     up_flush(); res_commit();
@@ -11621,6 +11640,7 @@ static void mdi_wait(void) {
     g_cb = rec_cb_new();
     [g_cb beginCommandBufferWithAllocator:g_alloc4[g_alloc_cur]];
     if (!g_mdi_waits++) MLOG("indirect-count multi-draw: first wait for the GPU-written count at frame %llu pass %llu", (unsigned long long)atomic_load(&g_cur_frame), g_stat_pass);
+    return ok;
 }
 static uint32_t mdi_count(uint64_t cnt) {
     if (cnt != g_mdi_addr || g_mdi_epoch != g_wr_epoch || g_mdi_sub != g_sub_serial) {

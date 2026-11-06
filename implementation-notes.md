@@ -54,3 +54,41 @@ All experiments remain default-off except inherited/profile defaults; the play
 recipe explicitly enables reviewed correctness/stability and srgb. Complete
 pipeline coverage and image/gameplay acceptance remain parent gates. No game,
 full shader build, push or PR ran. Final results and cleanup are in docs/oot-notes.
+
+## Review 3 fixes
+
+Created oot-review3 from oot-hyper-main 64a163ba. Restored upstream VOTEU and
+guarded-handle corrections unconditionally, leaving only local additions gated.
+Moved their behavioral tests out of the visual-only gate.
+
+Static inspection found the guest indirect call and decoded the SDK procedure
+table and command-segment writer. The driver consumes two words, but neither
+the indirect macro nor the game buffer's producer establishes their order yet.
+Kept the experimental converter's layout explicitly provisional. Removed its
+flag from the play recipe. Added GPU rejection above the existing cap and on
+first-plus-count overflow, followed by a host snapshot check before mesh draw
+submission. Raw logging covers the first eight records. These diagnostic waits
+cost performance only when the existing experimental flag is enabled.
+
+Strict AOT retains report-only fallback. Documented a separate reject-mode
+design without changing its runtime implementation. Translator source rebuild,
+shader comparisons, tests and host-build evidence are recorded in the external
+review-astra-3-fixes report. No game, full shader build or protected build writes
+are authorized. No push or PR is authorized.
+
+The final candidate translator was published once. A separate upstream source
+reference was built to compare default outputs without running shipped upstream
+binaries. Eight targeted fixtures match upstream default and prior enabled
+output. All 38 sampled game shaders match prior enabled SPIR-V/reflection.
+Broader default equality is not claimed because this branch retains earlier
+raw-memory translation changes. Tests and builds finished before the CPU-priority
+instruction are recorded as such. Remaining native checks were lowered to nice
+19, and all subsequent heavy commands use nice 19. The play log is read-only.
+
+Final verification passes: tools 1,368 tests, graphics Python 417 tests,
+Metal/GPU translator 295 tests, native graphics make run with 128 native targets,
+the final mesh cap/overflow fixture and host build. Document/chain checks pass.
+clang-tidy remains unavailable. No generated roots were removed because T3
+processes retain working directories in this checkout. The eight .NET bin/obj
+roots, host outputs, native fixtures and private evidence are inventoried and
+retained for review. No protected game root was written.

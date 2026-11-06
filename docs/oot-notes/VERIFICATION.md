@@ -50,3 +50,10 @@ Final logs use late-* names under the external oot-hyper/ and oot-hyper-main/
 evidence roots. Quality/crop and AOT focused logs, chain option matrices, package
 age/asset audits, source fingerprints and all requested PR file lists are retained.
 See [storage](STORAGE.md) for generated-root cleanup and retained artifacts.
+
+## Review 3 follow-up
+
+The table above records 64a163ba and its earlier integration. The review repair
+branch is oot-review3. Its [report](review-astra-3-fixes.md) supersedes those
+chain stamps and the indirect-mesh play setting. Game/image and complete AOT
+acceptance remain open. The running play build was not modified.

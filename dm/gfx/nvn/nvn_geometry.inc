@@ -674,16 +674,6 @@ static void mesh_tasks_draw(const p_draw *dw) {
         if (!ix) { ixc_run(dw, NULL); ix = ixc_find(dw, NULL); }
         if (!ix || !ix->args) { RED_ONCE(88, "indirect mesh draw skipped: argument address %#llx cannot be converted", (unsigned long long)dw->ind); return; }
         indirect = ix->args;
-        static unsigned layout_checks;
-        if (layout_checks++ < 8) {
-            uint64_t address = dw->ind;
-            [g_commit_blocks addObject:^{
-                uint32_t words[2]; vm_size_t got = 0;
-                if (vm_read_overwrite(mach_task_self(), (vm_address_t)address, sizeof words, (vm_address_t)words, &got) == KERN_SUCCESS && got == sizeof words)
-                    MLOG("mesh indirect layout check: provisional {count, first} at %#llx = {%u, %u}; NVN2 record layout remains unverified", (unsigned long long)address, words[0], words[1]);
-                else MLOG("[RED] mesh indirect layout check: unreadable record at %#llx", (unsigned long long)address);
-            }];
-        }
     }
     NvProg *raster = pr->geo_lean_raster;   // the pixel stage alone
     if (!raster || raster->sh[1] != pr->sh[1] || raster->sh[0]) { raster = [NvProg new]; raster->sh[1] = pr->sh[1]; pr->geo_lean_raster = raster; }
