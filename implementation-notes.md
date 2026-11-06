@@ -235,3 +235,17 @@ Verification: final Linux tools discovery ran 1098 tests, with 16 failures, 205 
 Scoped to #1320, #1355, #1377 and #1379. Neither integrated base a14fb78c nor upstream c83c48f2 has these implementations. Ported #1320 (46975a20) behind DM_NVN_GW_INTERVALS=1, retaining the baseline threshold and range capacity by default. Skipped #1377 (d234d4f6): software AV1 throughput on older Macs, whereas M4 normally uses VideoToolbox; no demonstrated benefit for this target. Skipped #1379 (7ee81e91 plus 3b588ca6): deliberately discards movie pictures, contrary to the quality-first instruction. No existing stable GPU, presentation or shader behavior was replaced.
 
 Ported #1355 (2e1f4953) behind DM_BUILD_NOINDEX=1. All temporary-folder consumers share the selected name. Unlike the source, existing tmp/ is not deleted when opting in; preserve interrupted work. Did not port the later shader-folder migration ea680b3e (separate scope). Both flags require the exact value 1. NSP chain tests: 18 passed. Extracted production C ledger compiled with ASan/UBSan and passed both modes. Full tools discovery: 1099 tests, 16 failures, 205 errors, 94 skips (missing dependencies, Python 3.10.12 vs required 3.12+, documentation checks outside this change; not green). Installed nothing. Claude Opus cold review was attempted but OAuth expired; no independent verdict. Mac validation remains required.
+## Brent round 2 host/runtime harvest
+
+The assigned audit compares a14fb78c (oot-hyper-main), c83c48f2 (origin/main),
+and Brent 89a0ff52. No dependency installs or third-party binaries are used.
+
+Ported upstream correctness commit 2202d610 (issue #949), with fixture correction
+51ea3df8. A layer crop selects texels; layer shape controls display proportions.
+It is already in origin/main, so no experiment flag is added. Metal build and
+t_present_crop / t_present_alloc need a Mac. Linux checks follow below.
+
+PR #1418 is skipped because omitted texture mips reduce image quality. PR #1436
+is 01cce669 (poolstat/texstat), confirmed through gh pr view, and is skipped
+because the task explicitly assigns those diagnostics to the Mac agent.
+Our existing PR #1391 guard and DM_SAFE_GPU remain in place.
