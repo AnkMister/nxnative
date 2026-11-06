@@ -8730,14 +8730,22 @@ static int ttype_apart(const treg_t *r, int dtt) {
 static int g_pool_skip_retired = -1;   // -1: not read yet (t_pool_retired sets it)
 static int pool_skip_retired(void) { int v = g_pool_skip_retired; if (v < 0) { const char *e = getenv("DM_NVN_POOL_SKIP_RETIRED"); v = e ? atoi(e) != 0 : DM_GAME_POOL_SKIP_RETIRED; if (v) MLOG("pool_skip_retired: pool tables give retired texture IDs without a view the dummy"); g_pool_skip_retired = v; } return v; }
 // One entry of a pool table: the resource ID of what the ID holds (0: nothing of the type). gone / transient / skipped count IDs without storage, retired ones still used by the open submission, and retired ones given the dummy (pool_skip_retired)
+// Whether a shared texture holds a descriptor's storage (the sharing table, g_alias, under the key tex_mtl_ makes): a finalized descriptor there resolves to that texture with nothing made
+static int tex_storage_shared(const tex_t *t) {
+    alias_key ak; memset(&ak, 0, sizeof ak); ak.pool = (uint64_t)(uintptr_t)t->pool; ak.off = t->off; ak.d = t->d; ak.d.flags &= ~NVN_TEXTURE_FLAGS_IMAGE;
+    pthread_mutex_lock(&g_smu); int held = hm_get_id(&g_alias, &ak) != nil; pthread_mutex_unlock(&g_smu);
+    return held;
+}
 static uint64_t pool_entry(int samp, int dtt, int id_, int *gone, int *transient, int *skipped) {
     if (id_ <= 0) return 0;
     if (samp) return id_ < g_nsreg && g_sreg_ok[id_] && samp_fast(id_) ? g_srid[id_] : 0;
     if (id_ >= g_ntreg || !g_treg[id_].ok || ttype_apart(&g_treg[id_], dtt)) return 0;
     // Keep the stable storage-lifetime refusal before Brent's optional retired-ID policy.
     if (g_treg[id_].gone || (!g_treg[id_].view && !tex_storage_live(&g_treg[id_].t))) { ++*gone; return 0; }
-    // pool_skip_retired: not while the submission that retired it is open (transient_sub), whose earlier draws still read it through this table
-    if (g_treg[id_].retired && !g_treg[id_].view && g_treg[id_].transient_sub != g_sub_serial && pool_skip_retired()) { ++*skipped; return 0; }
+    // pool_skip_retired: not while the submission that retired it is open (transient_sub), whose earlier draws still read it through this table, and not over storage a shared
+    // texture holds: such a descriptor resolves to that live texture and makes nothing (Ocarina of Time keeps about 12,000 of them in Kokiri Forest, and draws through them), while
+    // the key is for the ones that would be made again from storage alone
+    if (g_treg[id_].retired && !g_treg[id_].view && g_treg[id_].transient_sub != g_sub_serial && pool_skip_retired() && !tex_storage_shared(&g_treg[id_].t)) { ++*skipped; return 0; }
     void *tv = NULL; uint64_t tr = tex_fast_rid(id_, &tv);
     if (!tv || ((__bridge id<MTLTexture>)tv).textureType != (MTLTextureType)dtt) return 0;
     *transient |= g_treg[id_].retired && g_treg[id_].transient_sub == g_sub_serial;

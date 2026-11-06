@@ -62,3 +62,7 @@ Keep depth-writing pool draws in a pass with DM_NVN_FB_DSELF=1. Preserve attachm
 ## Brent round 2, #1427, f684c7eb
 
 Refresh raw table words with DM_NVN_GMEM_COMMIT=1. Use ba07d353 bitmap-log adaptation and retain local exposure filtering and hint ABI.
+
+## Brent round 2, #1393 follow-up, 0eeccf00
+
+Preserve live shared textures under the existing default-off DM_NVN_POOL_SKIP_RETIRED policy.
