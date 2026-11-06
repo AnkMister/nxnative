@@ -200,6 +200,30 @@ namespace Ryujinx.Graphics.Shader.Instructions
             }
         }
 
+        // nxnative: a float add (RED / ATOMG .ADD.F32.FTZ.RN) has no atomic in the IR, so it retries a compare-and-swap of the word. Ocarina of Time's agl analysis shaders sum the
+        // scene's sky, probes and shadows this way; dropped, every sum stayed 0.
+        private static Operand FlushAtomicDenormal(EmitterContext context, Operand value)
+        {
+            Operand magnitude = context.BitwiseAnd(value, Const(0x7fffffff));
+            Operand sign = context.BitwiseAnd(value, Const(unchecked((int)0x80000000)));
+            return context.ConditionalSelect(context.ICompareLessUnsigned(magnitude, Const(0x00800000)), sign, value);
+        }
+
+        private static Operand EmitAtomicAddF32(EmitterContext context, StorageKind storageKind, Operand e0, Operand e1, Operand value)
+        {
+            Operand lblLoopHead = Label();
+
+            context.MarkLabel(lblLoopHead);
+
+            Operand oldValue = context.AtomicCompareAndSwap(storageKind, e0, e1, Const(0), Const(0));
+            Operand newValue = FlushAtomicDenormal(context, context.FPAdd(FlushAtomicDenormal(context, oldValue), FlushAtomicDenormal(context, value)));
+            Operand casResult = context.AtomicCompareAndSwap(storageKind, e0, e1, oldValue, newValue);
+
+            context.BranchIfTrue(lblLoopHead, context.ICompareNotEqual(casResult, oldValue));
+
+            return oldValue;
+        }
+
         private static Operand EmitAtomicOp(
             EmitterContext context,
             StorageKind storageKind,
@@ -217,6 +241,10 @@ namespace Ryujinx.Graphics.Shader.Instructions
                     if (type is AtomSize.S32 or AtomSize.U32)
                     {
                         res = context.AtomicAdd(storageKind, e0, e1, value);
+                    }
+                    else if (type == AtomSize.F32FtzRn && storageKind == StorageKind.GlobalMemory && System.Environment.GetEnvironmentVariable("DMSH_OOT_VISUAL") == "1")
+                    {
+                        res = EmitAtomicAddF32(context, storageKind, e0, e1, value);
                     }
                     else
                     {

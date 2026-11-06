@@ -29,6 +29,7 @@ namespace Ryujinx.Graphics.Shader.Instructions
             x(0x98e, InstName.Red, ARed, N, writesRd: false);
             x(0x9a8, InstName.Atom, AAtomg, N);
             x(0x3a8, InstName.Atom, AAtomg, N);
+            if (System.Environment.GetEnvironmentVariable("DMSH_OOT_VISUAL") == "1") x(0x3a9, InstName.AtomCas, AAtomgCas, N);
             x(AmpereOpcodes.Ldl, InstName.Ldl, ALdLocalShared, N);
             x(0x984, InstName.Lds, ALdLocalShared, N);
             x(0x387, InstName.Stl, AStLocalShared, N, writesRd: false);
@@ -130,15 +131,17 @@ namespace Ryujinx.Graphics.Shader.Instructions
 
             if (stage != null)
             {
-                // A task or mesh shader's stage input (QueryAmpereStageMemory). Mode 0x78: its workgroup's number; 0x38: a word of the payload its task wrote, [Ra + offset]
+                // A task or mesh shader's stage input (QueryAmpereStageMemory). Mode 0x78: its workgroup's number; 0x38: a word of the payload its task wrote, [Ra + offset];
+                // 0xb8 (the payload store's mode, 0x927): a word of the payload this task writes, read back. The Legend of Zelda: Ocarina of Time's agl task shader
+                // 5d3a096025e375a1 stores a word at payload + 0x10 (+0x70) and reads it at +0x80
                 int mode = x.Bits(72, 80);
 
-                if (mode != 0x78 && mode != 0x38)
+                if (mode != 0x78 && mode != 0x38 && (mode != 0xb8 || System.Environment.GetEnvironmentVariable("DMSH_OOT_VISUAL") != "1"))
                 {
                     throw AFail(context, $"ISBERD mode {mode:x2} in a task or mesh shader");
                 }
 
-                Operand addr = mode == 0x78 ? Const(stage[0]) : context.IAdd(AGpr(x.Ra), Const(stage[1] + (int)x.SignedField(40, 64)));
+                Operand addr = mode == 0x78 ? Const(stage[0]) : context.IAdd(AGpr(x.Ra), Const((mode == 0xb8 ? stage[2] : stage[1]) + (int)x.SignedField(40, 64)));
                 EmitLoad(context, StorageKind.SharedMemory, LsSize2.B32, addr, x.Rd, 0);
                 return;
             }
@@ -363,6 +366,23 @@ namespace Ryujinx.Graphics.Shader.Instructions
             (Operand lo, Operand hi) = AGlobalAddress(context, x, 70, 64, 0);
 
             Operand res = EmitAtomicOp(context, StorageKind.GlobalMemory, (AtomOp)x.Bits(87, 91), (AtomSize)x.Bits(73, 76), lo, hi, Register(x.Rb, RegisterType.Gpr));
+
+            ASet(context, x, res);
+        }
+
+        // 32-bit global CAS returns the old word. The extended-address bit is 72,
+        // unlike ATOMG's bit 70. Non-PT predicate results remain unsupported.
+        public static void AAtomgCas(EmitterContext context)
+        {
+            AmpereOp x = new(context.CurrOp);
+
+            if (x.Bits(73, 76) > 1 || x.Bit(91) || x.Bits(81, 84) != RegisterConsts.PredicateTrueIndex)
+            {
+                throw AFail(context, $"ATOMG.CAS type {x.Bits(73, 76)} or uniform address");
+            }
+
+            (Operand lo, Operand hi) = AGlobalAddress(context, x, 72, 64, 0);
+            Operand res = context.AtomicCompareAndSwap(StorageKind.GlobalMemory, lo, hi, AGpr(x.Rb), AGpr(x.Bits(64, 72)));
 
             ASet(context, x, res);
         }

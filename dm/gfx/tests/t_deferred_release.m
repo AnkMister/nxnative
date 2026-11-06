@@ -17,6 +17,7 @@ static uint32_t last_id = UINT32_MAX;
 @end
 
 int main(void) { @autoreleasepool {
+    setenv("DM_NVN_VISUAL", "1", 1);
     enum { N = 100000 };
     for (uint32_t i = 0; i < N; i++) {
         RetiredProbe *p = [RetiredProbe new]; p->number = i;

@@ -918,6 +918,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - geometry vertex-capture passes consume substantial GPU time before geometry compute or depth rasterization. → [Geometry capture initializes only missing words](../reference/shaders.md#geometry-capture-initializes-only-missing-words)
 - Apple's performance HUD (`DM_METAL_HUD=1`) says `Compiled 2 shaders. Total compilation time is 102.70ms. Consider adopting MTL4Compiler for more fine grained compilations` during play, with a dip in the frame-rate graph at that moment, for example when a new room first issues a scissored clear. → [The host's own shaders compiled from source at run time](../reference/shaders.md#the-hosts-own-shaders-compiled-from-source-at-run-time)
 - Xcode 26.5 cannot compile the macOS/iOS 27 temporal-scaler offset properties used by `dlss_eval`, even though the calls are guarded by OS availability. → [Temporal-scaler offset setters with older SDK headers](../reference/shaders.md#temporal-scaler-offset-setters-with-older-sdk-headers)
+- missing foliage/effects, jitter, washed-out outdoor lighting, or a missing SMAA pass. → [Ocarina visual source ports (experimental)](../reference/shaders.md#ocarina-visual-source-ports-experimental)
 
 ## Game state
 
