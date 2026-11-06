@@ -2,6 +2,14 @@
 
 Frame pacing: the host's frame step, engine frame limiters, present intervals and display rates. Each entry: symptom, cause, fix, the games it was found on. The [symptom index](../agents/symptoms.md) lists every symptom.
 
+### Native 60 fps without a frame-step patch
+
+- **Symptom:** a 120 Hz display or `DM_FPS_TARGET=60` is mistaken for a game-speed unlock when assessing Ocarina's PR #1444.
+- **Cause:** a host presentation cap can change fixed-step game speed unless the rewriter supplies `dm_fps_state` or the host writes a verified engine limiter. Ocarina has neither. Its current rewriter observations change resolution only; #1444 supplies no game patch file or `fps_target`/`fps_max` row.
+- **Fix:** preserve the game's native present interval. `fps_present_cap` logs and ignores an unsupported `DM_FPS_TARGET=60`; `0` explicitly preserves the native limit. PR #1444's reported 60 fps comes from running the existing Switch 2 cadence after rendering and service bottlenecks are removed. It specifies no selectable in-game 60 fps mode. `DM_PRESENT_LINK=2 DM_PRESENT_HZ=60 DM_PRESENT_INTERVAL=game` requests a 120 Hz display link with an interval-1 frame held for two ticks. Display refresh does not establish 120 game fps. `DM_FPS_HOLD=off` only affects the host frame-step path.
+- **Check:** source tracing through `fps_present_cap`, `dm_fps_lock_engine`, the Ocarina profile and its resolution-only `patches.py`; no local game or display measurement. Upstream reports frame p50 16.29–16.73 ms on M5 Pro, not proof of the same performance on M4 Max or at a higher internal resolution.
+- **Found on:** [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md#60-fps-recipe), with the runtime recipe, SDR output and 1440p acceptance requirements.
+
 ## Opt-in idle presentation and hidden windows
 
 ### Repeated scan-out and unwatched window work

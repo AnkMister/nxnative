@@ -371,6 +371,14 @@ Most service calls can be found before they crash, before the first boot or the 
 - **Fix:** `hle_hid.c` answers it. On Horizon a device is mounted when the npad's connected controller has the handle's style and an actuator on that side; the host reports it mounted when the channel has an output, as `GetVibrationDeviceInfo` reports the device.
 - **Found on:** [Super Mario Odyssey](../../dm/games/0100000000010000/README.md) 1.4.1, entering a Sand Kingdom pipe (`main+0x5d3150` asks for each handle of a controller whether any is mounted; GitHub issue #715). No other local game imports it.
 
+### Switch 2 vibration actuator query
+
+- **Symptom:** playing the ocarina aborts in the SDK's unbridged `nn::hid::IsOunceVibrationDeviceMounted` service call.
+- **Cause:** SDK 22 asks whether a handle refers to a Switch 2 actuator separately from whether the device is mounted. The host reports Switch 1 linear resonant actuators through `GetVibrationDeviceInfo`.
+- **Fix:** bridge the query with the same false answer as PR #1434. Enable the forced takeover with `DM_SDK22_SERVICES=1`; unset or `0` preserves the SDK definition. A connected Switch 1 actuator still answers true to the ordinary mounted query. PR #1444 uses `vib_targets` for the Ounce query too; that would claim a Switch 2 actuator inconsistent with our device info.
+- **Check:** `t_hid` checks both connected motors and a null handle; `t_symbols` checks disabled and enabled forced lookup. Local gameplay acceptance remains open.
+- **Found on:** [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md#complete-profile-port-from-pr-1444-current-gameplay-acceptance-open), reported in upstream PR #1444.
+
 ### Vibration handles before a controller is reported
 
 - **Symptom:** `DM_RUMBLE_LOG=1` shows the game's startup handle request answered with none, then every vibration value sent to handle 0 and reaching no output for the whole session, although a controller with haptics (a DualSense on the Mac) is connected. A game that rumbles would stay silent.
@@ -705,6 +713,14 @@ Most service calls can be found before they crash, before the first boot or the 
 - **Fix:** `hle_net.c` serves eventfds: descriptors 512–575 (under select's 1024; the host makes no other descriptor), Linux's semantics (a read takes the counter, or 1 with the semaphore flag; an empty nonblocking read fails with EAGAIN; a write past 2^64−2 waits or fails), Horizon's flags (1 semaphore, 4 nonblocking; gRPC passes 6), `Poll` / `Select` readiness with waits in slices of at most 100 ms, `Fcntl`'s `F_GETFL` / `F_SETFL` with `O_NONBLOCK`, and `Close`. A failure sets the socket error code (FreeBSD numbers) and the C library's `errno` through the guest's `__errno_location` (Linux numbers: gRPC compares with 11 and 4). Every other socket call still fails as offline.
 - **Check:** `make -C dm/host/tests GAME=<id> run` runs `t_net_eventfd`: the counter, the semaphore flag, EAGAIN in both error numbers, poll and select readiness, a poll woken by another thread's write, `O_NONBLOCK`, close, and other descriptors still failing.
 - **Found on:** [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md): with the fix it boots to its title screen.
+
+### Eventfd finite timeouts longer than one slice
+
+- **Symptom:** a finite eventfd poll with nothing ready returns after its first 100 ms slice even when the caller requested a longer timeout.
+- **Cause:** the old loop treats one expired condition-variable wait as expiration of the whole poll.
+- **Fix:** `DM_SDK22_SERVICES=1` enables PR #1444's loop policy, consuming all finite slices before returning zero. Its negative-timeout idle policy still returns after a 100 ms slice. Unset or `0` preserves the prior loop for A/B. Socket creation remains offline, and eventfd counters, readiness, errno, close and fcntl use the existing implementation.
+- **Check:** `t_net_eventfd` covers a 250 ms empty poll, cross-thread wakeup, counter preservation and the negative-timeout slice with the opt-in enabled, alongside the original 23 checks without it. Spurious notifications can shorten the nominal timeout under this upstream policy; strict deadline semantics remain open.
+- **Found on:** [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md#complete-profile-port-from-pr-1444-current-gameplay-acceptance-open), porting e03bdc8f.
 
 ### Network requests stay on hold before they settle
 
