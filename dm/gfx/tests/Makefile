@@ -502,3 +502,7 @@ check_t_safe_gpu: t_safe_gpu
 	./t_safe_gpu legacy
 	./t_safe_gpu hook
 	./t_safe_gpu off
+	./t_safe_gpu setup-stop
+	./t_safe_gpu alloc-stop
+	./t_safe_gpu attach-stop
+	./t_safe_gpu lock-stop

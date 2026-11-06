@@ -32,6 +32,7 @@ shader_groups	/Shader/=shader /Lib/=lib /Effect/=effect /Layout2Shader/=layout /
 shader_note	0400486024DEC000 shaders
 
 # ---- Graphics ----
+safe_gpu	on
 # agl wraps its depth clears in render conditions, as on Donkey Kong Bananza and Splatoon Raiders: in Kokiri Forest the main opaque pass tests EQUAL against a copy of the prepass depth
 # that a conditional clear (skipped on the console) wiped first, so no lit geometry landed and the full-screen sky showed through everywhere (a white scene)
 render_cond	on

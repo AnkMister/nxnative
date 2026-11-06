@@ -8,7 +8,7 @@ static int safe_gpu_on(void) {
     static int on; static dispatch_once_t once;
     dispatch_once(&once, ^{
         const char *e = getenv("DM_SAFE_GPU");
-        on = e ? strcmp(e, "0") != 0 : !TARGET_OS_IPHONE && !strcmp(DM_GAME_ID, "0400486024DEC000");
+        on = e ? strcmp(e, "0") != 0 : !TARGET_OS_IPHONE && DM_GAME_SAFE_GPU;
     });
     return on;
 }
@@ -103,6 +103,7 @@ static void safe_gpu_commit3(id<MTLCommandBuffer> cb) {
 static void safe_gpu_wait3(id<MTLCommandBuffer> cb) { if (!atomic_load(&g_safe_stopped)) [cb waitUntilCompleted]; }
 static void safe_gpu_release_extra(void);
 void mtl_safe_gpu_release(void) {
+    atomic_store(&g_safe_stopped, 1);   // Close producers before waiting for the CPU ownership boundary.
     // Never wait for GPU completion after a fault. The host has an independent
     // exit fallback if even removing residency blocks inside Metal.
     int locked = 0;

@@ -40,6 +40,21 @@ class PsoGPU(unittest.TestCase):
             self.assertIn(': pso_gpu takes 1-4 whitespace-separated GPU architectures', out, rows)
 
 
+class SafeGPU(unittest.TestCase):
+    def test_profile_default_and_validation(self):
+        for rows, expected in (('', 0), ('safe_gpu\ton\n', 1), ('safe_gpu\toff\n', 0)):
+            with self.subTest(rows=rows), tempfile.TemporaryDirectory() as d:
+                Path(d, ID).mkdir()
+                (Path(d, ID) / 'game.tsv').write_text(TSV + rows)
+                dest = Path(d, 'game.h')
+                r = subprocess.run([sys.executable, str(GAME), 'header', ID, str(dest)], env={**os.environ, 'DM_GAMES_DIR': d}, capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertIn(f'#define DM_GAME_SAFE_GPU {expected}\n', dest.read_text())
+        rc, out = header('safe_gpu\tbad\n')
+        self.assertNotEqual(rc, 0)
+        self.assertIn('safe_gpu must be on or off', out)
+
+
 
 MAP = ('# kind: evidence  Test shaders\n# column 5 records where each key first appears\npackage\tindex\tstage\tdm_ctl_sha16\tsource\n'
        'cs_other.bin\t1\tcompute\tc56db3d5a0f1b5af\t/Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_ndsr.pck#NDSR@0x124900\n'

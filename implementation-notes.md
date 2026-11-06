@@ -521,3 +521,47 @@ and watchdog reads, idle restart, the true-stall boundary and a busy CPU lock.
 All three tests and the eight existing fake GPU safety modes pass. Logs are in
 the requested review-astra-2-fixes-evidence folder outside this checkout.
 No game, full shader build, GPU fault, install, push or PR ran.
+
+## Review Astra 2, finding 3 and save wording
+
+Present-layer attachment and snapshot set creation, queue attachment, allocator
+and buffer creation, texture allocation, allocation removal/addition and set
+commit now share g_res_mu with emergency teardown. Producers check the sticky
+stop after acquiring ownership. Teardown closes entry before its existing
+bounded try-lock loop. On failure it leaves live sets alone and returns to the
+host's exit path; the independent blocked-cleanup fallback is retained. No GPU
+wait or forced save commit was added. Serial publication stays outside this
+lock because it can release other resources.
+
+The controlled fake-device tests pause setup inside set creation, texture
+replacement and layer attachment while a stop and a later producer overlap.
+They verify that cleanup waits for the current CPU owner, clears the resulting
+set and rejects later creation or attachment. A held-lock test verifies bounded
+return without touching live sets. The original 159 safety checks plus 38 new
+checks pass, as do the 23 residency-guard checks. The four new modes also pass
+under ThreadSanitizer with no reported race. The host lifecycle child-process
+test still verifies cleanup order, once-only dispatch, no graphics drain and
+exit when cleanup blocks. These tests do not prove driver safety for in-flight
+GPU work or recovery from a genuine GPU fault.
+
+Emergency logs, the memory reference and the game note now state exactly that
+the last committed save is kept; an in-progress save can be lost. They make no
+save-flush promise. The guest's working save transaction is never forced to
+commit on emergency stop.
+
+The first full stable tools run found an inherited architecture-test failure
+from the original hardcoded Ocarina ID in safe_gpu_on. The unchanged default
+now comes from the validated safe_gpu on/off profile key and DM_GAME_SAFE_GPU,
+with only Ocarina opting in. DM_SAFE_GPU still overrides it, and the profile
+default applies only on the Mac. A profile regression covers absence, on, off
+and invalid values. This host-only key changes no shader input digest or chain.
+The full suite was rerun after that correction; exact results and the final
+host build are recorded in review-astra-2-fixes.md. Python lint still reports
+only the three inherited findings in test_nsp_mac.py and test_tree_tar.py.
+No lint baseline was changed. clang-tidy is not installed. No game, full shader
+build, install, push, PR or device operation ran.
+
+Final stable verification passes 1,221 tools tests with 23 skips, all 197 safe
+GPU checks, all 23 residency-guard checks and the host build. Both source fix
+branches have been verified separately; this task creates no combined branch.
+The requested external report contains the final commit IDs and merge notes.
