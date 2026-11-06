@@ -114,6 +114,7 @@ The source-built translator and chain header must accompany this host. Full shad
 - [Shaders report which textures they read through a pool](../../../docs/reference/memory.md#shaders-report-which-textures-they-read-through-a-pool)
 - [Repeated GPU out-of-memory failures end the game](../../../docs/reference/memory.md#repeated-gpu-out-of-memory-failures-end-the-game)
 - [Pools that hold shader code made resident to key the shaders](../../../docs/reference/memory.md#pools-that-hold-shader-code-made-resident-to-key-the-shaders): 222 pools, 334 MB the GPU never reads.
+- [Guest files keep the blocks of memory the game gave back](../../../docs/reference/memory.md#guest-files-keep-the-blocks-of-memory-the-game-gave-back): the iPad stopped at 5.0 GB free with 6.6 GB of guest files.
 - [Texture IDs of one storage share one packaged texture](../../../docs/reference/nvn-objects.md#texture-ids-of-one-storage-share-one-packaged-texture)
 - [Finalizing a copy of a texture object](../../../docs/reference/nvn-objects.md#finalizing-a-copy-of-a-texture-object)
 - [Dynamic resolution that never moves, and draw passes that wait for each other](../../../docs/reference/frame-rate.md#dynamic-resolution-that-never-moves-and-draw-passes-that-wait-for-each-other)
