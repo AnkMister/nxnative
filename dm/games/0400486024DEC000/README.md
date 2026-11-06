@@ -446,7 +446,3 @@ brightness in gameplay remain unverified.
 Found on this game: the [raw lookup grouping extension](../../../docs/reference/shaders.md#adjacent-raw-global-memory-reads)
 accepts the heavy mesh programs' read-only pool table under `DMSH_WIDE_GROUP=1`.
 Keep this off until matching host/shader builds pass image comparison.
-
-## Offline mesh archive link repair (current, gameplay unverified)
-
-Found on this game: [native mesh unwritten fragment varyings](../../../docs/reference/shaders.md#native-mesh-pipelines-reject-unwritten-fragment-varyings). The v131072 full play build recovered all 27 real baseline shader failures, but three foliage mesh/fragment pipeline links still failed until the generic-output default rule was applied. All three repaired pairs compile with Apple's offline compiler. This is build evidence, not visual or gameplay acceptance.

@@ -949,7 +949,6 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - Xcode 26.5 cannot compile the macOS/iOS 27 temporal-scaler offset properties used by `dlss_eval`, even though the calls are guarded by OS availability. → [Temporal-scaler offset setters with older SDK headers](../reference/shaders.md#temporal-scaler-offset-setters-with-older-sdk-headers)
 - missing foliage/effects, jitter, washed-out outdoor lighting, or a missing SMAA pass. → [Ocarina visual source ports (experimental)](../reference/shaders.md#ocarina-visual-source-ports-experimental)
 - first-use stutter, render-base specialization, compute pipeline creation or native mesh draws omitted while their pipeline builds. → [Pipeline creation remains after offline shader translation](../reference/shaders.md#pipeline-creation-remains-after-offline-shader-translation)
-- offline Metal pipeline compilation reports fragment inputs `user(locn4),user(locn10),user(locn11)` not written by the mesh shader. → [Native mesh pipelines reject unwritten fragment varyings](../reference/shaders.md#native-mesh-pipelines-reject-unwritten-fragment-varyings)
 
 ## Game state
 
