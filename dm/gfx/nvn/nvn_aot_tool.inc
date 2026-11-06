@@ -60,7 +60,7 @@ int mtl_pso_aot_tool(void) { @autoreleasepool {
         NSMutableArray *refused = [NSMutableArray array]; NSMutableString *accepted = [NSMutableString string];
         for (NSString *line in [text componentsSeparatedByString:@"\n"]) { @autoreleasepool {
             line_no++; if (!line.length || [line hasPrefix:@"#"]) continue;
-            NSArray *c = [line componentsSeparatedByString:@"\t"];
+            NSArray<NSString *> *c = [line componentsSeparatedByString:@"\t"];
             if (aot_import_stale(c)) { [refused addObject:@{@"line": @(line_no), @"kind": c[0], @"reason": @"shader key absent from current map", @"stale": @YES}]; continue; }
             const char *const stages[] = {"vertex", "pixel", "geometry", "task", "mesh", "compute"};
             if ([c[0] isEqual:@"S"] && c.count == 3 && c[2].length == 1 && [c[2] characterAtIndex:0] >= '0' && [c[2] characterAtIndex:0] <= '5'

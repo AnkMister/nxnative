@@ -4886,6 +4886,8 @@ static int bc_rt_attach(MTLRenderPassAttachmentDescriptor *a, id<MTLTexture> bas
                                  .encode=raw_pf == MTLPixelFormatR8Unorm ? 2 : 1, .alpha=format == NVN_FORMAT_RGBA_DXT1 || format == NVN_FORMAT_RGBA_DXT1_SRGB};
     objc_setAssociatedObject(base, &g_bcrt_gpu_key, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     a.texture = attachment; a.level = 0; a.slice = 0; a.depthPlane = 0;
+    static unsigned logged; if (logged++ < 16) MLOG("BC render-target redirect: Metal format %lu NVN format %#x, %lux%lu mip %lu slice %lu, full-resolution shadow and lossy encode (pass %llu)",
+        (unsigned long)base.pixelFormat, format, (unsigned long)w, (unsigned long)h, (unsigned long)lv, (unsigned long)sl, (unsigned long long)g_stat_pass + 1);
     return 1;
 }
 // a holds the BC texture with its level and layer / plane already set; returns 1 when a now holds the shadow

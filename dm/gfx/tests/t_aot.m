@@ -112,6 +112,7 @@ int main(int argc, char **argv) { @autoreleasepool {
     base->desc = stripped; CHECK(pso_build_ex(d, nil, 0) == (id)base);
     hm_del_id(&g_pbase, &key);
     // New final state is learned even when it was not in the input inventory.
+    d.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA16Float;
     aot_record(aot_render_row(d, 0));
     fprintf(stderr, "t_aot: archive-only startup, exact render/compute/mesh/helper hits; strict miss counted\n");
     return 0;
