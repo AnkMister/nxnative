@@ -417,3 +417,15 @@ Expected improvement is the missing ground and floating stone path, because
 CPU-filled height tiles can coexist with GPU-written textures in one pool.
 No source bug found in the reviewed range algorithms. Aliased pools and full
 gameplay ordering remain risks; no game run was made.
+
+## #1353: adapted
+
+Head `5ec8a62b7114516e8c25fb1d5bb23832767e3778`. Imported the entry-wise
+NDSR reader and synthetic pack tests. `DMSH_OOT_VISUAL=1` enables the 8-byte
+walk; off retains the 16-byte walk. Fixed a source edge case: the entry-offset
+score used iter_unpack on a potentially incomplete slice, which throws for a
+short pack at candidate offset 0x14. It now inspects only complete entries,
+with a regression fixture. Expected improvement is recovery of d17eefaff4f0bc23
+(SMAA weights), reducing stair-stepped foliage/prop edges. A targeted extraction
+will verify its update-build presence; the repository map is not regenerated.
+The shader must be added to the parent's map and rebuilt before gameplay.
