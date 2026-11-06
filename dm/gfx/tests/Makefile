@@ -31,7 +31,7 @@ MTL_T_SRC=../nvn/hle_nvn.c ../../host/crash.c ../../host/hle_bigstack.c t_host_s
 # runs several ways. A new test needs its source and its build rule; no list to add it to. NOT_RUN: helpers linked into other tests (t_host_stubs, t_present_rescue_focus),
 # a fixture test_image_atomic_bounds.py builds itself (t_atomic_return), t_geometry_primitive_id (the GPU half of test_dmsh_geometry.py, which gives it the directory of
 # its translated fixtures), and t_gpuprof, which CI's CPU subset runs (.github/workflows/tests.yml)
-NOT_RUN = t_host_stubs t_present_rescue_focus t_present_hdr_front t_atomic_return t_geometry_primitive_id t_gpuprof
+NOT_RUN = t_host_stubs t_present_rescue_focus t_present_hdr_front t_gpu_lost_front t_atomic_return t_geometry_primitive_id t_gpuprof
 RUN_TESTS = $(filter-out $(NOT_RUN),$(basename $(sort $(wildcard t_*.c t_*.m))))
 check_t_%: t_%
 	$(RUN_ENV) ./$<
@@ -47,16 +47,18 @@ t_transform_feedback: t_transform_feedback.m $(MTL_T_DEP)
 .PHONY: check_t_transform_feedback
 check_t_transform_feedback: t_transform_feedback
 	DM_TEST_TRANSFORM_FEEDBACK=$(CURDIR)/t_transform_feedback MTL_DEBUG_LAYER=1 python3 -m unittest test_transform_feedback.py
-t_gfx_suspend: t_gfx_suspend.c ../nvn/hle_nvn.c ../../host/crash.c ../../host/hle_bigstack.c $(GFX) $(GFX_H)
-	clang $(CFLAGS) -fobjc-arc -o $@ t_gfx_suspend.c ../../host/crash.c ../../host/hle_bigstack.c $(GFX) $(FW)
-t_nvn: t_nvn.c ../nvn/hle_nvn.c ../../host/crash.c ../../host/hle_bigstack.c $(GFX) $(GFX_H)
-	clang $(CFLAGS) -fobjc-arc -o $@ t_nvn.c ../../host/crash.c ../../host/hle_bigstack.c $(GFX) $(FW)
+t_gfx_suspend: t_gfx_suspend.c ../nvn/hle_nvn.c ../../host/crash.c ../../host/hle_bigstack.c t_host_stubs.c $(GFX) $(GFX_H)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_gfx_suspend.c ../../host/crash.c ../../host/hle_bigstack.c t_host_stubs.c $(GFX) $(FW)
+t_nvn: t_nvn.c ../nvn/hle_nvn.c ../../host/crash.c ../../host/hle_bigstack.c t_host_stubs.c $(GFX) $(GFX_H)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_nvn.c ../../host/crash.c ../../host/hle_bigstack.c t_host_stubs.c $(GFX) $(FW)
 t_dirty_slots: t_dirty_slots.c ../nvn/nvn_dirty.c ../../host/crash.c ../nvn/nvn_dirty.h $(GAME_H)
 	clang $(CFLAGS) -o $@ t_dirty_slots.c ../../host/crash.c ../nvn/nvn_dirty.c
 t_dirty_race: t_dirty_race.c ../nvn/nvn_dirty.c ../../host/crash.c ../nvn/nvn_dirty.h $(GAME_H)
 	clang $(CFLAGS) -o $@ t_dirty_race.c ../../host/crash.c
 t_dirty_retire_race: t_dirty_retire_race.c ../nvn/nvn_dirty.c ../../host/crash.c ../nvn/nvn_dirty.h $(GAME_H)
 	clang $(CFLAGS) -o $@ t_dirty_retire_race.c ../../host/crash.c
+t_mesh_indirect: t_mesh_indirect.m ../nvn/host_msl.m ../nvn/host_msl.h $(MSL_H)
+	clang -O1 -g -Wall -I$(dir $(MSL_H)) -fobjc-arc -o $@ t_mesh_indirect.m ../nvn/host_msl.m -framework Metal -framework Foundation
 t_host_msl: t_host_msl.m ../nvn/host_msl.m ../nvn/host_msl.h $(MSL_H)
 	clang -O1 -g -Wall -I$(dir $(MSL_H)) -fobjc-arc -o $@ t_host_msl.m ../nvn/host_msl.m -framework Metal -framework Foundation
 t_builtin: t_builtin.m ../nvn/nvn_builtin.h ../nvn/host_msl.m $(MSL_H)
@@ -306,6 +308,11 @@ t_rt_depth_ro: t_rt_depth_ro.m $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -o $@ t_rt_depth_ro.m $(MTL_T_SRC) $(FW)
 t_pso_pending: t_pso_pending.m $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -o $@ t_pso_pending.m $(MTL_T_SRC) $(FW)
+t_aot: t_aot.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_aot.m $(MTL_T_SRC) $(FW)
+.PHONY: check_t_aot
+check_t_aot: t_aot
+	DM_TEST_AOT=$(CURDIR)/t_aot python3 -m unittest test_aot.py
 t_shmap_warm: t_shmap_warm.m $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -o $@ t_shmap_warm.m $(MTL_T_SRC) $(FW)
 t_pso_depth_stencil: t_pso_depth_stencil.m $(MTL_T_DEP)
@@ -474,3 +481,52 @@ t_logic: t_logic.m $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -o $@ t_logic.m $(MTL_T_SRC) $(FW)
 check_t_logic: t_logic
 	@set -e; work=$$(mktemp -d); trap 'rm -rf "$$work"' EXIT; python3 test_dmsh_logic.py --fixture "$$work"; MTL_DEBUG_LAYER=1 ./t_logic "$$work"
+
+# Texture storage and descriptor lifetime regressions.
+t_alias_takeover t_pool_heap t_alias_retire t_bcrt: %: %.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ $< $(MTL_T_SRC) $(FW)
+check_t_upgrade_alias: t_upgrade_alias
+	DM_NVN_P1444_TEX=0 ./t_upgrade_alias
+	DM_NVN_P1444_TEX=1 MTL_DEBUG_LAYER=1 ./t_upgrade_alias
+check_t_alias_takeover: t_alias_takeover
+	DM_NVN_SERIAL_HELD=0 ./t_alias_takeover
+	DM_NVN_SERIAL_HELD=1 DM_NVN_SERIAL_HELD_CHECK=1 ./t_alias_takeover
+check_t_pool_heap: t_pool_heap
+	MTL_DEBUG_LAYER=1 ./t_pool_heap
+	MTL_DEBUG_LAYER=1 ./t_pool_heap off
+check_t_alias_retire: t_alias_retire
+	./t_alias_retire
+	./t_alias_retire off
+	./t_alias_retire default
+	./t_alias_retire release
+check_t_bcrt: t_bcrt
+	DM_NVN_BCRT=1 MTL_DEBUG_LAYER=1 ./t_bcrt
+t_shared_upgrade: t_shared_upgrade.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ $< $(MTL_T_SRC) $(FW)
+check_t_shared_upgrade: RUN_ENV = MTL_DEBUG_LAYER=1
+
+# Opt-in safety gates: synthetic queues for fault/watchdog races, and real
+# command feedback for the revoked-access fence/present path.
+t_safe_gpu: t_safe_gpu.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_safe_gpu.m $(MTL_T_SRC) $(FW)
+check_t_safe_gpu: t_safe_gpu
+	./t_safe_gpu
+	./t_safe_gpu ignored
+	./t_safe_gpu memory
+	./t_safe_gpu set
+	./t_safe_gpu watchdog
+	./t_safe_gpu legacy
+	./t_safe_gpu hook
+	./t_safe_gpu off
+	./t_safe_gpu default
+	./t_safe_gpu setup-stop
+	./t_safe_gpu alloc-stop
+	./t_safe_gpu attach-stop
+	./t_safe_gpu lock-stop
+t_gpu_lost: t_gpu_lost.m t_gpu_lost_front.c $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_gpu_lost.m t_gpu_lost_front.c $(MTL_T_SRC) $(FW)
+check_t_gpu_lost: t_gpu_lost
+	MTL_DEBUG_LAYER=1 ./t_gpu_lost default
+	MTL_DEBUG_LAYER=1 ./t_gpu_lost
+t_dirty_discard: t_dirty_discard.c ../nvn/nvn_dirty.c ../../host/crash.c ../nvn/nvn_dirty.h $(GAME_H)
+	clang $(CFLAGS) -o $@ t_dirty_discard.c ../../host/crash.c ../nvn/nvn_dirty.c

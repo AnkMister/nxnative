@@ -218,6 +218,23 @@ void nvn_dirty_protect_sparse(const void *addr, size_t len) {
 }
 uint64_t nvn_dirty_sparse_writes(void) { return atomic_load(&g_sparse_writes); }
 uint64_t nvn_dirty_now(void) { return atomic_load(&g_now); }
+// This base has no kernel-read restoration hook. Only untracked CPU_NO_ACCESS
+// storage may be discarded; a protected/overlapping pool keeps its bytes.
+size_t nvn_dirty_discard(const void *addr, size_t len, int tracked, int method) {
+    if (!len || tracked) return 0;
+    uintptr_t a = (uintptr_t)addr, pg = (uintptr_t)getpagesize();
+    if (len > UINTPTR_MAX - a || a > UINTPTR_MAX - pg + 1) return 0;
+    uintptr_t lo = (a + pg - 1) & ~(pg - 1), hi = (a + len) & ~(pg - 1);
+    if (lo >= hi) return 0;
+    pthread_mutex_lock(&g_slot_mu);
+    for (int i = 0; i < atomic_load(&g_nr); i++) {
+        range_t *r = rg(i);
+        if (live_at(i) && lo < r->end && hi > r->base) { pthread_mutex_unlock(&g_slot_mu); return 0; }
+    }
+    int rc = madvise((void *)lo, hi - lo, method ? MADV_FREE : MADV_DONTNEED);
+    pthread_mutex_unlock(&g_slot_mu);
+    return rc == 0 ? hi - lo : 0;
+}
 // As nvn_dirty_since, with the caller's last range kept in *span (rechecked, scanned again only if it no longer holds the span; a slot reused by another pool over the same memory is as
 // good): a packaged texture keeps its handle (the scan over every range ran twice per texture lookup), and a sparse texture's page-table walk (hle_nvn.c vpt_walk) asks once per run of
 // physical pages, which mostly lie in one pool, where find_span scans every registered range (about 4,300 in a Mario Kart World race)
