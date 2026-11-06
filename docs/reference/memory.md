@@ -489,3 +489,10 @@ The guest address space, heaps, pools, virtual address memory and the allocators
 - **Cause:** a command buffer that fails with `Insufficient Memory` frees nothing, and the game submits the next one.
 - **Fix:** general (`nvn_mtl.m` `res_top_once`): 32 such failures within 60 s end the process with a red line, as the session cannot recover and the machine may not either.
 - **Found on:** [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md).
+
+### Whole-pool mappings retire obsolete chunks
+
+- **Symptom:** chunk buffers and their older replacements remain retained after a raw-address pool gets a whole-pool mapping.
+- **Cause:** the mapping added a full buffer without removing redundant chunk entries.
+- **Fix:** community commit `1c1d4533` retires those buffers behind their GPU fence and clears the chunk index. Only pools with exposed addresses are promoted, preserving upstream selection.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md). `t_pool_chunks` checks that the full mapping replaces the chunk entries.

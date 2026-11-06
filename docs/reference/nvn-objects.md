@@ -721,3 +721,10 @@ Games read this count as a position in their own command memory and size their h
 - **Cause:** replacing shared storage does not preserve each view's format, mip, slice and swizzle, or invalidates only one serial. A cached table can bypass ordinary texture resolution and its retirement sweep.
 - **Fix:** the optional fork texture path reconstructs every shared view and retains its ancestors. Shared package replacements and reuploads advance the global serial generation, invalidating all registered descriptor families. Texture pool resolution sweeps retired aliases before reading generations or returning a cached table; replacement tables use dummy entries while submitted tables stay immutable. `t_shared_upgrade` checks both sRGB views and GPU writes through two alias families without CPU dirtiness. `t_upgrade_alias` checks the cached-table retirement case.
 - **Found on:** static review and synthetic GPU regressions for [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md). Combined gameplay acceptance remains open.
+
+### GPU writes tracked by texture storage
+
+- **Symptom:** a CPU-written terrain height texture stays zero when its pool also holds render targets. A packaged entry can also escape as an Objective-C holder after its CPU classification is removed.
+- **Cause:** the pool-wide GPU-write flag rejects unrelated storage. A separate lookup assumed that any cached entry outside the CPU set was a Metal texture.
+- **Fix:** track sorted, merged GPU-written byte ranges and remove them when the pool is finalized. Only overlapping CPU textures change to GPU ownership. Unwrap `NvPkg` by its class at the lookup boundary. Null buffer and pool getters return zero or NULL. These general fixes come from community commits `16e86fdc`, `58c001d9` and `a9120fae`.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md). The range and holder cases have synthetic regression coverage; gameplay acceptance remains open.

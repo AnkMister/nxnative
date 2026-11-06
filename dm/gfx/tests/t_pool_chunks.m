@@ -85,6 +85,11 @@ int main(void) { @autoreleasepool {
     mtl_sub_begin(); CHECK("pool table made again", gmem_map_gpu() != 0); finish();
     CHECK("the whole pool has an entry", g_big[0].full > 0 && g_pools[g_big[0].full - 1].end == base + GB);
     CHECK("lookups take it", look(base + 900 * MB, 4096).length == GB);
+    int chunks = 0;
+    for (int i = 0; i < g_npool; i++) chunks += g_pools[i].key == mem;
+    CHECK("whole-pool mapping replaces all chunk entries", chunks == 1);
+    CHECK("old chunk replacements are no longer retained", g_big[0].old.count == 0);
+    CHECK("chunk index no longer points at retired entries", g_big[0].chunk[0] == 0);
     // The lookup hint of a 2 MiB chunk: tagged with the chunk, names the entry holding all of it, and a chunk only partly inside has none of its own
     {
         const uint8_t *map = (const uint8_t *)gmem_map().contents;

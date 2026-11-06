@@ -1494,3 +1494,10 @@ Digimon Story Cyber Sleuth: Complete Edition (Media.Vision's MVGL engine, SDK 6.
 - **Cause:** the public fence is documented as optional, but this runtime's validation requires one. Standalone probes reproduce the abort across input/output formats and colour modes; it is not an sRGB-view mismatch.
 - **Fix:** attach a public `MTLFence` when creating each spatial scaler, retaining the normalized source pixel format in HDR presentation. No private selector is used. Real GPU probes cover repeated upscale/readback, and the HDR combination fixture checks the present path. See Apple's [MTLFXSpatialScalerBase](https://developer.apple.com/documentation/metalfx/mtlfxspatialscalerbase).
 - **Found on:** integrated synthetic graphics checks for [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md); game and physical HDR-display acceptance remain open.
+
+### Consecutive compute dispatches without game barriers
+
+- **Symptom:** independent game dispatches wait for every earlier dispatch in the host copy encoder.
+- **Cause:** the host inserts a full barrier even when NVN supplied none between consecutive dispatches.
+- **Fix:** `DM_NVN_DISPATCH_OVERLAP=1` opts into the scheduling from community commit `5208584a`. The default remains off. A game barrier, host dispatch, copy, fill or inline update preserves ordering. The indirect mesh recorder also handles the native indirect draw method, from `168290c6`, so enabling the encode thread can record these draws.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md). Synthetic tests check barrier placement and mesh command replay. Frame rate and image acceptance on the combined branch remain open.

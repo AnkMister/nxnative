@@ -153,6 +153,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - a Switch 2 game goes past Metal's recommended working set while its first 3D scene loads: `Insufficient Memory` command buffer errors, then a hung Mac. Ocarina of Time on a 16 GB Mac: 12 GB and more wired, once a kernel panic in `IOGPUGroupMemory.cpp` at 14.7 GB wired. → [Memory pools nothing gave an address to stay out of the raw pool table](../reference/memory.md#memory-pools-nothing-gave-an-address-to-stay-out-of-the-raw-pool-table)
 - a game whose shaders read texture handles from memory wires far past the working set while a scene loads, with `Insufficient Memory` errors or a panic, and stutters when new textures stream in. With a limit on how many it makes, surfaces in shadow go near black instead. → [Shaders report which textures they read through a pool](../reference/memory.md#shaders-report-which-textures-they-read-through-a-pool)
 - the Mac grows unresponsive for hours, then panics, with the host still submitting work that fails. → [Repeated GPU out-of-memory failures end the game](../reference/memory.md#repeated-gpu-out-of-memory-failures-end-the-game)
+- chunk buffers and their older replacements remain retained after a raw-address pool gets a whole-pool mapping. → [Whole-pool mappings retire obsolete chunks](../reference/memory.md#whole-pool-mappings-retire-obsolete-chunks)
 
 ## Threads
 
@@ -469,6 +470,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - a game with dynamic resolution stays at its full size while the GPU runs far over budget: `GPU p50` above the frame time target, frame times locked to 2 vsyncs, and the same pass sizes frame after frame in `DM_NVN_GPUPROF`. → [Dynamic resolution that never moves, and draw passes that wait for each other](../reference/frame-rate.md#dynamic-resolution-that-never-moves-and-draw-passes-that-wait-for-each-other)
 - many passes a frame on the same attachments, with the residency set line showing `passes ended to land them for a read` in the thousands and `refused …: earlier submission running` matching it. Ocarina of Time: 10,463 per 300 frames, each ending the pass over a uniform block no GPU write touched. → [A full table of running GPU writes ends passes for nothing](../reference/frame-rate.md#a-full-table-of-running-gpu-writes-ends-passes-for-nothing)
 - a game that reads textures through a pool (Shaders report which textures they read through a pool) renders far below its maximum dynamic resolution: Ocarina of Time's main pass at 763x429 with the GPU at 17 ms a frame. → [A host's own store in a fragment shader moves its depth test](../reference/frame-rate.md#a-hosts-own-store-in-a-fragment-shader-moves-its-depth-test)
+- a failed GPU command can report completion while a game thread keeps waiting for its event signal. → [GPU completion without an event signal](../reference/frame-rate.md#gpu-completion-without-an-event-signal)
 
 ## NVN objects
 
@@ -556,6 +558,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - a pool walk makes gigabytes of textures from far fewer images: Ocarina of Time's 32,768 IDs name 3,607 storages, and one texture per ID came to 2 GB. → [Texture IDs of one storage share one packaged texture](../reference/nvn-objects.md#texture-ids-of-one-storage-share-one-packaged-texture)
 - thousands of first uploads a frame in a scene whose textures do not change: Ocarina of Time, about 15,000 a frame. → [Finalizing a copy of a texture object](../reference/nvn-objects.md#finalizing-a-copy-of-a-texture-object)
 - one shared sRGB serial becomes a linear view after a usage upgrade, or one alias family still samples a replaced packaged texture without a CPU write. A retired descriptor can also reappear from a cached pool table. → [Shared texture upgrades preserve every registered view](../reference/nvn-objects.md#shared-texture-upgrades-preserve-every-registered-view)
+- a CPU-written terrain height texture stays zero when its pool also holds render targets. A packaged entry can also escape as an Objective-C holder after its CPU classification is removed. → [GPU writes tracked by texture storage](../reference/nvn-objects.md#gpu-writes-tracked-by-texture-storage)
 
 ## Rendering
 
@@ -729,6 +732,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - portrait gameplay overlaps the touch controls, touch coordinates land outside the game picture, or a TV's picture renders at 4K again after a layout pass. → [iOS layouts: portrait, a half-folded Duo, iPad windows](../reference/rendering.md#ios-layouts-portrait-a-half-folded-duo-ipad-windows)
 - with *Picture shape* at 1.43:1 (`DM_SCREEN_ASPECT`) the game renders 1920x1344, but on an iPhone Duo in Fit (the default) the picture comes out smaller than the 16:9 one, with black bars on all four sides; it fills the screen only in Fill. On the Mac a click lands off the point under the pointer (it was mapped on a 16:9 rectangle of the window). → [The picture laid out in the shape the game presents](../reference/rendering.md#the-picture-laid-out-in-the-shape-the-game-presents)
 - macOS 26.6 Metal API validation aborts a Metal4 spatial scaler with `_outputTextureBarrierStages not set`, including the optional HDR presentation scaling path. → [MetalFX spatial scaling requires an explicit fence under validation](../reference/rendering.md#metalfx-spatial-scaling-requires-an-explicit-fence-under-validation)
+- independent game dispatches wait for every earlier dispatch in the host copy encoder. → [Consecutive compute dispatches without game barriers](../reference/rendering.md#consecutive-compute-dispatches-without-game-barriers)
 
 ## Shaders
 
@@ -954,6 +958,8 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - geometry preparation dominates rendering CPU even after geometry passes have been batched; primitive assembly and capture-index deduplication repeat for unchanged meshes. → [Prepared geometry indices reused after byte comparison](../reference/shaders.md#prepared-geometry-indices-reused-after-byte-comparison)
 - geometry vertex-capture passes consume substantial GPU time before geometry compute or depth rasterization. → [Geometry capture initializes only missing words](../reference/shaders.md#geometry-capture-initializes-only-missing-words)
 - Apple's performance HUD (`DM_METAL_HUD=1`) says `Compiled 2 shaders. Total compilation time is 102.70ms. Consider adopting MTL4Compiler for more fine grained compilations` during play, with a dip in the frame-rate graph at that moment, for example when a new room first issues a scissored clear. → [The host's own shaders compiled from source at run time](../reference/shaders.md#the-hosts-own-shaders-compiled-from-source-at-run-time)
+- a mesh and pixel shader fail to link because a pixel input has no matching output, or a point mesh uses triangle indices. → [Mesh outputs required by paired pixel shaders](../reference/shaders.md#mesh-outputs-required-by-paired-pixel-shaders)
+- an Ampere shader using opcode `0x3a9` fails translation despite ordinary global atomics working. → [Global compare and swap on Ampere](../reference/shaders.md#global-compare-and-swap-on-ampere)
 
 ## Game state
 

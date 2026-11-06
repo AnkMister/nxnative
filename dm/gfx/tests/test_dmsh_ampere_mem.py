@@ -140,6 +140,16 @@ class Suatom(Translated):
         self.assertRegex(msl, r'uint \w+ = [^;]*atomic_fetch_add')
 
 
+class GlobalCas(Translated):
+    def test_global_cas_keeps_compare_and_replacement_operands(self):
+        cas = inst(0x00012400001ee10b, 0x0000000a060873a9)
+        msl = self.translate(mov(6, 0x1000) + mov(7, 0) + mov(10, 5) + mov(11, 9) + cas + inst(*EXIT))
+        self.assertIn('atomic_compare_exchange', msl)
+        expected = re.search(r'int (\w+) = 5;', msl).group(1)
+        replacement = re.search(r'int (\w+) = 9;', msl).group(1)
+        self.assertRegex(msl, rf'\w+\([^;\n]*\b{expected}, {replacement},')
+
+
 class Bmsk(Translated):
     """BMSK (Star Fox's 58046f286de779e1 +0x5a0, on registers the atomic reads): a mask of b bits from bit a. The form with c[4] sources keeps it from folding"""
     MOVS = inst(0x000fe20000000f00, 0x0100000000037a02) + inst(0x000fe20000000f00, 0x0100010000047a02)   # R3 = c4[0], R4 = c4[4]

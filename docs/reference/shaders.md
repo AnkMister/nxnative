@@ -1975,3 +1975,17 @@ Finding, keying and translating shaders (`dm/gfx/tools/shader_split.py`, `dmsh_b
 - **Check:** `t_host_msl` loads every library, with a swizzled `newLibraryWithSource:` that counts 0 calls, and finds all 24 clear functions. `t_builtin`, `t_geometry` and `t_deswz_gpu` use the built libraries.
 - **Build inputs:** Mac libraries use `MACOS_MIN` from `dm/mac/min_os.mk`, matching the host's deployment target; otherwise a newer SDK emits libraries older supported Macs cannot load and the host falls back to runtime compilation. Every build rechecks the compiler, SDK, deployment target and source contents, reusing the header only when all match. Installing the Metal toolchain after a source-only build therefore regenerates the libraries without a clean build.
 - **Build callers:** the NSP packer and regression harness generate the Mac header before checking their cached host executables, and include it in the host fingerprint. The standalone iOS compile check generates the iPhone header before its dry run, as the app build does. A dry run alone does not generate either header.
+
+### Mesh outputs required by paired pixel shaders
+
+- **Symptom:** a mesh and pixel shader fail to link because a pixel input has no matching output, or a point mesh uses triangle indices.
+- **Cause:** output padding covered vertex shaders only. The mesh wrapper omitted point size and always assumed three indices per primitive.
+- **Fix:** community commit `6517f8b9` extends the pair census and padding to mesh shaders and reads point topology and point size from their headers. Both mesh depth entry points initialize missing outputs to `(0,0,0,1)`. Vertex archive planning already excludes mesh pairs; `e80de39f` applies that exclusion to the runtime archive probe too. Compiles also take `-fbracket-depth=1024`, from `072f8674`, for deeply nested compute expressions.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md). Synthetic Metal compilation covers point topology. Full libraries and gameplay validation on this chain are still required.
+
+### Global compare and swap on Ampere
+
+- **Symptom:** an Ampere shader using opcode `0x3a9` fails translation despite ordinary global atomics working.
+- **Cause:** the opcode table lacked `ATOMG.CAS`, whose expected operand comes from Rb and replacement from Rc.
+- **Fix:** source port `3604b403` adds the 32-bit compare-and-swap handler and rejects unsupported type or uniform-address forms. The translator regression checks that the expected and replacement operands arrive in the correct order.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md), reported by the community for foliage shaders. Local proof covers synthetic translation only.

@@ -536,3 +536,10 @@ check_t_gpu_lost: t_gpu_lost
 	MTL_DEBUG_LAYER=1 ./t_gpu_lost
 t_dirty_discard: t_dirty_discard.c ../nvn/nvn_dirty.c ../../host/crash.c ../nvn/nvn_dirty.h $(GAME_H)
 	clang $(CFLAGS) -o $@ t_dirty_discard.c ../../host/crash.c ../nvn/nvn_dirty.c
+
+t_dispatch_overlap: t_dispatch_overlap.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_dispatch_overlap.m $(MTL_T_SRC) $(FW)
+check_t_dispatch_overlap: t_dispatch_overlap
+	MTL_DEBUG_LAYER=1 ./t_dispatch_overlap
+	DM_NVN_ENC_THREAD=1 MTL_DEBUG_LAYER=1 ./t_dispatch_overlap
+	MTL_DEBUG_LAYER=1 ./t_dispatch_overlap off

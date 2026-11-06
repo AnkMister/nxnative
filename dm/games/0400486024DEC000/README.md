@@ -72,6 +72,12 @@ From an empty save: at about 45 s `A` (title), `A` (New Game), then the movie. F
 - The "Navi" name label in the Great Deku Tree scene was missing on an earlier chain and has not been checked since. Not played yet: the Deku Tree dungeon, combat, later areas. Sound opens with no red line; movies and speech were not listened to. Physics issues reported in PR 1299 were not seen on this route (walking, the ladder, the camera).
 - No iOS shader build or iPhone run has been done. Its memory use makes an iPhone unlikely as it stands.
 
+## Community source harvest
+
+The `oot-next2` branch adds general texture storage ranges, packaged-holder validation, null-safe getters, obsolete chunk retirement, indirect mesh recording, mesh output padding and point topology, plus the missing Ampere global compare-and-swap opcode. `DM_NVN_DISPATCH_OVERLAP=1` is optional and off by default. Pool heaps, guest texture release and alias retirement keep their existing opt-in controls. The existing `DM_UPSCALER=metalfx` path remains the sole optional NDSR replacement.
+
+The source-built translator and chain header must accompany this host. Full shader libraries and gameplay acceptance remain open because an isolated rebuild lacks disk headroom. The community's title-movie 60 fps result and upstream's Kokiri Forest 60 fps result were measured on other Macs and are not measurements of this branch on an M4 Max.
+
 ## Found on this game
 
 - [Raw global memory lookups that reuse their last range](../../../docs/reference/shaders.md#raw-global-memory-lookups-that-reuse-their-last-range): the foliage, vertex and compute shaders read structures word by word through loaded addresses, each word with its own lookup of the GMEM map.
@@ -106,3 +112,11 @@ From an empty save: at about 45 s `A` (title), `A` (New Game), then the movie. F
 - [Image atomics on a 32-bit colour texture](../../../docs/reference/shaders.md#image-atomics-on-a-32-bit-colour-texture)
 - [A host's own store in a fragment shader moves its depth test](../../../docs/reference/frame-rate.md#a-hosts-own-store-in-a-fragment-shader-moves-its-depth-test)
 - [Dead-code removal dropped a coordinate of a multi-output instruction](../../../docs/reference/shaders.md#dead-code-removal-dropped-a-coordinate-of-a-multi-output-instruction)
+
+- [GPU writes tracked by texture storage](../../../docs/reference/nvn-objects.md#gpu-writes-tracked-by-texture-storage): byte-range ownership and packaged texture validation.
+- [Consecutive compute dispatches without game barriers](../../../docs/reference/rendering.md#consecutive-compute-dispatches-without-game-barriers): optional overlap and indirect mesh recording.
+- [Mesh outputs required by paired pixel shaders](../../../docs/reference/shaders.md#mesh-outputs-required-by-paired-pixel-shaders): mesh padding, point topology and the matching archive probe.
+- [Whole-pool mappings retire obsolete chunks](../../../docs/reference/memory.md#whole-pool-mappings-retire-obsolete-chunks): deferred chunk cleanup.
+- [GPU completion without an event signal](../../../docs/reference/frame-rate.md#gpu-completion-without-an-event-signal): feedback recheck with the existing wait budget.
+
+- [Global compare and swap on Ampere](../../../docs/reference/shaders.md#global-compare-and-swap-on-ampere): the missing `0x3a9` opcode.

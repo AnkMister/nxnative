@@ -497,8 +497,8 @@ def main(argv=None):
         rejected_file = out / f'aot-refused.{arch}.json'
         if dst.is_file() and kf.is_file() and kf.read_text().strip() == key:
             rejected_archs[arch] = json.loads(rejected_file.read_text()) if rejected_file.is_file() else []
-            for old in out.glob(f'{arch}*.mtl4a'):   # parts of an older build the manifest does not list: archive.tsv would name them and the host refuse the bundle
-                if old.stem.split('.')[0] == arch and old.name not in saved['parts']: old.unlink()
+            for old in out.glob(f'{arch}*.mtl4a'):   # this branch publishes one archive per architecture, so leftover split parts are obsolete
+                if old.stem.split('.')[0] == arch and old != dst: old.unlink()
             print(f'pso_offline: {arch}: reused ({dst.stat().st_size / 2**20:.0f} MB)'); continue
         kf.unlink(missing_ok=True); dst.unlink(missing_ok=True)
         part = work / f'{arch}.mtl4a.partial'; part.unlink(missing_ok=True)

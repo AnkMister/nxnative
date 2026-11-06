@@ -373,11 +373,15 @@ PRE_STATS = collections.Counter()
 # Odyssey's alRenderMaterialUber took 25 minutes and 17.3 MB of GPU code, 31 s and 1.3 MB at -O1. Ordinary shaders come out within a few percent either way (the backend optimizes again)
 MAC_METAL = ['xcrun', '-sdk', 'macosx', 'metal', '-c', '-O1', '-fpreserve-invariance']
 MAC_RECORD = ' '.join(MAC_METAL) + '; xcrun -sdk macosx metallib'
+# -fbracket-depth: the front end stops at 256 nested brackets ("bracket nesting level exceeded maximum of 256"). Ocarina of Time's compute shaders 1f78730053feb036 and e172bd7ec218ab8e
+# (3.5 MB of MSL each) nest 259 deep in one expression and were left out. A source within the default limit compiles to the same bytes with it (checked on macOS and iOS), so, like the
+# precompiled header, the records do not name it and the Metal cache keeps its libraries. ios_metal.DEPTH is the same
+METAL_DEPTH = ['-fbracket-depth=1024']
 # The outer shader and fetch-variant caches restore compiled libraries directly,
 # before the MSL compile cache can check their compiler. Keep override builds separate there too.
 METAL_FP = dmsh_mtlcache.compiler_id('macosx') + ('\0iphoneos\0' + dmsh_mtlcache.compiler_id('iphoneos') if IOSOUT else '')
-def mac_compile(msl, air, lib):   # same interface as ios_metal.compile; the precompiled header changes no output, so MAC_RECORD does not name it (dmsh_pch.py)
-    dmsh_pch.compile(MAC_METAL, msl, air)
+def mac_compile(msl, air, lib):   # same interface as ios_metal.compile; the precompiled header and METAL_DEPTH change no output, so MAC_RECORD does not name them (dmsh_pch.py)
+    dmsh_pch.compile(MAC_METAL + METAL_DEPTH, msl, air)
     subprocess.run(['xcrun', '-sdk', 'macosx', 'metallib', air, '-o', lib], check=True)
 # The NVN driver's constant segments have one layout in every game, which dm/gfx/nvn/dmsh_abi.h holds for the host and this build (through dmsh_abi.py); nvn_mtl.m fills them the same way at run time.
 #   c2 C2_TEX + 8 r: handles bound with nvnCommandBufferBindTexture (combined texture and sampler), slot r. The driver has 32 such slots, but a game may bind higher ones, whose words lie in the
@@ -1167,7 +1171,7 @@ def build_keys(want, locations, pairs):
     return sorted(set(want) | {ps for vs in want for ps in pairs.get(vs, ()) if ps in locations}) if want else sorted(locations)
 
 def vs_pad(key, src):
-    """Give a vertex shader the outputs its paired pixel shaders read but it does not write, with the value (0,0,0,1).
+    """Give a vertex or mesh shader the outputs its paired pixel shaders read but it does not write, with the value (0,0,0,1).
     Maxwell attributes are untyped 32-bit slots, and a pixel shader reading a location the vertex shader did not write only gets a default; Ryujinx also fills them with (0,0,0,1) when it links stages. Here every shader is translated
     offline on its own without knowing what the next stage reads, and Metal requires every pixel shader input to be a vertex output: 331 of 9043 pairs failed to link and their draws were skipped
     (over 10,000 "Fragment input(s) user(locnN) ... not written by vertex shader" in one iPhone session after the opening course). Returns (new source, padded locations); pairs whose pixel MSL cannot be read are skipped."""
@@ -1177,8 +1181,16 @@ def vs_pad(key, src):
         if os.path.exists(fn):
             with open(fn) as f: want |= {int(x) for x in re.findall(r'\[\[user\(locn(\d+)\)', f.read())}
     miss = sorted(want - {int(x) for x in re.findall(r'\[\[user\(locn(\d+)\)', src)})
+    if not miss: return src, []
+    mi = src.find('struct dm_vertex_t {\n')
+    if mi >= 0:
+        mj = src.find('};\n', mi)
+        if mj < 0 or 'dm_out.set_vertex(n, v);' not in src: return src, []
+        src = src[:mj] + ''.join(f'    float4 dm_pad{l} [[user(locn{l})]];\n' for l in miss) + src[mj:]
+        init = ''.join(f'        v.dm_pad{l} = float4(0.0, 0.0, 0.0, 1.0);\n' for l in miss)
+        return src.replace('        dm_out.set_vertex(n, v);\n', init + '        dm_out.set_vertex(n, v);\n'), miss
     i = src.find('struct main0_out\n{\n'); j = src.find('\n};', i); k = src.find('main0_out out = {};')
-    if not miss or i < 0 or j < 0 or k < 0: return src, []
+    if i < 0 or j < 0 or k < 0: return src, []
     src = src[:j] + ''.join(f'\n    float4 dm_pad{l} [[user(locn{l})]];' for l in miss) + src[j:]
     k = src.find('main0_out out = {};') + len('main0_out out = {};')
     return src[:k] + ''.join(f'\n    out.dm_pad{l} = float4(0.0, 0.0, 0.0, 1.0);' for l in miss) + src[k:], miss
@@ -1560,7 +1572,7 @@ def finish(key, w, j, c1):
     pad = []
     if j['stage'] == 'vs':   # outputs start as (0,0,0,1) (see vs_init); no point size beside a layer output (see vs_layer); the base instance from Metal (see vs_base_instance)
         src = vs_base_instance(vs_layer(vs_init(src))); open(msl, 'w').write(src)
-    if j['stage'] == 'vs' and PAIRS.get(key):   # outputs the pixel shader reads but the vertex shader does not write get (0,0,0,1) (see vs_pad)
+    if (j['stage'] == 'vs' or (mesh and mesh['kind'] == 'ms')) and PAIRS.get(key):   # outputs the pixel shader reads but the vertex or mesh shader does not write get (0,0,0,1) (see vs_pad)
         src, pad = vs_pad(key, src)
         if pad: open(msl, 'w').write(src)
     lay = None; discard = False
