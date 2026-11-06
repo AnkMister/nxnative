@@ -58,3 +58,7 @@ full shader build, push or PR ran. Final results and cleanup are in docs/oot-not
 ## Brent round 2, #1430, 5cb7d718
 
 Keep depth-writing pool draws in a pass with DM_NVN_FB_DSELF=1. Preserve attachment profiling and the original default.
+
+## Brent round 2, #1427, f684c7eb
+
+Refresh raw table words with DM_NVN_GMEM_COMMIT=1. Use ba07d353 bitmap-log adaptation and retain local exposure filtering and hint ABI.
