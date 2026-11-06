@@ -9,6 +9,7 @@ uint64_t now_ns(void) { return bp_now(); }
 static int checks, failed;
 #define CHECK(label,c) do {checks++;if(!(c)){failed++;fprintf(stderr,"FAIL: %s\n",label);}}while(0)
 int main(void){@autoreleasepool{
+    setenv("DM_NVN_WIDE_INTERVALS", "1", 1);
     id<MTLDevice> dev=MTLCreateSystemDefaultDevice();
     id<MTLBuffer> pool=[dev newBufferWithLength:0xa04000 options:MTLResourceStorageModeShared];   // BotW's particle pool: 10 MB at 0x70c5d50000
     void *mb=(__bridge void*)pool;const uint64_t base=0x70c5d50000ull,ub=0x70c38c0000ull;
@@ -37,7 +38,16 @@ int main(void){@autoreleasepool{
     uint64_t done=g_done;gw_commit(done+1000);
     CHECK("a running submission's wide write is seen by the next",gw_live(base+0x41000,base+0x41010));
     CHECK("and not elsewhere",!gw_live(ub,ub+0x100));
-    // A write of 16 MB or more is kept whole: a uniform block elsewhere stays readable, and the same range coming back takes no new slot
+    // The starting pages of these ranges hash to the same slot as an unrelated uniform page.
+    const uint64_t a = 0x7200000000ull, b = 0x720452f000ull, uniform = 0x7208a5e000ull;
+    CHECK("the three pages collide", gw_slot(a >> 12) == gw_slot(b >> 12) && gw_slot(a >> 12) == gw_slot(uniform >> 12));
+    pend_reset();
+    sbw_note(a + 16, 0x80000, SBW_GPU);
+    sbw_note(b + 16, 0x80000, SBW_GPU);
+    gw_commit(done + 1000);
+    CHECK("the written pages stay live", gw_live(a, a + 16) && gw_live(b + 0x80000, b + 0x80010));
+    CHECK("wide writes leave an unrelated uniform page readable", !gw_live(uniform, uniform + 16));
+    // A 32 MB write is kept whole, and the same range coming back takes no new slot.
     pend_reset();uint64_t wide=0x7100000000ull,big=0x2000000;
     sbw_note(wide,big,SBW_GPU);gw_commit(done+1001);
     CHECK("a running 32 MB write is seen inside",gw_live(wide+0x1000000,wide+0x1000010));
