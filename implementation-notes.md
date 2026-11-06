@@ -445,3 +445,9 @@ No game, full shader build, settings write, push or remote branch change ran.
 - No upstream executables, DLLs or lock fingerprints were copied. The translator must be rebuilt from these sources, its lock refreshed, the chain header regenerated and Ocarina shaders rebuilt before use. Chain source hashing now includes BindlessToArray.cs.
 - p1444-xlate touches different functions in the same translator files and dmsh_build.py. Keep both diffs and regenerate the integrated chain. No profile/shader tables from Kirby were imported.
 - Builds, translator execution and tests remain blocked by the active dmhost process.
+
+## Harvest 3: other new main commits
+
+- Ported 16e3e24f's merged #1333 shader-package robustness and Oodle table decode changes with upstream fixtures. No external decoder binary was run.
+- c83c48f2 (layer views) and 2202d610 (present crop/shape) are already ancestors of oot-play. Their later local fixes were preserved.
+- PR 1446 a9120fae duplicates all eight null getter guards in p1444-tex 604dca80. That lane also guards GetBufferAddress, builders and initialization. Keep that lane; this branch adds no competing null-guard implementation. The underlying guest allocation failure remains open.
