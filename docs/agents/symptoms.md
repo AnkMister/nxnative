@@ -539,6 +539,8 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - `[RED] texture bound to an image slot lacks the shader-write usage`, and compute image writes go to a dummy texture. → [Image bindings supply shader-write intent](../reference/nvn-objects.md#image-bindings-supply-shader-write-intent)
 - the host stops with `NSInvalidArgumentException: -[NvPkg buffer]: unrecognized selector sent to instance` under `tex_by_id` (via `pool_entry`, `pool_gpu`, `encode_args_`, `draw_`, `mesh_tasks_draw`); not a GPU hang, no `kIOGPU` errors. Or a `[RED] texture serial N has a packaged entry but is not CPU-written` line. → [A packaged texture entry handed out as the texture](../reference/nvn-objects.md#a-packaged-texture-entry-handed-out-as-the-texture)
 
+- a Switch 2 load makes private textures and their tiled guest copies resident together. Bindless descriptor scans can also allocate fresh zero-filled textures for retired objects whose aliases have already been replaced, triggering more alias takeovers and table rebuilds. → [A raw address table pins CPU-only pools and revives retired textures](../reference/nvn-objects.md#a-raw-address-table-pins-cpu-only-pools-and-revives-retired-textures)
+
 ## Rendering
 
 - clang reports null dereferences in `nvnWindowInitialize` and `clear_tex`; clearing a null texture crashes with `DM_NVN_PASSDUMP=1`. → [Null textures in diagnostic logs](../reference/rendering.md#null-textures-in-diagnostic-logs)
@@ -913,6 +915,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - geometry preparation dominates rendering CPU even after geometry passes have been batched; primitive assembly and capture-index deduplication repeat for unchanged meshes. → [Prepared geometry indices reused after byte comparison](../reference/shaders.md#prepared-geometry-indices-reused-after-byte-comparison)
 - geometry vertex-capture passes consume substantial GPU time before geometry compute or depth rasterization. → [Geometry capture initializes only missing words](../reference/shaders.md#geometry-capture-initializes-only-missing-words)
 - Apple's performance HUD (`DM_METAL_HUD=1`) says `Compiled 2 shaders. Total compilation time is 102.70ms. Consider adopting MTL4Compiler for more fine grained compilations` during play, with a dip in the frame-rate graph at that moment, for example when a new room first issues a scissored clear. → [The host's own shaders compiled from source at run time](../reference/shaders.md#the-hosts-own-shaders-compiled-from-source-at-run-time)
+- Xcode 26.5 cannot compile the macOS/iOS 27 temporal-scaler offset properties used by `dlss_eval`, even though the calls are guarded by OS availability. → [Temporal-scaler offset setters with older SDK headers](../reference/shaders.md#temporal-scaler-offset-setters-with-older-sdk-headers)
 
 ## Game state
 
