@@ -690,3 +690,7 @@ game run, shader corpus build, push or PR is authorized here.
   depth-only native meshes. DM_NVN_VISUAL=1 enables it. Track missing declared
   pixel shaders separately so they are never replaced by that empty function.
   The prewarm test builds an actual depth-only mesh pipeline on Metal.
+
+- Added a direct audio-lock decoder fixture after the port. Synthetic ARM64
+  prologues check SDK 22's +0x2d8 SdkMutex and legacy +0x1f8 OS mutex,
+  unknown calls and missing symbols. No guest instructions are executed.
