@@ -161,6 +161,8 @@ int main(int argc, const char **argv) { @autoreleasepool {
         g_safe_limit = 700; g_safe_wired_limit = 1000;
         CHECK(safe_gpu_budget(699, 999)); CHECK(!safe_gpu_budget(700, 0)); CHECK(!safe_gpu_budget(0, 1000));
         g_safe_wired_limit = UINT64_MAX;   // synthetic cap, independent of this Mac's load
+        device.currentAllocatedSize = 10000; atomic_store(&g_res_bytes, 10000);
+        CHECK(safe_gpu_preflight()); // Aliases must not exhaust a small residency set.
         FakeOptions *options = [FakeOptions new];
         CHECK(safe_gpu_commit4(&cb, 1, (id)options) && queue.commits == 1);
         CHECK(atomic_load(&g_safe_pending) == 1);
@@ -170,7 +172,7 @@ int main(int argc, const char **argv) { @autoreleasepool {
         safe_gpu_commit3((id)buffer); CHECK(buffer.commits == 1);
         buffer.finished(buffer); CHECK(!atomic_load(&g_safe_pending));
         if (argc > 1 && !strcmp(argv[1], "memory")) {
-            atomic_store(&g_res_bytes, 700); g_res_dirty = g_res_grew = 1;
+            set.allocatedSize = 700; g_res_dirty = g_res_grew = 1;
             res_commit(); CHECK(!set.commits);   // pending additions count before a residency commit
         } else if (argc > 1 && !strcmp(argv[1], "set")) {
             set.allocatedSize = 700; g_guard.evict = 600; g_guard.stop = g_guard.wall = 700;

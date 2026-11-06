@@ -36,7 +36,7 @@ static uint64_t safe_gpu_wired(void) {
 static int safe_gpu_preflight(void) {
     if (!safe_gpu_on()) return 1;
     if (atomic_load(&g_safe_stopped)) return 0;
-    uint64_t used = MAX((uint64_t)g_dev.currentAllocatedSize, MAX(atomic_load(&g_res_bytes), atomic_load(&g_guard_set)));
+    uint64_t used = atomic_load(&g_guard_set); // No-copy aliases inflate the device and summed allocation counters.
     uint64_t wired = atomic_load(&g_safe_wired);
     if (safe_gpu_budget(used, wired)) return 1;
     char why[256]; snprintf(why, sizeof why, "memory headroom exhausted (GPU %llu/%llu MiB, system wired %llu/%llu MiB)",
