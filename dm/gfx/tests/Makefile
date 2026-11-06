@@ -595,3 +595,13 @@ t_aot: t_aot.m $(MTL_T_DEP)
 .PHONY: check_t_aot
 check_t_aot: t_aot
 	DM_TEST_AOT=$(CURDIR)/t_aot python3 -m unittest test_aot.py
+
+t_alias_takeover: t_alias_takeover.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_alias_takeover.m $(MTL_T_SRC) $(FW)
+check_t_alias_takeover: t_alias_takeover
+	./t_alias_takeover
+	DM_NVN_SERIAL_HELD=1 DM_NVN_SERIAL_HELD_CHECK=1 ./t_alias_takeover
+
+t_bcrt: t_bcrt.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_bcrt.m $(MTL_T_SRC) $(FW)
+check_t_bcrt: RUN_ENV = MTL_DEBUG_LAYER=1

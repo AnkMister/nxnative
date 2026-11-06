@@ -155,5 +155,25 @@ int main(void) { @autoreleasepool {
     mtl_sub_begin(); gmem_map(); finish();
     CHECK("with the pools gone the table is the least again", g_gmem_buf.length / DMSH_GMEM_MAP_ENTRY == DMSH_GMEM_MAP_ENTRIES);
     mtl_pool_del(small); mtl_drain();
+    // Cover the upstream 521-pool arena with the retained dynamic map and address marks.
+    const int NRUN = 521; const uint64_t STEP = 65536;
+    uint8_t *contig = mmap(NULL, NRUN * STEP, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0); if (contig == MAP_FAILED) abort();
+    for (int i = 0; i < NRUN; i++) mtl_pool_add(contig + i * STEP, STEP);
+    mtl_pool_buffer_addr(contig, NRUN * STEP);
+    mtl_sub_begin(); id<MTLBuffer> gmap = gmem_map(); finish();
+    const uint8_t *gt = (const uint8_t *)gmap.contents;
+    int covered = 0;
+    for (int k = 0; k < NRUN; k++) {
+        uint64_t lo = (uint64_t)(uintptr_t)contig + (uint64_t)k * STEP;
+        int found = 0;
+        for (NSUInteger i = 1; i < gmap.length / DMSH_GMEM_MAP_ENTRY; i++) {
+            const uint64_t *e = (const void *)(gt + i * DMSH_GMEM_MAP_ENTRY);
+            if (e[0] <= lo && e[1] >= lo + STEP) { found = 1; break; }
+        }
+        covered += found;
+    }
+    CHECK("all 521 contiguous 64 KB pools have global-memory coverage", covered == NRUN);
+    for (int i = 0; i < NRUN; i++) mtl_pool_del(contig + i * STEP);
+    mtl_drain(); munmap(contig, NRUN * STEP);
     printf("t_pool_chunks: %d checks, %d failed\n", checks, failed); return failed != 0;
 }}

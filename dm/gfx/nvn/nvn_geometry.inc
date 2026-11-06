@@ -648,8 +648,10 @@ static void mtk_encode(id<MTLRenderCommandEncoder> en_) {
     uint64_t first = g_mtk.ind + 16;
     if (!g_mtk.ind) { id<MTLBuffer> b; size_t o = arena_alloc(16, &b); memcpy((uint8_t *)b.contents + o, &g_mtk.first, 4); first = b.gpuAddress + o; }
     if (ts) { [en setArgumentTable:g_ot atStages:MTLRenderStageObject]; g_args_dirty[3] = 1; encode_args(en, ts, 3, 0);
+              if (p1444_tex_on() && g_enc != en) return;
               if (rec_on()) rec_table_op(RO_T_ADDR, g_ot, first, DMSH_MESH_FIRST_SLOT); else [g_ot setAddress:first atIndex:DMSH_MESH_FIRST_SLOT]; }
     g_args_dirty[4] = 1; encode_args(en, ms, 4, 1);
+    if (p1444_tex_on() && g_enc != en) return;
     enc_r_vbuf(en, DMSH_MESH_FIRST_SLOT, first);
     MTLSize ot = MTLSizeMake(ts ? ts->mesh_threads : 1, 1, 1), mt = MTLSizeMake(ms->mesh_threads, 1, 1);
     if (g_mtk.ind) [en drawMeshThreadgroupsWithIndirectBuffer:g_mtk.ind threadsPerObjectThreadgroup:ot threadsPerMeshThreadgroup:mt];
@@ -674,16 +676,6 @@ static void mesh_tasks_draw(const p_draw *dw) {
         if (!ix) { ixc_run(dw, NULL); ix = ixc_find(dw, NULL); }
         if (!ix || !ix->args) { RED_ONCE(88, "indirect mesh draw skipped: argument address %#llx cannot be converted", (unsigned long long)dw->ind); return; }
         indirect = ix->args;
-        static unsigned layout_checks;
-        if (layout_checks++ < 8) {
-            uint64_t address = dw->ind;
-            [g_commit_blocks addObject:^{
-                uint32_t words[2]; vm_size_t got = 0;
-                if (vm_read_overwrite(mach_task_self(), (vm_address_t)address, sizeof words, (vm_address_t)words, &got) == KERN_SUCCESS && got == sizeof words)
-                    MLOG("mesh indirect layout check: provisional {count, first} at %#llx = {%u, %u}; NVN2 record layout remains unverified", (unsigned long long)address, words[0], words[1]);
-                else MLOG("[RED] mesh indirect layout check: unreadable record at %#llx", (unsigned long long)address);
-            }];
-        }
     }
     NvProg *raster = pr->geo_lean_raster;   // the pixel stage alone
     if (!raster || raster->sh[1] != pr->sh[1] || raster->sh[0]) { raster = [NvProg new]; raster->sh[1] = pr->sh[1]; pr->geo_lean_raster = raster; }
