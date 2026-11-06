@@ -504,8 +504,6 @@ check_t_logic: t_logic
 	@set -e; work=$$(mktemp -d); trap 'rm -rf "$$work"' EXIT; python3 test_dmsh_logic.py --fixture "$$work"; MTL_DEBUG_LAYER=1 ./t_logic "$$work"
 
 # Texture storage and descriptor lifetime regressions.
-t_alias_takeover: t_alias_takeover.m $(MTL_T_DEP)
-	clang $(CFLAGS) -fobjc-arc -o $@ $< $(MTL_T_SRC) $(FW)
 t_pool_heap: t_pool_heap.m $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -o $@ $< $(MTL_T_SRC) $(FW)
 t_alias_retire: t_alias_retire.m $(MTL_T_DEP)

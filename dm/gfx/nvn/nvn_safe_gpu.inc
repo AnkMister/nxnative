@@ -108,7 +108,14 @@ void mtl_safe_gpu_release(void) {
     // Never wait for GPU completion after a fault. The host has an independent
     // exit fallback if even removing residency blocks inside Metal.
     int locked = 0;
-    for (int i = 0; i < 50 && !locked; i++) { locked = pthread_mutex_trylock(&g_res_mu) == 0; if (!locked) usleep(2000); }
+    uint64_t deadline = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) + 100ull * NSEC_PER_MSEC;
+    // Background tasks can have their sleeps coalesced. Bound elapsed time,
+    // rather than multiplying that scheduler delay by a fixed retry count.
+    do {
+        locked = pthread_mutex_trylock(&g_res_mu) == 0;
+        if (locked || clock_gettime_nsec_np(CLOCK_UPTIME_RAW) >= deadline) break;
+        usleep(2000);
+    } while (!locked);
     if (!locked) { MLOG("[RED] DM_SAFE_GPU: residency lock held; cannot release it before exit"); return; }
     [g_q removeResidencySet:g_res]; [g_q4 removeResidencySet:g_res]; [g_res endResidency];
     [g_res removeAllAllocations]; [g_res commit];
