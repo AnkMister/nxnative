@@ -48,6 +48,7 @@ run: $(B)/t_net_eventfd $(B)/t_language $(B)/t_motion $(B)/t_heap_size $(B)/t_to
 	$(B)/t_audio_stats
 	$(B)/t_fpslock
 	$(B)/t_uecvar
+	$(B)/t_oot_resolution
 	$(B)/t_ue_heap_span
 	$(B)/t_audren_work
 	$(B)/t_audren_layout
@@ -384,3 +385,10 @@ $(B)/t_gpu_stop: t_gpu_stop.c ../hle_lifecycle.c ../hle.h ../dm.h $(GAME_H) | $(
 .PHONY: check_gpu_stop
 check_gpu_stop: $(B)/t_gpu_stop
 	$(B)/t_gpu_stop
+run: $(B)/t_oot_resolution
+$(B)/t_oot_resolution: t_oot_resolution.c ../hle_oot_resolution.c ../hle.h ../dm.h $(GAME_H) | $(B)
+	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -I.. $(GINC) -o $@ t_oot_resolution.c
+.PHONY: oot-resolution
+oot-resolution: $(B)/t_oot_resolution
+	$(B)/t_oot_resolution
+
