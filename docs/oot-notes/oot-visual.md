@@ -632,24 +632,3 @@ verification commit. Isolated NuGet feed/cache, publish output, baseline bundle
 and the C# build intermediates were removed after verification. Audit dates,
 scripts, logs and the requested small shader fixtures remain in the audit folder.
 Rebuilding requires rerunning its audit_nuget.py to recreate the cooled feed.
-
-## Review Astra 2, finding 1
-
-The Float16 selector now rejects the side library when any rewritten logical
-output feeds a signed or unsigned integer attachment, including a merged pass.
-The existing Float32 exclusion remains. This uses pf_int_kind and changes only
-the DM_NVN_VISUAL path. No shader tool, chain stamp or shader rebuild changed.
-A format-specific shader family would require new library variants and loader
-state, so the bounded fix keeps the original shader for mixed limited targets.
-
-The regression uses the review's MSL and the production fs_uint, int_outputs
-and in_word functions. It produces mask 2 and limit mask 3. The Metal render
-fixture selects between the original and limited libraries for Float16 plus
-RGBA32Uint and checks the exact word 0x47800000 and the integer channel 123.
-Forcing the limited library gives 0x477fe000, proving fixture sensitivity.
-Four Python rewrite/compile tests and 29 host/Metal checks pass. The full tools
-suite and host build also pass; exact logs and counts are in the requested
-review-astra-2-fixes.md report. Compiler warnings remain. No game, full shader
-build, dependency install, push or PR ran. Temporary fixture directories clean
-themselves up under the required TMPDIR. Generated host/test roots are recorded
-in the final report for cleanup after both branches have been verified.
