@@ -141,6 +141,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - GPU memory grows with repeated `nvnTextureReadTexels` calls on a long-lived game thread, even after each readback completes. → [GPU readback without an autorelease pool](../reference/memory.md#gpu-readback-without-an-autorelease-pool)
 - process footprint and Metal allocation grow during stationary gameplay even after readback fences complete; the deferred-release queue and command allocator sizes remain bounded. → [Completion readbacks survive a guest waiter's pool](../reference/memory.md#completion-readbacks-survive-a-guest-waiters-pool)
 - `footprint` shows `Malloc Large` about the size of `pso_archive/` (the log's `pipeline archive …: N files, … MB`), resident for the whole run. `MallocStackLogging=1` with `malloc_history <pid> -allBySize` gives `newArchiveWithURL` → `MTL4ArchiveImpl::loadFromURL` → `LoaderGlobalState::loadFile` → `-[NSData initWithContentsOfFile:options:maxLength:error:]` → malloc. → [A pipeline archive on an external drive is read into memory](../reference/memory.md#a-pipeline-archive-on-an-external-drive-is-read-into-memory)
+- a CPU-written texture occupies both swizzled guest memory and a private Metal texture after upload. → [Cold uploaded guest texture copies (Mac experiment)](../reference/memory.md#cold-uploaded-guest-texture-copies-mac-experiment)
 
 ## Threads
 

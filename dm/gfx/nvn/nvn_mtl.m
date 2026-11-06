@@ -557,6 +557,7 @@ static void reg_bump(int id_, int samp) { uint64_t g = atomic_fetch_add(&g_reg_g
 // and committing on the spot is earlier than any command buffer commit that uses it. CPU-side reads of pool contents through mtl_addr trigger it too (conservative, never misses). Caller holds g_mu
 static void pool_res(int i) {
     if (g_pools[i].res) return;
+    nvn_dirty_restore((const void *)g_pools[i].base, g_pools[i].end - g_pools[i].base);
     res_add(g_pools[i].buf); res_commit(); g_pools[i].res = 1; g_pool_res_n++;
 }
 // A large pool in chunks. Metal wires a zero-copy buffer whole while it is in the residency set, so one buffer over a large pool pins all of it, whatever the GPU reads. Mario Kart World's 2,427 MB
@@ -581,6 +582,7 @@ void mtl_pool_add(const void *mem, uint64_t size) {
         pthread_mutex_unlock(&g_mu);
         if (k >= 0) { static int nl; if (nl++ < 8) MLOG("memory pool %p+%llu MB: in chunks, wired as far as lookups reach", mem, (unsigned long long)(size >> 20)); return; }
     }
+    nvn_dirty_restore((const void *)a, b - a);
     id<MTLBuffer> buf = [g_dev newBufferWithBytesNoCopy:(void *)a length:b - a options:MTLResourceStorageModeShared deallocator:nil];
     // Pokémon Legends: Z-A: twice on the Mac a small pool's buffer was refused although its pages were one read-write VM region, both times while another heavy job (a shader compile,
     // a second game instance) took the machine's memory; every run on an idle machine created all of them. Wiring the pages may fail under memory pressure: retry for up to about 2 s
@@ -648,6 +650,7 @@ static void pidx_sort(void) {
     qsort(g_pidx, (size_t)g_npool, sizeof *g_pidx, pidx_cmp); g_pidx_ok = 1;
 }
 static int big_new(big_pool *b, uintptr_t lo, uintptr_t hi, uintptr_t end, uint64_t unk) {   // caller holds g_mu: a new entry for [lo, end) of the pool, looked up for addresses in [lo, hi)
+    nvn_dirty_restore((const void *)lo, end - lo);
     id<MTLBuffer> buf = [g_dev newBufferWithBytesNoCopy:(void *)lo length:end - lo options:MTLResourceStorageModeShared deallocator:nil];
     if (!buf) { MLOG("[RED] memory pool %p: the zero-copy buffer over %#lx..%#lx was refused", b->mem, (unsigned long)lo, (unsigned long)end); return -1; }
     if (g_npool == g_cap) { g_cap = g_cap ? g_cap * 2 : 64; g_pools = realloc_or_die(g_pools, g_cap * sizeof *g_pools, "the memory pool table"); }
@@ -902,12 +905,13 @@ static uint64_t g_sub_serial;   // Submission index (used by the parallel precom
 void mtl_prepare(void) {
     if (!g_warm_started && prepare_on()) { mtl_init(); shmap_load(); }
 }
-static void sub_cut_begin(void);
+static void sub_cut_begin(void); static void dd_tick(void);
 void mtl_sub_begin(void) {
     mtl_init(); g_sub_serial++; g_seg = 0; seg_clk_put(g_sclk); g_sclk = NULL; g_rc_npend = 0; g_rc_skip = 0;
     sub_cut_begin();
     defer_drain();
     defer_reset();
+    dd_tick();
     mtl_prepare();   // done by then in the submit entry; the replay tool (nvn_replay) reaches it here
     warm_claim();
     if (g_cb) MDIE("submit re-entered");
@@ -2052,7 +2056,7 @@ static void ghost_finish_submission(void) {
 // Host record of a packaged texture: the current MTLTexture, the upload stamp, and the global write generation at the last check
 // spare: the texture the last re-upload replaced, kept resident and written by the next re-upload once the GPU has passed spare_fence (a texture the CPU rewrites every frame, a movie frame,
 // alternates between two textures instead of allocating one per frame: Link's Awakening's title movie made and freed an 8 MB texture a frame)
-@interface NvPkg : NSObject { @public id<MTLTexture> tex, spare, view; uint64_t stamp, seen, hash, spare_fence, vgen, vseen, sub; const void *span; int sparse, vbase; uint8_t *edge[2]; uint32_t edge_n[2]; id ps; } @end   // hash: full hash of the uploaded content under DM_NVN_DIRTYCHECK; span: its tracked range (nvn_dirty_span, NULL = untracked);
+@interface NvPkg : NSObject { @public id<MTLTexture> tex, spare, view; uint64_t stamp, seen, hash, spare_fence, vgen, vseen, sub; const void *span; int sparse, vbase; uint8_t *edge[2]; uint32_t edge_n[2]; id ps; uint8_t *gmem; uint64_t gsize, up_ns; } @end   // hash: full hash of the uploaded content under DM_NVN_DIRTYCHECK; span: its tracked range (nvn_dirty_span, NULL = untracked);
 // sparse: in a sparse virtual pool, read through its page table (hle_nvn.c nvn_sparse_*), vgen the page table's generation at the upload and vseen at the last look; view: what it is bound as (sparse_view)
 // ps: its placement sparse texture (NvSparse, sparse_make), which tex is: mapped and uploaded tile by tile (sparse_sync)
 // edge: the uploaded bytes of the storage's first and last host pages where other data shares them (pkg_edges_take)
@@ -2500,6 +2504,63 @@ static void up_blit_add_at(id<MTLBuffer> src, size_t off, size_t row, size_t ima
 static void up_blit_add(id<MTLBuffer> src, size_t off, size_t row, size_t image, MTLSize size,
                         id<MTLTexture> dst, NSUInteger slice, NSUInteger level) { up_blit_add_at(src, off, row, image, size, dst, slice, level, MTLOriginMake(0, 0, 0)); }
 
+// Optional Mac experiment: back up cold uploaded guest pages and release them
+// through nvn_dirty.c. Keep private Metal textures intact. Never release a page
+// reachable by an upload in flight or a resident pool buffer.
+static int g_dd_on = -1; static uint64_t g_dd_age_ns, g_dd_budget;
+static NSHashTable *g_dd_cand; static os_unfair_lock g_dd_lk = OS_UNFAIR_LOCK_INIT;   // NvPkg (weak) uploaded and not yet looked at by dd_tick
+static int dd_on(void) {
+    if (g_dd_on >= 0) return g_dd_on;
+    const char *e = getenv("DM_NVN_TEX_DEDUPE"), *gf = getenv("DM_GUEST_FILE"), *age = getenv("DM_NVN_TEX_DEDUPE_AGE_MS"), *mb = getenv("DM_NVN_TEX_DEDUPE_MB"), *dir = getenv("DM_NVN_TEX_DEDUPE_DIR");
+    int on = e && atoi(e) > 0;
+#if TARGET_OS_IPHONE
+    on = 0;   // This experiment is Mac-only.
+#endif
+    if (on && gf && atoi(gf) > 0) { MLOG("DM_NVN_TEX_DEDUPE: off with DM_GUEST_FILE (the guest's pages are out of the footprint already)"); on = 0; }
+    char tmp[1024] = "";
+    if (on && !(dir && *dir)) { const char *t = getenv("TMPDIR"); if (t && *t) snprintf(tmp, sizeof tmp, "%s", t);  dir = tmp; }
+    if (on && nvn_dirty_dedupe_open(dir)) { MLOG("[RED] DM_NVN_TEX_DEDUPE: cannot create the dedupe file in %s (errno %d): off", dir, errno); on = 0; }
+    g_dd_age_ns = (uint64_t)(age && *age ? MAX(0ll, MIN(atoll(age), 3600000ll)) : 2000) * 1000000ull;
+    g_dd_budget = (uint64_t)(mb && *mb ? MAX(1ll, MIN(atoll(mb), 256ll)) : 32) << 20;
+    if (on) MLOG("DM_NVN_TEX_DEDUPE: the guest copy of uploaded textures is given back after %llu ms without a write (file in %s, at most %llu MB a submission)", (unsigned long long)(g_dd_age_ns / 1000000), dir, (unsigned long long)(g_dd_budget >> 20));
+    return g_dd_on = on;
+}
+static uint64_t dd_now(void) { return clock_gettime_nsec_np(CLOCK_UPTIME_RAW); }
+static void dd_note(NvPkg *pk, const tex_t *t) {   // after an upload (first or again)
+    if (!dd_on() || pk->sparse || !pk->span || !t->mem) return;
+    pk->gmem = t->mem; pk->gsize = t->L.size; pk->up_ns = dd_now();
+    os_unfair_lock_lock(&g_dd_lk); if (!g_dd_cand) g_dd_cand = [NSHashTable weakObjectsHashTable]; [g_dd_cand addObject:pk]; os_unfair_lock_unlock(&g_dd_lk);
+}
+// The caller holds g_mu through release, so pool_res cannot wait for BUSY
+// while preventing this check from taking the same mutex.
+static int dd_ok(void *ctx, uintptr_t lo, uintptr_t hi) {
+    (void)ctx;
+    for (int i = 0; i < g_npool; i++) {
+        const pool_ent *p = &g_pools[i];
+        if (p->base < hi && p->end > lo && p->res) return 0;
+    }
+    return 1;
+}
+static void dd_tick(void) {   // submit thread, between submissions
+    if (!dd_on() || g_up_cb || atomic_load(&g_up_pending)) return;   // no transient upload buffer may still read a page about to go
+    uint64_t now = dd_now(); static uint64_t last; if (now - last < 100000000ull) return; last = now;
+    @autoreleasepool {
+        os_unfair_lock_lock(&g_dd_lk); NSArray *c = g_dd_cand.count ? g_dd_cand.allObjects : nil; os_unfair_lock_unlock(&g_dd_lk);
+        uint64_t used = 0;
+        for (NvPkg *pk in c) {
+            if (used >= g_dd_budget) break;
+            if (now - pk->up_ns < g_dd_age_ns) continue;
+            int skip = 0;
+            pthread_mutex_lock(&g_mu);
+            size_t len = MIN(pk->gsize, g_dd_budget - used);
+            size_t got = nvn_dirty_release(pk->gmem, len, pk->stamp, dd_ok, NULL, &skip);
+            pthread_mutex_unlock(&g_mu);
+            used += got;
+            if (len < pk->gsize && !skip) { pk->gmem += len; pk->gsize -= len; }
+            else { os_unfair_lock_lock(&g_dd_lk); [g_dd_cand removeObject:pk]; os_unfair_lock_unlock(&g_dd_lk); }
+        }
+    }
+}
 static id<MTLTexture> pkg_upload_(const tex_t *t, uint64_t *stamp, id<MTLTexture> reuse, MTLTextureUsage keep);
 static int g_direct_upload_on = -1; static uint64_t g_direct_uploads, g_direct_dispatches;
 static int direct_upload_on(void) { if (g_direct_upload_on < 0) { const char *e=getenv("DM_NVN_DIRECT_UPLOAD"); g_direct_upload_on=!e||atoi(e); } return g_direct_upload_on; }
@@ -2567,10 +2628,11 @@ static void rb_swap_rows(uint8_t *p, size_t wb, size_t rows, size_t nz, size_t r
     }
 }
 // A zero-copy buffer over [addr, addr + len) of a large pool for the open upload batch, which retires it with its staging; nil outside a large pool (or if it is refused: the caller looks the address up as usual)
-static id<MTLBuffer> up_big_src(uint64_t addr, uint64_t len, uint64_t *off) {
-    pthread_mutex_lock(&g_mu); int in = big_of(addr) >= 0; pthread_mutex_unlock(&g_mu);
+static id<MTLBuffer> up_big_src(uint64_t addr, uint64_t len, uint64_t *off, int texture_only) {
+    int in = texture_only; if (!in) { pthread_mutex_lock(&g_mu); in = big_of(addr) >= 0; pthread_mutex_unlock(&g_mu); }
     if (!in || !len) return nil;
     uintptr_t pg = (uintptr_t)getpagesize(), a = (uintptr_t)addr & ~(pg - 1), b = ((uintptr_t)addr + len + pg - 1) & ~(pg - 1);
+    nvn_dirty_restore((const void *)a, b - a);
     id<MTLBuffer> buf = [g_dev newBufferWithBytesNoCopy:(void *)a length:b - a options:MTLResourceStorageModeShared deallocator:nil];
     if (!buf) return nil;
     res_add(buf); [g_up_keep addObject:buf]; *off = (uint64_t)addr - a;
@@ -2607,7 +2669,8 @@ static id<MTLTexture> pkg_upload_(const tex_t *t, uint64_t *stamp, id<MTLTexture
     void *mb; uint64_t mo;
     // A texture in a large pool (BIG_MIN) is read through a buffer of its own, held by the upload batch: a one-time read must not leave its chunk wired for good
     id<MTLBuffer> upsrc = nil;
-    if (!rb_shift && !sparse && g_nvn_deswz_gpu && g_nbig) { up_begin(); upsrc = up_big_src((uint64_t)t->mem, t->L.size, &mo); if (upsrc) mb = (__bridge void *)upsrc; }
+    int tex_only = dd_on() && t->pool;
+    if (!rb_shift && !sparse && g_nvn_deswz_gpu && (g_nbig || tex_only)) { up_begin(); upsrc = up_big_src((uint64_t)t->mem, t->L.size, &mo, tex_only); if (upsrc) mb = (__bridge void *)upsrc; }
     int use_gpu = !rb_shift && !sparse && g_nvn_deswz_gpu && (upsrc || mtl_addr((uint64_t)t->mem, t->L.size, &mb, &mo));   // a sparse pool's texture is gathered through its page table on the CPU
     if (g_nvn_deswz_gpu && !use_gpu && !sparse && !rb_shift) RED_ONCE(40, "swizzled texture storage is not in a memory pool; falling back to the CPU");
     if (use_gpu) {
@@ -2631,7 +2694,7 @@ static id<MTLTexture> pkg_upload_(const tex_t *t, uint64_t *stamp, id<MTLTexture
         }
         size_t stg_off;
         id<MTLBuffer> stg = up_alloc(total ? total : 16, &stg_off);
-        if (upsrc) { uint64_t mo2; id<MTLBuffer> u2 = up_big_src((uint64_t)t->mem, t->L.size, &mo2); if (u2) { upsrc = u2; mb = (__bridge void *)u2; mo = mo2; } }   // up_alloc may have flushed the batch that held the first one
+        if (upsrc) { uint64_t mo2; id<MTLBuffer> u2 = up_big_src((uint64_t)t->mem, t->L.size, &mo2, tex_only); if (u2) { upsrc = u2; mb = (__bridge void *)u2; mo = mo2; } }   // up_alloc may have flushed the batch that held the first one
         size_t off = 0; int enc_ok = g_up_ce != nil, nb0 = g_nup_blits;
         for (unsigned l = 0; enc_ok && l < d.mipmapLevelCount; l++) {
             uint32_t w = MAX(t->d.width >> l, 1u), h = MAX(t->d.height >> l, 1u), z = t->d.target == 2 ? MAX(t->d.depth >> l, 1u) : 1;
@@ -3391,7 +3454,7 @@ static id<MTLTexture> tex_mtl_(const tex_t *ct) {
                 if (pk->spare && pk->spare != nt) defer_obj_release(pk->spare);   // still in use, or of another shape: retired as before
                 if (pk->sparse) sparse_view(pk, t);
                 zb_report(t, pk->sparse ? (unsigned)pk->vbase : 0, "re-upload");
-                pk->spare = old; pk->spare_fence = g_fence + 1; ser_note(t->serial); pk->stamp = st; pk->vgen = pk->vseen = vg; pk->span = nvn_dirty_span(t->mem, t->L.size); pk->seen = st; g_pkg_reuploads++; if (dirtycheck() && !pk->sparse) pk->hash = full_hash(t->mem, t->L.size); pkg_edges_take(pk, t); }
+                pk->spare = old; pk->spare_fence = g_fence + 1; ser_note(t->serial); pk->stamp = st; pk->vgen = pk->vseen = vg; pk->span = nvn_dirty_span(t->mem, t->L.size); pk->seen = st; g_pkg_reuploads++; if (dirtycheck() && !pk->sparse) pk->hash = full_hash(t->mem, t->L.size); pkg_edges_take(pk, t); dd_note(pk, t); }
             return pk->view ? pk->view : pk->tex;
         }
         pk = [NvPkg new];
@@ -3400,7 +3463,7 @@ static id<MTLTexture> tex_mtl_(const tex_t *ct) {
         if (!pk->tex) return nil;
         pk->span = nvn_dirty_span(t->mem, t->L.size);
         pk->seen = pk->stamp; g_pkg_uploads++; if (dirtycheck() && !pk->sparse) pk->hash = full_hash(t->mem, t->L.size);   // "nothing written since" starts at the stamp: a write that faulted during the upload moved "now" past it
-        pkg_edges_take(pk, t);
+        pkg_edges_take(pk, t); dd_note(pk, t);
         if (pk->sparse) sparse_view(pk, t);
         zb_report(t, pk->sparse ? (unsigned)pk->vbase : 0, "upload");
         tex_put(t->serial, pk);
@@ -3515,6 +3578,11 @@ void mtl_mem_stat(unsigned long long frame, unsigned long long rss_mb) {
 #if TARGET_OS_IPHONE
     snprintf(avail, sizeof avail, "%llu MB", (unsigned long long)(os_proc_available_memory() >> 20));
 #endif
+    if (g_dd_on > 0) { uint64_t gone, released, back, reread, raced, failed, file;
+        nvn_dirty_dedupe_stats(&gone, &released, &back, &reread, &raced, &failed, &file);
+        MLOG("texture dedupe: released now %llu MB, file high-water %llu MB, restored %llu pages (%llu from disk), failed %llu",
+             gone >> 20, file >> 20, back, reread, failed);
+    }
     MLOG("memory up to frame %llu: resident %llu MB, GPU allocated %llu MB, deferred-release queue %lu, residency set %lu, serial objects %u, memory pools %d (resident %d; peak %d / tracking table capacity %d; freed but alive %lu, %llu MB), shared textures %u (%u of them unreferenced; evicted with pools %llu, on storage takeover %llu in total), texture re-uploads %llu in total, per-frame arena blocks created %llu in total, finalized textures still referenced %u (small table, %llu put in total); headroom to the system memory limit %s", frame, rss_mb, gpu, nd, nr, ns, live, pres, peak, cap, dead_n, dead_mb, ashared, aorph, (unsigned long long)g_alias_evicted, (unsigned long long)g_alias_taken, (unsigned long long)g_pkg_reuploads, (unsigned long long)g_arena_made, nghost, (unsigned long long)ghost_puts, avail);
     { void mtl_vc_stats(unsigned *, uint64_t *, uint64_t *), mtl_tb2_stats(uint64_t *, uint64_t *, uint64_t *, uint64_t *, uint64_t *); uint64_t mtl_tex_mis_count(void); unsigned vn; uint64_t vh, vm, tb, tm, tf, tc, tcb;
       mtl_vc_stats(&vn, &vh, &vm); mtl_tb2_stats(&tb, &tm, &tf, &tc, &tcb);
@@ -8081,7 +8149,7 @@ static id<MTLBuffer> gmem_map(void) {
     gen = atomic_load(&g_pool_gen); pidx_sort();
     for (int k = 0; k < g_npool; k++) {
         pool_ent *p = &g_pools[g_pidx[k]];
-        if (!p->res) { res_add(p->buf); p->res = 1; g_pool_res_n++; }
+        if (!p->res) { nvn_dirty_restore((const void *)p->base, p->end - p->base); res_add(p->buf); p->res = 1; g_pool_res_n++; }
         uint64_t lo = MAX((uint64_t)p->lo, end), hi = p->hi;
         if (lo >= hi) continue;
         if (n == DMSH_GMEM_MAP_ENTRIES) { over++; continue; }
