@@ -457,3 +457,9 @@ No game, full shader build, settings write, push or remote branch change ran.
 - Static merge with oot-play-1444 9bb60b88 has two code conflicts, both choosing owner-aware heap upgrades, plus appended notes. Resolution guidance and the complete item/overlap table are in docs/oot-notes/harvest-3.md and the requested external harvest-3.md.
 - No builds or tests ran. dmhost PID 92070 remained active. The shader source header was regenerated; translator binaries, lock refresh, matching libraries, host build and runtime validation remain pending.
 - No generated build/dependency roots were created or removed. Retained small patch/merge artifacts under the external harvest-3-src directory for review. No push.
+
+## Harvest 3 follow-up: event storage queries
+
+- Ported merged upstream 69cb9b6e. ev_t retains the event builder's pool and offset, and the two NVN event getters return them. Added upstream getter assertions to t_nvn.
+- This is a general merged correctness fix, enabled without a new flag. The capture walk snapshots an event's address rather than ev_t, so its disk layout does not change. Host-only, no shader-chain change.
+- Static only. dmhost PID 92070 remains active, so no builds or tests ran.
