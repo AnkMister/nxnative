@@ -2,6 +2,7 @@
 from pathlib import Path
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -310,6 +311,95 @@ class RawLoadQuads(unittest.TestCase):
             with self.subTest(change=new):
                 self.assertNotEqual(bad, stock)
                 self.assertEqual(raw_load_quads(bad, 5, 4096, 32), bad)
+
+
+class WideGroup(unittest.TestCase):
+    def source(self):
+        return raw_source(4096).replace('device', 'const device')
+
+    def test_readonly_requires_new_opt_in(self):
+        stock = self.source()
+        self.assertEqual(raw_load_quads(stock, 5, 4096, 32), stock)
+        grouped = raw_load_quads(stock, 5, 4096, 32, readonly=True)
+        self.assertEqual(grouped.count('_words = dm_raw_load4'), 1)
+        self.assertIn('const device _10& table', grouped)
+        self.assertEqual(raw_load_quads(grouped, 5, 4096, 32, readonly=True), grouped)
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertFalse(dmsh_chain.wide_group())
+            before = subprocess.check_output([sys.executable, dmsh_chain.__file__])
+            os.environ['DMSH_WIDE_GROUP'] = '1'
+            self.assertTrue(dmsh_chain.wide_group())
+            self.assertNotEqual(before, subprocess.check_output([sys.executable, dmsh_chain.__file__]))
+
+    def test_partial_predicates_and_memory_effects_stay_scalar(self):
+        stock = self.source()
+        for between in ('if (_500 == 0) return;',
+                        '(*spvDescriptorSet0.cp_s0)._m0[0] = 7u;',
+                        'threadgroup_barrier(mem_flags::mem_device);',
+                        'simdgroup_barrier(mem_flags::mem_device);',
+                        'atomic_fetch_add_explicit(ptr, 1u, memory_order_relaxed);'):
+            bad = stock.replace('    int _603 = _504;', between + '\n    int _603 = _504;')
+            self.assertEqual(raw_load_quads(bad, 5, 4096, 32, readonly=True), bad)
+        # A predicated word or wrong carry invalidates the whole candidate.
+        for old, new in (('int _605 = _900(_603, _604, (*spvDescriptorSet0.cp_s5));',
+                          'int _605 = _500 != 0 ? _900(_603, _604, (*spvDescriptorSet0.cp_s5)) : 0;'),
+                         ('uint(_504) < uint(_500)', 'uint(_504) <= uint(_500)'),
+                         ('_501 + _506', '_501 - _506')):
+            bad = stock.replace(old, new)
+            self.assertNotEqual(stock, bad)
+            self.assertEqual(raw_load_quads(bad, 5, 4096, 32, readonly=True), bad)
+
+    @unittest.skipUnless(os.environ.get('DMSH_TEST_GPU') == '1', 'set DMSH_TEST_GPU=1 for Metal equivalence')
+    def test_gpu_exact_bytes_boundaries_carry_wrap_and_missing(self):
+        # Each mapping supplies [guest start, exclusive end, byte offset in data].
+        # Nearest preceding start wins, also for overlaps and duplicate starts.
+        maximum = (1 << 64) - 1
+        cases = [
+            (0x1000, [(0x1000, 0x1040, 0)]),
+            (0x1008, [(0x1000, 0x1010, 0), (0x1010, 0x1020, 64)]),
+            (0x100c, [(0x1000, 0x1010, 0)]),
+            (0x2000, [(0x1000, 0x1040, 0)]),
+            (0x100c, [(0x1010, 0x1040, 64)]),
+            (0xfffffff8, [(0xfffffff0, 0x100000040, 0)]),
+            (0x7ffffff8, [(0x7ffffff0, 0x80000040, 0)]),
+            (0x7ffffffffffffff8, [(0x7ffffffffffffff0, 0x8000000000000040, 0)]),
+            (maximum - 7, [(0, 32, 64)]),
+            (0x1000, [(0x1000, 0x1040, 0), (0x1008, 0x1020, 64)]),
+            (0x1000, [(0x1000, 0x1040, 0), (0x1000, 0x1020, 64)]),
+            (0x1000, [(0x1000, 0x1008, 0), (0x1010, 0x1020, 64)]),
+        ]
+        with tempfile.TemporaryDirectory() as d:
+            work = Path(d); runner = work / 'wide'
+            subprocess.run(['clang', '-O1', '-fobjc-arc', str(Path(__file__).with_name('t_wide_group.m')),
+                            '-framework', 'Foundation', '-framework', 'Metal', '-o', str(runner)], check=True, capture_output=True)
+            source = self.source().replace('uint id [[thread_position_in_grid]])',
+                         'uint id [[thread_position_in_grid]], device uint* result [[buffer(30)]])')
+            source = source.replace('int _500 = int(id);', 'int _500 = as_type<int>(result[0]);')
+            source = source.replace('int _501 = 4;', 'int _501 = as_type<int>(result[1]);')
+            end = source.rfind('}')
+            source = source[:end] + ''.join(f'result[{4+i}] = as_type<uint>(_{602+3*i});\n' for i in range(4)) + source[end:]
+            grouped = raw_load_quads(source, 5, 4096, 32, readonly=True)
+            self.assertEqual(grouped.count('_words = dm_raw_load4'), 1)
+            libs = []
+            for name, text in (('scalar', source), ('grouped', grouped)):
+                src = work / (name + '.metal'); lib = work / (name + '.metallib')
+                src.write_text('#include <metal_stdlib>\nusing namespace metal;\n' + text)
+                r = subprocess.run(['xcrun', '-sdk', 'macosx', 'metal', '-O1', '-fpreserve-invariance', str(src), '-o', str(lib)], capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stderr); libs.append(lib)
+            for address, mappings in cases:
+                with self.subTest(address=hex(address), mappings=mappings):
+                    words = [address, len(mappings), *(v for row in mappings for v in row)]
+                    spec = work / 'case.bin'; spec.write_bytes(struct.pack('<' + 'Q' * len(words), *words))
+                    expected = []
+                    for i in range(4):
+                        a = (address + i*4) & maximum
+                        prior = [row for row in mappings if row[0] <= a]
+                        row = prior[-1] if prior else (0, 0, 0)
+                        expected.append(0x81000000 + (row[2]+a-row[0])//4 if a < row[1] else 0)
+                    for lib in libs:
+                        r = subprocess.run([str(runner), str(lib), str(spec)], capture_output=True)
+                        self.assertEqual(r.returncode, 0, r.stderr)
+                        self.assertEqual(list(struct.unpack('<4I', r.stdout)), expected)
 
 
 if __name__ == '__main__':

@@ -4,8 +4,8 @@ The reviewed visual and stable replacements are integrated. The Float16/integer
 selector, watchdog snapshot and auxiliary residency races are repaired.
 `DM_SAFE_GPU=1` is restored in the recommended play environment.
 
-**Offline pipeline coverage is still an acceptance gate.** The forthcoming
-oot-aot branch addresses complete offline pipeline coverage and compile counters.
+**Offline pipeline coverage is still an acceptance gate.** oot-aot is integrated
+with expanded archives, startup prewarm, exact descriptor learning and counters.
 No variant is a finished play package until the no-runtime-compilation rule is
 verified. Branch selection follows the integrated checks recorded below.
 
@@ -27,7 +27,9 @@ Set these consistently for shader splitting, module rewriting and shader buildin
 ```sh
 export GAME=0400486024DEC000 DM_GAME=0400486024DEC000
 export DMSH_OOT_VISUAL=1
-export DMSH_RAW_LOAD_QUADS=0 DMSH_CBUF_REUSE=0 DMSH_STORAGE_RUNS=0
+export DM_AOT=1 DM_AOT_STRICT=1
+export DM_PSO_PREPARE_THREADS=4
+export DMSH_WIDE_GROUP=0 DMSH_RAW_LOAD_QUADS=0 DMSH_CBUF_REUSE=0 DMSH_STORAGE_RUNS=0
 export DMSH_STAGECACHE=0 DMSH_STAGECACHE_WARM=0
 export DM_NVN_BORDER_SPLIT=0
 export DM_OOT_RENDER_RES=off DM_OOT_BRENT=0
@@ -64,6 +66,9 @@ settings; the integration does not write the user's Application Support env.txt.
 
 ```ini
 DM_SAFE_GPU=1
+DM_AOT=1
+DM_AOT_STRICT=1
+DM_PSO_PREPARE_THREADS=4
 DM_OOT_RENDER_RES=off
 DM_OOT_BRENT=0
 DM_NVN_POOL_SKIP_RETIRED=0
@@ -118,3 +123,17 @@ images. `DM_QUALITY=max` is a separate optional image-enhancement experiment;
 it is left off here so the game's filtering and reconstruction remain selected.
 Crop and all quality configurations pass Metal validation as synthetic tests;
 that does not prove game pictures, GPU safety or display colour acceptance.
+
+## AOT acceptance
+
+Set `DM_AOT=1` for both the packer and runtime. Keep `DM_AOT_STRICT=1`
+during acceptance and play. Packing consumes the standard per-game
+`pso_seen.jsonl`, or `DM_PSO_SEEN`; direct planning uses `--aot --seen <census>`.
+Read the packed preflight report and require zero startup archive misses and
+zero cumulative gameplay compiler entries on every required route. First present
+starts gameplay accounting, including title and loading screens. Strict mode
+reports a miss but still compiles it synchronously so native meshes stay visible.
+Any gameplay compiler event fails the user's rule. Repack learned descriptors
+and repeat acceptance; static preflight always reports incomplete coverage.
+Function constants, unobserved final states and diagnostic source remain gaps.
+No game or full offline build ran here, so no finished play package is claimed.

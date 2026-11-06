@@ -315,10 +315,25 @@ class Dependencies(unittest.TestCase):
         with mock.patch.object(cache, 'tool_code', return_value='same translator'):
             with mock.patch.dict(os.environ, {'DMSH_OOT_VISUAL': '0'}):
                 off = cache.translator_code('unused')
-                with mock.patch.dict(os.environ, {'DMSH_RAW_LOAD_QUADS': '1', 'DMSH_CBUF_REUSE': '1', 'DMSH_STORAGE_RUNS': '1'}):
+                with mock.patch.dict(os.environ, {'DMSH_RAW_LOAD_QUADS': '1', 'DMSH_CBUF_REUSE': '1', 'DMSH_STORAGE_RUNS': '1', 'DMSH_WIDE_GROUP': '1'}):
                     self.assertEqual(cache.translator_code('unused'), off)
             with mock.patch.dict(os.environ, {'DMSH_OOT_VISUAL': '1'}):
                 self.assertNotEqual(cache.translator_code('unused'), off)
+
+    def test_wide_group_stage_key_tracks_readonly_matching(self):
+        sys.path.insert(0, str(TOOLS.parent / 'tests'))
+        from test_dmsh_wide import raw_source
+        source = raw_source(4096).replace('device', 'const device')
+        self.cache = cache.Cache(self.root, b'abi')
+        off = self.cache.call(dmsh_wide.raw_load_quads, source, 5, 4096, 32, readonly=False)
+        on = self.cache.call(dmsh_wide.raw_load_quads, source, 5, 4096, 32, readonly=True)
+        self.assertNotEqual(off, on)
+        self.assertEqual(self.cache.call(dmsh_wide.raw_load_quads, source, 5, 4096, 32, readonly=False), off)
+        self.assertEqual(self.cache.stats['dmsh_wide.raw_load_quads', 'miss'], 2)
+        with mock.patch.dict(os.environ, {'DMSH_WIDE_GROUP': '0'}):
+            version = dmsh_chain.version()
+        with mock.patch.dict(os.environ, {'DMSH_WIDE_GROUP': '1'}):
+            self.assertNotEqual(dmsh_chain.version(), version)
 
     def test_border_split_changes_complete_key_but_reuses_translation(self):
         with mock.patch.object(cache, 'tool_code', return_value='same translator'):

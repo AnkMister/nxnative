@@ -96,6 +96,25 @@ class Plan(unittest.TestCase):
             funcs, layer = f if isinstance(f, tuple) else (f, False)
             (self.d / f'{key}{suf}.metallib').write_bytes(metallib(funcs, layer))
 
+    def test_aot_packed_libraries_keep_descriptors_and_cache_inputs(self):
+        self.shader('c', {'stage': 'cs'}, {'_b': [('main0', False)]})
+        host = self.d.parent / 'host'; host.mkdir()
+        (host / 'helper.metal').write_text('kernel void helper() {}')
+        (host / 'helper.metallib').write_bytes(metallib([('helper', False)]))
+        rows, gaps = po.pso_aot.plan(self.d, CHAIN, [], po.functions, host)
+        digest = po.library_digest(self.d, rows)
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(po.shader_lib.pack(self.d, say=lambda *args: None))
+        packed = po.shader_lib.view(self.d)
+        self.assertTrue(str(packed).endswith('.img'))
+        self.assertEqual(po.pso_aot.plan(packed, CHAIN, [], po.functions, host), (rows, gaps))
+        self.assertEqual(po.library_digest(packed, rows), digest)
+        work = self.d.parent / 'work'; work.mkdir()
+        extracted = Path(po.real_libraries(packed, rows, work))
+        self.assertEqual(po.functions(extracted / 'c_b.metallib'), {'main0': False})
+        self.assertFalse((extracted / 'host:helper.metallib').exists())
+        po.clear_real_libraries(work)
+
     def test_bases_rest_and_left_out(self):
         vz = [('main0', False), ('main0_z', False)]
         self.shader('pull', {'entry_z': 'main0_z', 'pull': {'entry': 'main0'}, 'vertex_inputs': [{'location': 0}]}, {'_b': vz, '_bp': vz})

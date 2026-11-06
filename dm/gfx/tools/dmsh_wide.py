@@ -114,11 +114,11 @@ _RAW_ID = r'_\d+'
 _RAW_FUNCTION = re.compile(
     r'(?m)^static inline __attribute__\(\(always_inline\)\)\n'
     rf'int (?P<name>{_RAW_ID})\(thread const int& (?P<lo>{_RAW_ID}), '
-    rf'thread const int& (?P<hi>{_RAW_ID}), device (?P<type>{_RAW_ID})& (?P<table>{_BUF})\)\n'
+    rf'thread const int& (?P<hi>{_RAW_ID}), (?P<const>const )?device (?P<type>{_RAW_ID})& (?P<table>{_BUF})\)\n'
     r'\{\n(?P<body>.*?)^\}', re.S)
 
 
-def _raw_search(body, low, high, table, entries, stride):
+def _raw_search(body, low, high, table, entries, stride, readonly=False):
     """Verify a fixed or growing-table scalar helper and return its unmodified search prefix."""
     ident = _RAW_ID
     lines = iter(body.splitlines())
@@ -241,7 +241,7 @@ def _raw_search(body, low, high, table, entries, stride):
         r'float @delta_hb = as_type<float>\(@table\._m0\[@delta_h\]\);',
         r'int @high_sum = @hi \+ as_type<int>\(@delta_hb\);',
         r'int @host_h = @high_sum \+ @carry;',
-        r'uint @word = \*\(reinterpret_cast<device uint\*>\(as_type<ulong>\(uint2\(uint\(@host_l\), uint\(@host_h\)\)\)\)\);',
+        r'uint @word = \*\(reinterpret_cast<' + ('const ' if readonly else '') + r'device uint\*>\(as_type<ulong>\(uint2\(uint\(@host_l\), uint\(@host_h\)\)\)\)\);',
         r'float @bits = as_type<float>\(@word\);',
         r'return as_type<int>\(@bits\);',
         r'\}',
@@ -337,7 +337,7 @@ def _raw_quads(msl, helper, table):
     return '\n'.join(lines) if edits else msl
 
 
-def raw_load_quads(msl, table_slot, entries, entry_bytes):
+def raw_load_quads(msl, table_slot, entries, entry_bytes, *, readonly=False):
     """Share the raw pool lookup for adjacent, independently resolved 32-bit loads."""
     if entry_bytes != 32 or entries < 2 or entries & (entries - 1):
         return msl
@@ -347,13 +347,16 @@ def raw_load_quads(msl, table_slot, entries, entry_bytes):
         # caller supplies its slot from the translator's raw-map reflection.
         if scalar['table'] != table:
             continue
+        if scalar['const'] and not readonly:
+            continue
         typ = scalar['type']
+        qualifier = scalar['const'] or ''
         struct = rf'struct {typ}\s*\{{\s*uint _m0\[1\];\s*\}};'
-        member = rf'(?m)^\s*device {typ}\* {table} \[\[id\(\d+\)\]\];'
+        member = rf'(?m)^\s*{qualifier}device {typ}\* {table} \[\[id\(\d+\)\]\];'
         if not re.search(struct, msl) or not re.search(member, msl):
             continue
         stride = entry_bytes // 4
-        search = _raw_search(scalar['body'], scalar['lo'], scalar['hi'], table, entries, stride)
+        search = _raw_search(scalar['body'], scalar['lo'], scalar['hi'], table, entries, stride, bool(qualifier))
         if not search:
             continue
         following = msl[scalar.end():]
@@ -367,23 +370,24 @@ def raw_load_quads(msl, table_slot, entries, entry_bytes):
 
 def _raw_quad_helper(scalar, search, index, stride, count):
     table, typ, name, low, high = (scalar[k] for k in ('table', 'type', 'name', 'lo', 'hi'))
+    qualifier = scalar['const'] or ''
     return f'''
 
 static inline __attribute__((always_inline))
-int dm_raw_find(int {low}, int {high}, device {typ}& {table})
+int dm_raw_find(int {low}, int {high}, {qualifier}device {typ}& {table})
 {{
 {search}
     return {index};
 }}
 
 static inline __attribute__((always_inline))
-ulong dm_raw_word_pair(device {typ}& table, uint word)
+ulong dm_raw_word_pair({qualifier}device {typ}& table, uint word)
 {{
     return as_type<ulong>(uint2(table._m0[word], table._m0[word + 1u]));
 }}
 
 static inline __attribute__((always_inline))
-int dm_raw_load_word(ulong address, device {typ}& table)
+int dm_raw_load_word(ulong address, {qualifier}device {typ}& table)
 {{
     uint2 words = as_type<uint2>(address);
     int low = as_type<int>(words.x);
@@ -392,7 +396,7 @@ int dm_raw_load_word(ulong address, device {typ}& table)
 }}
 
 static inline __attribute__((always_inline))
-int4 dm_raw_load4(int low, int high, device {typ}& table)
+int4 dm_raw_load4(int low, int high, {qualifier}device {typ}& table)
 {{
     const ulong limit = ~0ul - 15ul;
     const ulong address = as_type<ulong>(uint2(as_type<uint>(low), as_type<uint>(high)));

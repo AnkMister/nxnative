@@ -201,3 +201,20 @@ The resolution feature needs main re-rewritten with the merged profile and a
 rebuilt host; no shader rebuild is required solely for its three engine hooks.
 DMSH_OOT_VISUAL also enables Brent's LDSM ordering and validated splitter changes.
 The new tensor translator source enters FILES and translation-stage fingerprints.
+
+## Final foliage and offline pipeline coverage
+
+| Flag or environment variable | Default | Visual risk | Expected gain | Source branch |
+| --- | --- | --- | --- | --- |
+| `DMSH_WIDE_GROUP=1` | Off; OFF for play | HIGH until image parity; boundary fallbacks are tested | About 70% fewer static pool lookups in selected foliage meshes; GPU gain unmeasured | oot-foliage |
+| `DM_AOT=1` | Off; ON for play packer and runtime | Coverage gaps can still compile synchronously; fixtures preserve mesh draws on misses | Expanded archives and startup prewarm reduce first-use pipeline work | oot-aot |
+| `DM_AOT_STRICT=1` | Off; ON for play acceptance | Logs gaps; does not prevent compilation | Conservative evidence of compiler API entries | oot-aot |
+| Compile counters | Always on | Low, diagnostic accounting | Separates startup/gameplay compiler and archive API entries | oot-aot |
+| `DM_AOT_LOG_SECONDS` | 5 seconds | None | Summary interval without a timer thread | oot-aot |
+| `DM_PSO_SEEN` | Per-game `pso_seen.jsonl` beside `pso_user.tsv` | None; stale chain entries are rejected | Learn exact descriptors and consume them on repack | oot-aot |
+| `pso_offline.py --aot`, repeatable `--seen` | Off / no explicit census | Unknown final states remain gaps | Offline compute, layer, mesh, helper and learned exact states | oot-aot |
+| `DM_TEST_AOT` | Unset | Test only | Native archive round-trip fixture path | oot-aot |
+
+Stage keys include grouping's `readonly` argument and module bytes. Raw-load
+quads, storage runs, constant reuse, border splitting and visual translation keep
+their distinct inputs. TBDR host-only controls do not change the shader chain.

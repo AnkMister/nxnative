@@ -22,8 +22,8 @@ static void nan_after(void) {
     if (failed) return;
     if (!ps[0]) {
         NSError *e = nil; id<MTLLibrary> lib = host_lib("nanscan", &e);
-        ps[0] = [g_dev newComputePipelineStateWithFunction:[lib newFunctionWithName:@"scan"] error:&e];
-        ps[1] = [g_dev newComputePipelineStateWithFunction:[lib newFunctionWithName:@"scan_ms"] error:&e];
+        ps[0] = aot_compute(aot_function(lib, @"scan"), &e);
+        ps[1] = aot_compute(aot_function(lib, @"scan_ms"), &e);
         MTL4ArgumentTableDescriptor *ad = [MTL4ArgumentTableDescriptor new]; ad.maxTextureBindCount = 1; ad.maxBufferBindCount = 1;
         at = rec_table([g_dev newArgumentTableWithDescriptor:ad error:&e]);
         if (!ps[0] || !ps[1] || !at) { failed = 1; MLOG("[RED] nanscan pipeline: %s", e.localizedDescription.UTF8String); return; }
