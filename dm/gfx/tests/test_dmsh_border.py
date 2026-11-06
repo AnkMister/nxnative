@@ -223,6 +223,37 @@ class Libraries(unittest.TestCase):
                 result = scope['ps_libraries']('k', str(msl), source)
             return result, compiler, seen
 
+    @unittest.skipUnless(shutil.which('xcrun'), 'requires Metal compiler')
+    def test_default_metallibs_byte_identical_to_original_path(self):
+        import dmsh_mtlcache
+        import dmsh_pch
+        import dmsh_side
+        from unittest.mock import patch
+        flags = ast.literal_eval(next(n.value for n in tree.body if isinstance(n, ast.Assign) and
+                                     any(getattr(t, 'id', '') == 'MAC_METAL' for t in n.targets)))
+        def compile_mac(msl, air, lib):
+            dmsh_pch.compile(flags, msl, air)
+            subprocess.run(['xcrun', '-sdk', 'macosx', 'metallib', air, '-o', lib], check=True)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); source = border_emu(GRASS)
+            msl = root / 'k_b.metal'; msl.write_text(source)
+            unit, info = dmsh_side.unit(source); self.assertIsNotNone(unit)
+            u = root / 'original.metal'; u.write_text(unit)
+            expected = dmsh_mtlcache.Cache(str(root / 'cache-original'), {'mac': ('macosx', 'test', compile_mac)}, directory)
+            expected.compile_split('mac', str(u), str(root / 'original_b'), str(root / 'original_bx'),
+                                   lambda lib: dmsh_side.cut(lib, set(info['alpha'] + info['logic'])))
+            compiler = dmsh_mtlcache.Cache(str(root / 'cache-current'), {'mac': ('macosx', 'test', compile_mac)}, directory)
+            scope = dict(os=os, re=re, subprocess=subprocess, border_plain=border_plain, out=directory,
+                         IOSOUT=None, TARGETS={'mac'}, w=directory, MTL=compiler, dmsh_side=dmsh_side,
+                         SIDE_STATS=collections.Counter(), BORDER_STATS=collections.Counter())
+            fns = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in ('ps_libraries', 'ps_correcting_libraries')]
+            exec(compile(ast.Module(body=fns, type_ignores=[]), 'default-libraries', 'exec'), scope)
+            with patch.dict(os.environ, {'DM_NVN_BORDER_SPLIT': '0'}):
+                scope['ps_libraries']('k', str(msl), source)
+            self.assertEqual((root / 'k_b.metallib').read_bytes(), (root / 'original_b').read_bytes())
+            self.assertEqual((root / 'k_bx.metallib').read_bytes(), (root / 'original_bx').read_bytes())
+            self.assertFalse((root / 'k_bn.metallib').exists())
+
     def test_default_retains_original_compile_inputs(self):
         for shared in (False, True):
             result, compiler, seen = self.run_libraries(border_emu(GRASS), shared=shared, split=False)

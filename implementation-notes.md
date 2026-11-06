@@ -41,3 +41,9 @@ now derive correction from border_key's real split-handle decision; a wrong key
 therefore changes sampled pixels and fails the test. The native-enabled Python
 border suite still passes all 17 tests. The unchanged-default library tests run
 against the pre-fix builder fail; retained log border-before-libraries.log.
+
+Fresh Metal compilation now also compares default _b and _bx bytes against
+the original compile-unit path. Both are byte-identical for the correcting
+fixture; the pre-fix builder fails this byte comparison. The final border
+suite is 18 tests, all passed with GPU samples enabled. This is a synthetic
+fixture proof, not a full Ocarina shader-map comparison.
