@@ -108,3 +108,5 @@ int main(void) {
     puts("NRO relocation, load order, lifecycle, weak symbols and refusal: OK");
     return 0;
 }
+
+void mtl_present_screen(uint32_t w, uint32_t h) { (void)w; (void)h; }   // loader present-shape hook; no graphics backend linked here

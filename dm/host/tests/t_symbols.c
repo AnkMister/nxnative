@@ -125,3 +125,5 @@ int main(void) {
     puts("Symbol indexes: collisions, duplicate precedence/rejection, misses, wrappers and 4096 reusable stubs: OK");
     return 0;
 }
+
+void mtl_present_screen(uint32_t w, uint32_t h) { (void)w; (void)h; }   // loader present-shape hook; no graphics backend linked here
