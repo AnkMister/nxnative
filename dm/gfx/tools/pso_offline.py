@@ -29,6 +29,7 @@
 #   A device opens only an archive of its own major version (macOS 27.2 refused archives made for 26.0 and 26.6 and opened those for 27.0 and 27.2), and builds the bases itself
 #   otherwise: the SDK's version on a Mac whose system is older than its Xcode's SDK (macOS 26.6 with Xcode 27.1) left that Mac without them (GitHub issue #673)
 import argparse, filecmp, hashlib, json, os, shutil, struct, subprocess, sys, time
+import concurrent.futures as cf
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'tools'))
@@ -120,7 +121,7 @@ def plan(lib_dir, chain, pairs, zero, aot=False):
     bases, rest, seen, left = [], [], set(), dict.fromkeys(('reflection', 'stage inputs', 'library', 'layer', 'primitive ID', 'entry'), 0)
     for vk, fk in pairs:
         vj, fj = refl(vk), refl(fk)
-        if not vj or not fj or vj.get('chain') != chain or fj.get('chain') != chain: left['reflection'] += 1; continue
+        if not vj or not fj or vj.get('chain') != chain or fj.get('chain') != chain or vj.get('mesh_stage'): left['reflection'] += 1; continue
         ventry = vj['entry_z'] if zero and vj.get('entry_z') else vj.get('entry'); fentry = fj.get('entry') or 'main0'
         pull = isinstance(vj.get('pull'), dict)
         if not pull and vj.get('vertex_inputs'): left['stage inputs'] += 1; continue
@@ -224,6 +225,10 @@ def os_min_default(platform):
     return v.split('.')[0] + '.0'
 
 
+class DescriptorRefused(SystemExit):
+    """Metal rejected a linked descriptor, rather than a storage/tool failure."""
+
+
 def compile_archive(js, part, work, arch, platform, osmin, count):
     """One compiler invocation, with its temporaries on the work volume. Never publish a failed output."""
     part.unlink(missing_ok=True)
@@ -238,6 +243,8 @@ def compile_archive(js, part, work, arch, platform, osmin, count):
         free = shutil.disk_usage(work).free
         clear_temporaries(work); part.unlink(missing_ok=True)
         full = f' ({free / 2**30:.1f} GB free on the volume of {work} when it failed: likely out of disk space)' if free < 1 << 30 else ''
+        if not full and 'cannot emit pipeline' in log_path.read_text():
+            raise DescriptorRefused(log_path.read_text()[-2000:])
         sys.exit(f'[RED] pso_offline: metal-tt failed for {arch} (exit {r.returncode}){full}: {log_path.read_text()[-2000:]}')
 
 
@@ -265,36 +272,83 @@ def compile_batch(lib_dir, bases, work, arch, platform, osmin, toolchain):
     del configuration
     dst, kf = work / f'{arch}.mtl4a', work / f'key.{arch}'
     if dst.is_file() and dst.stat().st_size and kf.is_file() and kf.read_text().strip() == key: return dst, True
+    refused = work / f'refused.{arch}.json'
+    if refused.is_file():
+        saved = json.loads(refused.read_text())
+        if saved['key'] == key: raise DescriptorRefused(saved['error'])
     kf.unlink(missing_ok=True)
     part = work / f'{arch}.mtl4a.partial'
     write_script(js, script(real_libraries(lib_dir, bases, work), bases))
-    compile_archive(js, part, work, arch, platform, osmin, len(bases))
-    clear_real_libraries(work)
+    try:
+        compile_archive(js, part, work, arch, platform, osmin, len(bases))
+    except DescriptorRefused as error:
+        tmp = refused.with_suffix('.partial')
+        tmp.write_text(json.dumps({'key': key, 'error': str(error)}))
+        os.replace(tmp, refused)
+        raise
+    finally:
+        clear_real_libraries(work)
+    refused.unlink(missing_ok=True)
     os.replace(part, dst); kf.write_text(key + '\n')
     return dst, False
 
 
-def compile_batches(lib_dir, bases, work, part, arch, platform, osmin, toolchain, batch_size):
+def compile_aot_batch(lib_dir, bases, work, arch, platform, osmin, toolchain):
+    """Bisect only actual descriptor refusals; keep every successful child cached."""
+    try:
+        piece, reused = compile_batch(lib_dir, bases, work, arch, platform, osmin, toolchain)
+        return [piece], []
+    except DescriptorRefused as error:
+        if len(bases) == 1:
+            print(f'[RED] AOT descriptor refused: {json.dumps(bases[0], sort_keys=True)}: {error}', flush=True)
+            return [], [{'descriptor': bases[0], 'error': str(error)}]
+        middle = len(bases) // 2
+        pieces, rejected = [], []
+        for name, group in (('left', bases[:middle]), ('right', bases[middle:])):
+            ready, bad = compile_aot_batch(lib_dir, group, work / name, arch, platform, osmin, toolchain)
+            pieces.extend(ready); rejected.extend(bad)
+        return pieces, rejected
+
+
+def compile_batches(lib_dir, bases, work, part, arch, platform, osmin, toolchain, batch_size, aot=False, rejected=None):
     """Limit compiler input size, then combine every completed group into the usual single archive.
 
     This bounds input count, not memory: a single pipeline can still exceed Apple's compiler resources.
     On M2, merged archives passed archive-only lookups of two synthetic pipelines and all 32,864 Odyssey bases.
     Other workloads and compiler versions can have different resource use.
     """
-    pieces = []; total = (len(bases) + batch_size - 1) // batch_size
+    total = (len(bases) + batch_size - 1) // batch_size
     for old in (work / f'batches.{arch}').glob('[0-9]*'):   # the groups of a longer list than this one
         if int(old.name) > total: shutil.rmtree(old)
-    for index, start in enumerate(range(0, len(bases), batch_size), 1):
+    workers = int(os.environ.get('DM_PSO_J', '1'))
+    pack_threads = int(os.environ.get('DM_METAL_PACK_THREADS', '1'))
+    if workers < 1 or pack_threads < 1: raise ValueError('archive worker counts must be positive')
+    def build_group(item):
+        index, start = item
         group = bases[start:start + batch_size]
         print(f'pso_offline: {arch}: batch {index}/{total}: {len(group)} bases, compiling or checking cache', flush=True)
-        piece, reused = compile_batch(lib_dir, group, work / f'batches.{arch}' / f'{index:05d}', arch, platform, osmin, toolchain)
-        pieces.append(piece)
+        folder = work / f'batches.{arch}' / f'{index:05d}'
+        if aot:
+            ready, bad = compile_aot_batch(lib_dir, group, folder, arch, platform, osmin, toolchain)
+            print(f'pso_offline: {arch}: batch {index}/{total}: ready, {len(bad)} refused descriptors', flush=True)
+            return ready, bad
+        piece, reused = compile_batch(lib_dir, group, folder, arch, platform, osmin, toolchain)
         print(f'pso_offline: {arch}: batch {index}/{total}: ready ({"reused" if reused else "compiled"})', flush=True)
+        return [piece], []
+    groups = enumerate(range(0, len(bases), batch_size), 1)
+    if workers == 1:
+        results = list(map(build_group, groups))
+    else:
+        with cf.ThreadPoolExecutor(max_workers=workers) as pool:
+            results = list(pool.map(build_group, groups))
+    pieces = [piece for ready, bad in results for piece in ready]
+    if rejected is not None: rejected.extend(item for ready, bad in results for item in bad)
+    if not pieces: raise SystemExit('[RED] pso_offline: every descriptor was refused')
     part.unlink(missing_ok=True)
     need, free = max(2 << 30, sum(p.stat().st_size for p in pieces)), shutil.disk_usage(work).free
     if free < need: sys.exit(f'[RED] pso_offline: {free / 2**30:.1f} GB free before merging; need at least {need / 2**30:.1f} GB')
     print(f'pso_offline: {arch}: merging {total} batches', flush=True)
-    cmd = ['xcrun', '-sdk', sdk(platform), 'metal-pack', '-nthreads', '1', *map(str, pieces), '-o', str(part)]
+    cmd = ['xcrun', '-sdk', sdk(platform), 'metal-pack', '-nthreads', str(pack_threads), *map(str, pieces), '-o', str(part)]
     log_path = work / f'metal-pack.{arch}.log'
     with log_path.open('w') as log:
         r = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, env=dict(os.environ, TMPDIR=str(work)))
@@ -374,20 +428,46 @@ def main(argv=None):
     libraries = library_digest(lib_dir, bases)
     keys = {arch: archive_key(configuration, libraries, arch, a.platform, osmin, tv) for arch in archs}
     del configuration   # the compiler reads the script from disk
+    rejected_archs = {}
     for arch, key in keys.items():
         dst, kf = out / f'{arch}.mtl4a', work / f'key.{arch}'
-        if dst.is_file() and kf.is_file() and kf.read_text().strip() == key: print(f'pso_offline: {arch}: reused ({dst.stat().st_size / 2**20:.0f} MB)'); continue
+        rejected_file = out / f'aot-refused.{arch}.json'
+        if dst.is_file() and kf.is_file() and kf.read_text().strip() == key:
+            rejected_archs[arch] = json.loads(rejected_file.read_text()) if rejected_file.is_file() else []
+            print(f'pso_offline: {arch}: reused ({dst.stat().st_size / 2**20:.0f} MB)'); continue
         kf.unlink(missing_ok=True); dst.unlink(missing_ok=True)
         part = work / f'{arch}.mtl4a.partial'; part.unlink(missing_ok=True)
         t1 = time.time(); print(f'pso_offline: {arch}: metal-tt, {len(bases)} bases (minutes) ...', flush=True)
-        if a.batch_size and len(bases) > a.batch_size:
-            compile_batches(lib_dir, bases, work, part, arch, a.platform, osmin, tv, a.batch_size)
+        refused_rows = []
+        if a.aot or a.batch_size and len(bases) > a.batch_size:
+            compile_batches(lib_dir, bases, work, part, arch, a.platform, osmin, tv, a.batch_size or len(bases), a.aot, refused_rows)
         else:
             write_script(js, script(real_libraries(lib_dir, bases, work), bases))
             compile_archive(js, part, work, arch, a.platform, osmin, len(bases))
             clear_real_libraries(work)
-        os.replace(part, dst); kf.write_text(key + '\n')
+        os.replace(part, dst)
+        rejected_tmp = rejected_file.with_suffix('.partial')
+        rejected_tmp.write_text(json.dumps(refused_rows, indent=2) + '\n')
+        os.replace(rejected_tmp, rejected_file)
+        kf.write_text(key + '\n')
+        rejected_archs[arch] = refused_rows
         print(f'pso_offline: {arch}: {dst.stat().st_size / 2**20:.0f} MB in {time.time() - t1:.0f} s')
+    if a.aot:
+        def identity(row): return json.dumps(row, sort_keys=True, separators=(',', ':'))
+        rejected_rows = []
+        for refused in rejected_archs.values():
+            for item in refused:
+                row = item['descriptor']
+                rejected_rows.extend([row] if isinstance(row, dict) else pso_aot.base_rows([tuple(row)], chain))
+        denied = {identity(row) for row in rejected_rows}
+        kept = [row for row in inventory if identity(row) not in denied]
+        (out / 'aot.json').write_text(json.dumps(kept, sort_keys=True, separators=(',', ':')) + '\n')
+        report['refused_descriptors'] = rejected_archs
+        report['gaps']['compiler-refused descriptors'] = len(denied)
+        report['classes'] = {k: sum(row['class'] == k and not (k == 'render' and row.get('base')) for row in kept) for k in ('compute', 'mesh', 'render')}
+        report['layer_bases'] = sum(row['class'] == 'render' and row.get('base', False) and row.get('topology') == 3 for row in kept)
+        report['render_bases'] = sum(row['class'] == 'render' and row.get('base', False) for row in kept)
+        (out / 'aot-preflight.json').write_text(json.dumps(report, indent=2) + '\n')
     for f in out.glob('*.mtl4a'):   # architectures no longer asked for
         if f.stem not in archs: f.unlink()
     (out / 'prebuilt.tsv').write_text(st)

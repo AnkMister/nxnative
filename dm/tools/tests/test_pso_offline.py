@@ -15,6 +15,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 import tracemalloc
 from unittest import mock
@@ -95,6 +96,14 @@ class Plan(unittest.TestCase):
         for suf, f in libs.items():
             funcs, layer = f if isinstance(f, tuple) else (f, False)
             (self.d / f'{key}{suf}.metallib').write_bytes(metallib(funcs, layer))
+
+    def test_mesh_pairs_never_become_vertex_bases(self):
+        self.shader('m', {'stage': 'ms', 'mesh_stage': {'threads': 32}}, {'_b': [('main0', False)]})
+        self.shader('f', {'stage': 'ps'}, {'_b': [('main0', False)]})
+        for aot in (False, True):
+            bases, rest, left = po.plan(self.d, CHAIN, [('m', 'f')], False, aot=aot)
+            self.assertEqual((bases, rest), ([], []))
+            self.assertEqual(left['reflection'], 1)
 
     def test_aot_packed_libraries_keep_descriptors_and_cache_inputs(self):
         self.shader('c', {'stage': 'cs'}, {'_b': [('main0', False)]})
@@ -416,6 +425,61 @@ class Build(unittest.TestCase):
             self.main('--os-min', '27.0')
             self.assertEqual(observed, before, 'the normal packer must reuse the complete merged archive')
             self.assertIn('bases\t5\n', (self.out/'archive.tsv').read_text())
+
+    def test_parallel_batches_overlap_and_merge_in_input_order(self):
+        bases = [('v_bp', f'vertex{i}', 'f_b', 'main0') for i in range(4)]
+        barrier = threading.Barrier(2)
+        original = po.compile_batch
+        def build(*args):
+            barrier.wait(timeout=10)
+            return original(*args)
+        runner, observed = self.batched_runner()
+        with mock.patch.dict(os.environ, DM_PSO_J='2', DM_METAL_PACK_THREADS='16'), mock.patch.object(self, 'fake_run', runner), mock.patch.object(po, 'plan', return_value=(bases, [], {})), mock.patch.object(po, 'compile_batch', build):
+            self.main('--batch-size', '2', '--os-min', '27.0')
+        self.assertEqual(observed[-1], ('merge', 2))
+        pieces = self.work / 'batches.applegpu_g18p'
+        self.assertEqual((self.out / 'applegpu_g18p.mtl4a').read_bytes(), b''.join((pieces / f'{i:05d}/applegpu_g18p.mtl4a').read_bytes() for i in (1, 2)))
+        # Every finished batch remains reusable even when concurrency changes.
+        with mock.patch.object(self, 'fake_run', runner), mock.patch.object(po, 'plan', return_value=(bases, [], {})):
+            before = list(observed)
+            self.main('--os-min', '27.0')
+            self.assertEqual(observed, before)
+
+    def test_aot_bisects_refusals_filters_inventory_and_reuses_results(self):
+        bases = [('v_bp', f'vertex{i}', 'f_b', 'main0') for i in range(5)]
+        runner, observed = self.batched_runner()
+        refusing = [True]
+        def reject(cmd, **kw):
+            args = list(map(str, cmd))
+            if 'metal-tt' in args and '-o' in args:
+                config = json.loads(next(Path(x) for x in args if x.endswith('.mtl4-json')).read_text())
+                names = [f['name'] for f in config['function_descriptors']['library_function_descriptors']]
+                if refusing[0] and 'vertex1' in names:
+                    kw['stdout'].write('Fragment input mismatching mesh shader output\ncannot emit pipeline\n')
+                    return subprocess.CompletedProcess(args, 1)
+            return runner(cmd, **kw)
+        with mock.patch.object(self, 'fake_run', reject), mock.patch.object(po, 'plan', return_value=(bases, [], {})), mock.patch.object(po.pso_aot, 'enums', return_value={}), mock.patch.object(po.pso_aot, 'prepare_helpers', return_value=None), mock.patch.object(po.pso_aot, 'plan', return_value=([], {})):
+            self.main('--aot', '--batch-size', '2', '--os-min', '27.0')
+            self.assertEqual(len(json.loads((self.out / 'aot.json').read_text())), 4)
+            report = json.loads((self.out / 'aot-preflight.json').read_text())
+            self.assertEqual(report['gaps']['compiler-refused descriptors'], 1)
+            self.assertEqual(report['render_bases'], 4)
+            self.assertNotIn('vertex1', (self.out / 'aot.json').read_text())
+            before = list(observed)
+            self.main('--aot', '--batch-size', '2', '--os-min', '27.0')
+            self.assertEqual(observed, before)
+            self.assertEqual(len(json.loads((self.out / 'aot.json').read_text())), 4)
+            # A changed library invalidates cached refusals as well as successes.
+            (self.lib / 'v_bp.metallib').write_bytes(metallib([('changed', False)]))
+            refusing[0] = False
+            self.main('--aot', '--batch-size', '2', '--os-min', '27.0')
+            self.assertEqual(len(json.loads((self.out / 'aot.json').read_text())), 5)
+
+    def test_aot_does_not_swallow_infrastructure_failures(self):
+        self.work.mkdir()
+        with mock.patch.object(po, 'compile_batch', side_effect=SystemExit('disk full')):
+            with self.assertRaisesRegex(SystemExit, 'disk full'):
+                po.compile_aot_batch(self.lib, [('v_bp', 'main0', 'f_b', 'main0')], self.work, 'applegpu_g18p', 'ios', '27.0', self.compiler)
 
     def test_batch_failure_preserves_completed_work_and_publishes_nothing(self):
         bases = [('v_bp', f'vertex{i}', 'f_b', 'main0') for i in range(5)]

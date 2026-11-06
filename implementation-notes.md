@@ -54,3 +54,47 @@ All experiments remain default-off except inherited/profile defaults; the play
 recipe explicitly enables reviewed correctness/stability and srgb. Complete
 pipeline coverage and image/gameplay acceptance remain parent gates. No game,
 full shader build, push or PR ran. Final results and cleanup are in docs/oot-notes.
+
+## PR 1444 stutter lane
+
+Base: oot-hyper-main 64a163ba. Upload and packaged-alias changes are opt-in
+with DM_NVN_P1444_STUTTER=1. Retained the texture-only pool fallback and the
+cold-page dedupe experiment's transient buffers. Cached sources are held through
+upload completion and invalidated by overlapping pool removal. Sparse packaged
+uploads gather pages after staging allocation and use the existing GPU encoder.
+The upstream sparse GPU branch is later in pkg_upload_, after the older
+non-sparse branch. The port shares its existing encoder loop and gathers after
+staging allocation, avoiding the upstream source-retirement race on a flush.
+
+Ported the unbounded packaged alias map, overlap invalidation, persistent hits
+and finalized-descriptor reuse. NvPkg fields, deallocation and texture recycling
+remain the texture lane's ownership. Its alias-drop ordering must survive merge.
+
+Mesh/object function notes hold portable identities rather than legacy Metal 4
+function descriptors. Ordinary vertex-only planning excludes mesh reflections.
+Typed mesh AOT descriptors, inference, archive lookup, learning and compiler
+accounting remain. Invalid mesh/stripped base specialization is guarded here as
+a new repair because the fetched source does not contain the described guard.
+Every fallback still routes through a compiler-accounted helper.
+
+Ported descriptor refusal isolation and parallel archive builds from 71b8bec4
+without reverting packed-library readers or extraction. The final oot-play base
+already contains that repair; merge should retain its version. Added the loader
+fixture presentation stubs. No game, translator, shader-chain rebuild, install,
+push or PR ran. The lead owns final integrated verification and cold review.
+
+Intentionally omitted upstream reversions of romfs/shader_lib, the loss of the
+texture_only source fallback, raw-pool filtering, AOT wrappers/counters, and the
+existing visual mesh path. Other lanes own texture upgrades, NvPkg recycling,
+terrain/attachment policy, shaders, services and profile keys. Unrelated changes
+to segmented-submit defaults, readback/absorb policy, retry depth and prefetch
+compilation were not imported. Validation and storage details are in the external
+p1444-stutter handoff.
+
+Verification before the user pause: 43 offline PSO tests passed. The pool fixture
+passed with the stutter gate off (102 checks) and on (712 checks). The sparse
+fixture passed off (4,252 checks) and on (4,259 checks). The loader fixtures and
+the final host build passed. Native AOT, PSO archive and remaining upload test
+execution is pending. The user stopped the final gfx build and forbids all
+builds, tests, compiles and restores until an explicit RESUME. Preserve its
+processes and generated outputs for that continuation. No cleanup was run.

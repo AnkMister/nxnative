@@ -177,6 +177,19 @@ int main(void) { @autoreleasepool {
     NVNtexture sx; h_nvnTextureBuilderSetWidth(&tb, 512); h_nvnTextureBuilderSetHeight(&tb, 512); h_nvnTextureBuilderSetFlags(&tb, NVN_TEXTURE_FLAGS_SPARSE); h_nvnTextureBuilderSetStorage(&tb, (const NVNmemoryPool *)&g_sparse, 2ull << 30);
     CHECK("small sparse texture", h_nvnTextureInitialize(&sx, &tb));
     CHECK("stays whole", !resolve(&sx).isSparse);
+    if (stutter_on()) {
+        tex_t *small = (tex_t *)&sx;
+        uint8_t *snapshot = calloc(1, small->L.size); uint32_t *want = calloc(512 * 512, 4);
+        map_at(2ull << 30, TILE, 48 * TILE, 1);
+        dm_guest_write_prepare(phys + 48 * TILE, TILE); memcpy(phys + 48 * TILE, store, TILE);
+        nvn_sparse_copy(&g_sparse, snapshot, (uint64_t)(uintptr_t)small->mem, small->L.size);
+        CHECK("CPU expected deswizzle", !nvn_deswizzle(&small->d, 0, 0, snapshot, want, 512 * 4));
+        mtl_sub_begin(); uint64_t seq = g_up_seq, stamp; id<MTLTexture> upload = pkg_upload(small, &stamp, nil, 0);
+        CHECK("sparse upload remains in its GPU batch", upload && g_up_cb && g_up_seq <= seq + 1);
+        CHECK("sparse source retained by its batch", g_up_keep.count > 0);
+        finish(); CHECK("sparse gathered upload includes unmapped zero pages", same(upload, 0, 0, 0, 512, 512, want, 512));
+        free(snapshot); free(want);
+    }
     // The physical pool's Finalize gives back the heap tiles kept for its memory
     uint64_t kept = kept_for(phys, plen), live2 = g_sp_live;
     CHECK("tiles kept for the pool's memory", kept >= 1);

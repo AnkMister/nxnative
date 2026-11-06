@@ -5,6 +5,9 @@ static NSMutableDictionary<NSData *, id> *g_aot_ps;
 static NSMutableSet<NSData *> *g_aot_seen;
 static NSData *aot_bytes(NSDictionary *j) { return [NSJSONSerialization dataWithJSONObject:j options:NSJSONWritingSortedKeys error:nil]; }
 static NSArray *aot_ref(id<MTLFunction> fn) {
+    if (!fn) return nil;
+    os_unfair_lock_lock(&g_fn4_lock); id note = [g_fn4 objectForKey:fn]; os_unfair_lock_unlock(&g_fn4_lock);
+    if ([note isKindOfClass:NSArray.class]) return !fn.functionConstantsDictionary.count && [note[0] length] ? note : nil;
     MTL4FunctionDescriptor *fd = fn4_of(fn);
     if (![fd isKindOfClass:MTL4LibraryFunctionDescriptor.class]) return nil;
     MTL4LibraryFunctionDescriptor *f = (id)fd;
