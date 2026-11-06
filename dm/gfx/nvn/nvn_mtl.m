@@ -8362,7 +8362,17 @@ static void gml_read(id<MTLBuffer> b, id<MTLBuffer> map, int predicted, uint64_t
 static uint64_t gml_take(id<MTLBuffer> map) {
     pthread_mutex_lock(&g_gml_mu);
     if (!g_gml_free) g_gml_free = [NSMutableArray array];
-    id<MTLBuffer> b = g_gml_free.lastObject; if (b) [g_gml_free removeLastObject];
+    id<MTLBuffer> b = nil;
+    if (getenv("DM_OOT_BRENT") && !strcmp(getenv("DM_OOT_BRENT"), "1")) {
+        size_t need = map.length / DMSH_GMEM_MAP_ENTRY / 8;
+        // Completed free logs have no pending GPU user. Drop every obsolete size,
+        // including those below a reusable buffer in the free list (#1360 follow-up).
+        for (NSUInteger i = g_gml_free.count; i-- > 0;) {
+            id<MTLBuffer> f = g_gml_free[i];
+            if (f.length < need) { res_remove(f); [g_gml_free removeObjectAtIndex:i]; continue; }
+            if (!b) { b = f; [g_gml_free removeObjectAtIndex:i]; }
+        }
+    } else { b = g_gml_free.lastObject; if (b) [g_gml_free removeLastObject]; }
     int predicted = !g_gml_over && g_gml_stable >= GML_STABLE ? g_gml_n : -1;
     { static int said; if (predicted >= 0 && !said++) MLOG("raw global memory: the stores' writes are predicted from now on: %d pool(s) learned over %llu logs", predicted, (unsigned long long)g_gml_logs); }
     for (int i = 0; i < predicted; i++) sbw_note(g_gml_lo[i], g_gml_hi[i] - g_gml_lo[i], SBW_GPU);

@@ -666,3 +666,8 @@ game run, shader corpus build, push or PR is authorized here.
   The profile key defaults off. Enable DM_NVN_POOL_SKIP_RETIRED=1 explicitly;
   Brent's later fb85c524 default-on Ocarina profile edit is deliberately omitted.
   #1404 in oot-stable fixes residency, not this retired-ID policy, so both compose.
+
+- #1360 follow-up 9e5dc598 discards all undersized completed free write logs
+  with DM_OOT_BRENT=1. Keep oot-stack's retained-map completion and safe
+  fallback for the disabled case. The pool test places an undersized resident
+  log below a suitable one and checks both reuse and residency removal.
