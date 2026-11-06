@@ -12,6 +12,7 @@ import sys
 import tempfile
 import types
 import unittest
+from unittest.mock import patch
 
 TOOLS = Path(__file__).resolve().parents[1] / 'tools'
 sys.path.insert(0, str(TOOLS))
@@ -89,6 +90,24 @@ class Pairing(unittest.TestCase):
             self.assertIn(f'out.dm_pad{loc} = float4(0.0, 0.0, 0.0, 1.0);', src)
         self.assertEqual(src.count('float4 v0 [[user(locn0)]];'), 1)
         self.assertEqual(self.ns['vs_pad']('v', src), (src, []))
+
+    @patch.dict(os.environ, DMSH_OOT_VISUAL='1')
+    def test_mesh_padding_exact_locations_in_both_depth_entries(self):
+        from test_dmsh_meshstage import Stage
+        src, _ = Stage().mesh()
+        # Terrain mesh pairs need locn4, locn10 and locn11. Keep their original locn1.
+        for key, loc in [('f4', 4), ('f10', 10), ('f11', 11)]:
+            (self.root / f'{key}_b.metal').write_text(pixel(loc).replace('    float4 v0 [[user(locn0)]];\n', '').replace('in.v0 + in.missing', 'in.missing'))
+        self.ns['PAIRS']['mesh'] = {'f4', 'f10', 'f11'}
+        padded, locations = self.ns['vs_pad']('mesh', src)
+        self.assertEqual(locations, [4, 10, 11])
+        for loc in locations:
+            self.assertEqual(padded.count(f'float4 dm_pad{loc} [[user(locn{loc})]];'), 1)
+            self.assertEqual(padded.count(f'v.dm_pad{loc} = float4(0.0, 0.0, 0.0, 1.0);'), 2)
+        self.assertEqual(padded.count('float4 a1 [[user(locn1)]];'), 1)
+        self.assertEqual(self.ns['vs_pad']('mesh', padded), (padded, []))
+        with patch.dict(os.environ, DMSH_OOT_VISUAL='0'):
+            self.assertEqual(self.ns['vs_pad']('mesh', src), (src, []))
 
     def test_profile_table_wins_and_optional_table(self):
         self.g.table('pso_pairs.tsv').write_text('v\tf6\n')

@@ -1,6 +1,8 @@
 """BNSH programs of NVN2 (bnsh_shaders), without game data: the task and mesh shaders in stage slots 7 and 8 past the six NVN stages are read, with their stage from the
 control section's stage byte, and words in those slots that are not NVN2 stage records (an NVN program's, or none) are left alone."""
 from pathlib import Path
+import os
+from unittest.mock import patch
 import struct
 import sys
 import unittest
@@ -43,6 +45,13 @@ class Nvn2SlotTests(unittest.TestCase):
         found = split.bnsh_shaders(bnsh({4: (0, 1), 7: (6, 2), 8: (7, 3)}), 0, 'Shader/x.bfsha')
         self.assertEqual(sorted(st for _, st, _, _ in found), ['ms', 'ps', 'ts'])
         self.assertEqual({st: code[0] for _, st, _, code in found}, {'ps': 1, 'ts': 2, 'ms': 3})
+
+    def test_mesh_pixel_variation_pairs_are_opt_in(self):
+        found = split.bnsh_shaders(bnsh({4: (0, 1), 7: (6, 2), 8: (7, 3)}), 0, 'Shader/x.bfsha')
+        keys = {st: split.skey(ctl, code) for _, st, ctl, code in found}
+        for flag, pairs in [('0', set()), ('1', {(keys['ms'], keys['ps'])})]:
+            with self.subTest(flag=flag), patch.dict(os.environ, DMSH_OOT_VISUAL=flag):
+                self.assertEqual(split.var_pairs(found), pairs)
 
     def test_other_words_left_alone(self):
         """past slot 5, a word that points outside the file or at no NVN2 control section is not a stage record"""

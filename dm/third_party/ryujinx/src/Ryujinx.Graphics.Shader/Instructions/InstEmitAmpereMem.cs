@@ -29,7 +29,11 @@ namespace Ryujinx.Graphics.Shader.Instructions
             x(0x98e, InstName.Red, ARed, N, writesRd: false);
             x(0x9a8, InstName.Atom, AAtomg, N);
             x(0x3a8, InstName.Atom, AAtomg, N);
-            if (System.Environment.GetEnvironmentVariable("DMSH_OOT_VISUAL") == "1") x(0x3a9, InstName.AtomCas, AAtomgCas, N);
+            if (System.Environment.GetEnvironmentVariable("DMSH_OOT_VISUAL") == "1")
+            {
+                x(0x3a9, InstName.AtomCas, AAtomgCas, N);
+                x(0x9a9, InstName.AtomCas, AAtomgCas, N);
+            }
             x(AmpereOpcodes.Ldl, InstName.Ldl, ALdLocalShared, N);
             x(0x984, InstName.Lds, ALdLocalShared, N);
             x(0x387, InstName.Stl, AStLocalShared, N, writesRd: false);

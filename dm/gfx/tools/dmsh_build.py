@@ -177,6 +177,45 @@ def tg_spill(msl):
         ln = re.sub(r'(?<!mem_device \| )mem_flags::mem_threadgroup\b', 'mem_flags::mem_device | mem_flags::mem_threadgroup', ln)
         lines[n] = ln
     return '\n'.join(lines), total
+
+# Opt-in GPU hang guard from PR #1444. One budget per function, shared by nested loops.
+# This limits work when the guest leaves a bound uninitialized; it does not fix that guest input.
+LOOP_CAP = 1 << 18
+
+def loop_guard(msl):
+    """Cap shader loops under DMSH_OOT_VISUAL; default source stays byte-identical."""
+    if os.environ.get('DMSH_OOT_VISUAL') != '1': return msl
+    lines, out = msl.split('\n'), []
+    cap = f'++dm_lg < {LOOP_CAP}u'
+    for i, l in enumerate(lines):
+        if l == '{' and i and lines[i - 1].rstrip().endswith(')'):   # a function body (SPIRV-Cross puts its brace alone in column 0; a struct's header does not end in ')')
+            out += [l, '    uint dm_lg = 0u; (void)dm_lg;']; continue
+        if (m := re.fullmatch(r'(\s*)\} while \((.*)\);\s*', l)): l = f'{m.group(1)}}} while (({m.group(2)}) && {cap});'
+        elif (m := re.fullmatch(r'(\s*)for \(;;\)\s*', l)): l = f'{m.group(1)}for (; {cap};)'
+        elif (m := re.fullmatch(r'(\s*)while \((.*)\)\s*', l)): l = f'{m.group(1)}while (({m.group(2)}) && {cap})'
+        elif (m := re.fullmatch(r'(\s*)for \(([^;]*);([^;]*);([^;]*)\)\s*', l)): l = f'{m.group(1)}for ({m.group(2)}; ({m.group(3).strip() or "true"}) && {cap};{m.group(4)})'
+        out.append(l)
+    return '\n'.join(out)
+
+TG_FENCE_DECL = re.compile(r'\bthreadgroup\s+(?:spvUnsafeArray<[^;&]*?>|[A-Za-z_][\w<>, ]*?)\s*&?\s*(\w+)\s*(?:\[[^\]]*\])?\s*[;,)]')
+TG_FENCE = 'atomic_thread_fence(mem_flags::mem_threadgroup, memory_order_seq_cst, thread_scope_simdgroup);'
+def tg_fence(src):
+    """A store to threadgroup memory followed by a load of another lane's word, with no barrier between them (Ampere compilers rely on lockstep warps for small
+    scans, e.g. Unreal's GPU radix sort downsweep d032ce5090303e01 at 0x2eb0: STS / LDS [x-4] / STS / LDS [x-8]): for one thread the load and the earlier store do not
+    alias, so Metal moves the load above the store and reads another lane's old value (Orbitals: Niagara's sorted index list wrong every frame, beams and particles broken).
+    A simdgroup-scope memory fence after each threadgroup store keeps the order; it is not an execution barrier, so it is safe in divergent code. Only kernels with a
+    threadgroup array are touched"""
+    if os.environ.get('DMSH_OOT_VISUAL') != '1': return src
+    names = {m.group(1) for m in TG_FENCE_DECL.finditer(src) if m.group(1) not in ('operator',)}
+    if not names: return src
+    store = re.compile(r'^(\s*)(?:%s)\s*\[[^\n;]*\]\s*=(?!=)[^\n]*;\s*$' % '|'.join(map(re.escape, sorted(names))))
+    out = []
+    for ln in src.split('\n'):
+        out.append(ln)
+        m = store.match(ln)
+        if m: out.append(m.group(1) + TG_FENCE)
+    return '\n'.join(out)
+
 def hmma_msl(msl):
     m = re.search(r'\n(\w+) dmsh_hmma16816_f16\(([^)]*)\)\n\{', msl)
     if not m: return msl
@@ -1107,7 +1146,7 @@ def build_keys(want, locations, pairs):
     return sorted(set(want) | {ps for vs in want for ps in pairs.get(vs, ()) if ps in locations}) if want else sorted(locations)
 
 def vs_pad(key, src):
-    """Give a vertex shader the outputs its paired pixel shaders read but it does not write, with the value (0,0,0,1).
+    """Give a vertex or mesh shader the outputs its paired pixel shaders read but it does not write, with the value (0,0,0,1).
     Maxwell attributes are untyped 32-bit slots, and a pixel shader reading a location the vertex shader did not write only gets a default; Ryujinx also fills them with (0,0,0,1) when it links stages. Here every shader is translated
     offline on its own without knowing what the next stage reads, and Metal requires every pixel shader input to be a vertex output: 331 of 9043 pairs failed to link and their draws were skipped
     (over 10,000 "Fragment input(s) user(locnN) ... not written by vertex shader" in one iPhone session after the opening course). Returns (new source, padded locations); pairs whose pixel MSL cannot be read are skipped."""
@@ -1120,6 +1159,14 @@ def vs_pad(key, src):
 
 def pad_locations(src, want):
     miss = sorted(set(want) - {int(x) for x in re.findall(r'\[\[user\(locn(\d+)\)', src)})
+    if not miss: return src, []
+    mi = src.find('struct dm_vertex_t {\n')
+    if mi >= 0 and os.environ.get('DMSH_OOT_VISUAL') == '1':
+        mj = src.find('};\n', mi)
+        if mj < 0 or 'dm_out.set_vertex(n, v);' not in src: return src, []
+        src = src[:mj] + ''.join(f'    float4 dm_pad{l} [[user(locn{l})]];\n' for l in miss) + src[mj:]
+        init = ''.join(f'        v.dm_pad{l} = float4(0.0, 0.0, 0.0, 1.0);\n' for l in miss)
+        return src.replace('        dm_out.set_vertex(n, v);\n', init + '        dm_out.set_vertex(n, v);\n'), miss
     i = src.find('struct main0_out\n{\n'); j = src.find('\n};', i); k = src.find('main0_out out = {};')
     if not miss or i < 0 or j < 0 or k < 0: return src, []
     src = src[:j] + ''.join(f'\n    float4 dm_pad{l} [[user(locn{l})]];' for l in miss) + src[j:]
@@ -1409,7 +1456,7 @@ def geometry_finish(key, w, j, c1):
         dmsh_geometry.flatten_sets(spv)
         r = cross_run(spv, dmsh_atomic.cross_args(XC, spv))
         if r.returncode: return 'geometry MSL failed', r.stderr.strip()[:160], None
-        plain = stage_pass(dmsh_geometry.topology_pointer, stage_pass(pool_arrays, stage_pass(precise, stage_pass(dmsh_atomic.check_msl, r.stdout))))
+        plain = stage_pass(dmsh_geometry.topology_pointer, stage_pass(pool_arrays, stage_pass(loop_guard, stage_pass(precise, stage_pass(dmsh_atomic.check_msl, r.stdout)))))
         res = json.load(open(os.path.join(w, k + '.res.json')))
         plain = stage_pass(raw_log_opt, key, 'gs', plain, res)
         src = stage_pass(dmsh_geometry.capture_input, plain)
@@ -1440,7 +1487,7 @@ def geometry_finish(key, w, j, c1):
             spv = os.path.join(w, k + '.reader.spv'); dmsh_geometry.flatten_sets(spv)
             r = cross_run(spv, dmsh_atomic.cross_args(XC, spv))
             if r.returncode: return 'geometry reader failed', r.stderr.strip()[:160], None
-            reader = stage_pass(vs_layer, stage_pass(vs_init, stage_pass(dmsh_geometry.reader, stage_pass(pool_arrays, stage_pass(precise, stage_pass(dmsh_atomic.check_msl, r.stdout))))))
+            reader = stage_pass(vs_layer, stage_pass(vs_init, stage_pass(dmsh_geometry.reader, stage_pass(pool_arrays, stage_pass(loop_guard, stage_pass(precise, stage_pass(dmsh_atomic.check_msl, r.stdout)))))))
             analysis, full = stage_pass(vs_depth, reader)
             meta = {'key': key + '_bgv', 'route': 'B', 'chain': CHAIN, 'dm_ctl': key,
                     'stage': 'vs', 'entry': 'main0', 'entry_z': 'main0_z', 'msl_entry_kind': 'vertex',
@@ -1532,6 +1579,7 @@ def finish(key, w, j, c1):
             src = stage_pass(dmsh_wide.raw_load_quads, src, raw[0][0], abi.GMEM_MAP_ENTRIES, abi.GMEM_MAP_ENTRY, readonly=dmsh_chain.wide_group())
     if dmsh_chain.cbuf_reuse(): src = stage_pass(dmsh_cbuf.reuse_words, src)
     src = stage_pass(border_emu, src); open(msl, 'w').write(src)   # border colours Metal lacks (see border_emu)
+    src = stage_pass(tg_fence, src); open(msl, 'w').write(src)   # memory fence only, independent of the LDSM execution barriers
     first, spill = [], 0
     mesh = j.get('mesh_stage')
     if mesh:   # the kernel as the Metal object or mesh function (dmsh_meshstage.py)
@@ -1543,10 +1591,11 @@ def finish(key, w, j, c1):
         try: src, spill = stage_pass(tg_spill, src)   # shared memory past Metal's 32 KB in a device buffer (see tg_spill)
         except ValueError as e: return 'shared memory rewrite failed', str(e)[:160], None
         if spill: open(msl, 'w').write(src)
+    src = stage_pass(loop_guard, src); open(msl, 'w').write(src)   # after to_stage: its kernel parser requires stage memory first
     pad = []
     if j['stage'] == 'vs':   # outputs start as (0,0,0,1) (see vs_init); no point size beside a layer output (see vs_layer); the base instance from Metal (see vs_base_instance)
         src = stage_pass(vs_base_instance, stage_pass(vs_layer, stage_pass(vs_init, src))); open(msl, 'w').write(src)
-    if j['stage'] == 'vs' and PAIRS.get(key):   # outputs the pixel shader reads but the vertex shader does not write get (0,0,0,1) (see vs_pad)
+    if (j['stage'] == 'vs' or (mesh and mesh['kind'] == 'ms' and os.environ.get('DMSH_OOT_VISUAL') == '1')) and PAIRS.get(key):   # outputs the pixel shader reads but the vertex shader does not write get (0,0,0,1) (see vs_pad)
         src, pad = vs_pad(key, src)
         if pad: open(msl, 'w').write(src)
     lay = None; discard = False
