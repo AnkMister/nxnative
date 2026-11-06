@@ -448,3 +448,10 @@ Frame pacing: the host's frame step, engine frame limiters, present intervals an
 - **Cause:** open. The direct path uses `presentAfterMinimumDuration`, while the host's `nvn_pace` keeps an absolute phase. A missed refresh can lengthen a relative hold without letting the next frame recover that phase. This is a plausible source of queued delay, not a confirmed diagnosis of those runs.
 - **Fix (experimental):** `DM_PRESENT_ABSOLUTE=1` on the Mac schedules direct drawables with `presentAtTime` using the existing absolute pacer. A small miss keeps the phase, a miss of at least one period restarts it, and uncapped or display-link presentation resets the experiment's phase. The flag is off by default. The pure pacer test covers repeated small misses; gameplay latency and on-screen cadence still need A/B measurement.
 - **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md), from the [upstream experiment](https://github.com/seedds/nxnative/pull/1405). No gameplay or latency measurement was made for this local change.
+### A failed GPU event holds a completed fence wait
+
+- **Symptom:** rendering freezes after GPU command errors, with the main thread in `IOSurfaceSharedEvent waitUntilSignaledValue:timeoutMS:` although commit feedback has completed its fence.
+- **Cause:** the fast fence wait could block for one hour on a GPU event. A rejected command buffer completed through its feedback handler, but the queue's event remained at zero, so that wait could not see the published completion.
+- **Fix:** the fast event wait is bounded to 100 ms before rechecking completion and using the feedback condition variable. Finite waits retain their original total timeout budget.
+- **Found on:** Ocarina of Time (Switch 2, #1299), after a gameplay GPU memory fault. The GPU fault itself remains open.
+- **Check:** `make -C dm/gfx/tests GAME=0400C3F00006E000 perf-order-cpu` checks a completion callback with an unsignaled event, finite timeout budgets, and both fast-wait and feedback paths.

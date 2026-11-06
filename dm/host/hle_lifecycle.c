@@ -29,3 +29,20 @@ void dm_term_install(void) {
     dispatch_source_set_event_handler(src, ^{ dm_host_shutdown("SIGTERM"); });
     dispatch_resume(src);
 }
+
+// A GPU fault must not enter dm_gfx_suspend's drain or wait for the UI. The
+// graphics layer has already closed its sticky submission gate before calling.
+void mtl_safe_gpu_release(void);
+void dm_host_gpu_stop(void) {
+    static _Atomic int once; if (atomic_exchange(&once, 1)) return;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1500 * NSEC_PER_MSEC), dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        LOG("[RED] DM_SAFE_GPU: cleanup blocked; exiting without a GPU drain"); _exit(0);
+    });
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        mtl_safe_gpu_release();
+        hlecount_flush(); dm_rec_finish(); dm_cheats_exit();
+        dm_audio_suspend(1);
+        LOG("DM_SAFE_GPU: clean host exit; progress since the last save is lost");
+        _exit(0);
+    });
+}
