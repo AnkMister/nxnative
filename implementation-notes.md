@@ -69,3 +69,7 @@ PR #1418 is skipped because omitted texture mips reduce image quality. PR #1436
 is 01cce669 (poolstat/texstat), confirmed through gh pr view, and is skipped
 because the task explicitly assigns those diagnostics to the Mac agent.
 Our existing PR #1391 guard and DM_SAFE_GPU remain in place.
+
+Ported temporary-folder exclusion from PR #1355, source 2e1f4953, behind
+DM_BUILD_NOINDEX=1 (default off). All capture/heap-check scratch paths follow
+TMP too; the source commit left these under tmp/. Old tmp/ is preserved.

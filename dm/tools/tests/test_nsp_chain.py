@@ -29,6 +29,15 @@ class Base(unittest.TestCase):
             cm.__enter__(); self.addCleanup(cm.__exit__, None, None, None)
 
 
+class Temporaries(unittest.TestCase):
+    def test_spotlight_folder_requires_opt_in(self):
+        for value, expected in ((None, 'tmp'), ('0', 'tmp'), ('1', 'tmp.noindex')):
+            with mock.patch.dict(os.environ, {}, clear=True):
+                if value is not None: os.environ['DM_BUILD_NOINDEX'] = value
+                self.assertEqual(nsp.build_folder('tmp'), expected)
+        self.assertNotIn("work / 'tmp/", SCRIPT.read_text())
+
+
 class Header(Base):
     def setUp(self):   # a repository whose chain tools are the real ones (linked) and whose header is its own
         super().setUp()
