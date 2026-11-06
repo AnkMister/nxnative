@@ -9,6 +9,10 @@ module_t *g_mod; int g_nmod;
 void svc_thread_dump(void) {}
 uint64_t now_ns(void) { return bp_now(); }
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "AOT fixture failed line %d: %s\n", __LINE__, #x); return 1; } } while (0)
+@interface MeshBaseFixture : NSObject { @public MTL4PipelineDescriptor *desc; } @end
+@implementation MeshBaseFixture
+- (MTL4PipelineDescriptor *)newRenderPipelineDescriptorForSpecialization { return desc; }
+@end
 int main(int argc, char **argv) { @autoreleasepool {
     if (argc != 4) { fprintf(stderr, "usage: t_aot <libraries> <archive> <seen>\n"); return 2; }
     setenv("DM_AOT", "1", 1); setenv("DM_AOT_STRICT", "1", 1); setenv("DM_PSO_BUNDLE", argv[2], 1);
@@ -39,6 +43,18 @@ int main(int argc, char **argv) { @autoreleasepool {
         present_pipeline(present_formats[i]); CHECK(g_blit_pso && g_sharp_pso);
     }
     CHECK(dm_aot_compiler_count(1) == 0);
+
+    MTLMeshRenderPipelineDescriptor *mesh = [MTLMeshRenderPipelineDescriptor new];
+    id<MTLLibrary> ml = lib_from_file([g_msl_dir stringByAppendingPathComponent:@"m_b.metallib"], nil);
+    id<MTLLibrary> tl = lib_from_file([g_msl_dir stringByAppendingPathComponent:@"t_b.metallib"], nil);
+    mesh.meshFunction = aot_function(ml, @"main0"); mesh.objectFunction = aot_function(tl, @"main0");
+    mesh.fragmentFunction = aot_function(lib_from_file([g_msl_dir stringByAppendingPathComponent:@"f_b.metallib"], nil), @"main0");
+    mesh.maxTotalThreadsPerMeshThreadgroup = mesh.maxTotalThreadsPerObjectThreadgroup = 1; mesh.payloadMemoryLength = 16;
+    mesh.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA8Unorm;
+    CHECK(!fn4_of(mesh.meshFunction)); CHECK(!fn4_of(mesh.objectFunction));
+    CHECK(!pre_fn(ml, @"main0")); CHECK(!pre_fn(tl, @"main0"));
+    CHECK([aot_ref(mesh.meshFunction)[0] isEqual:@"m_b"]);
+    CHECK(aot_mesh(mesh, nil)); CHECK(dm_aot_compiler_count(1) == 0);
     // Actual host library bytes must match the standalone helper compiler's bytes.
     NSError *e = nil; id<MTLLibrary> helper = host_lib("ixc", &e); CHECK(helper);
     CHECK(host_msl_compute(g_dev, helper, @"ixc_arrays", &e)); CHECK(dm_aot_compiler_count(1) == 0);
@@ -52,6 +68,21 @@ int main(int argc, char **argv) { @autoreleasepool {
     d.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA16Float;
     CHECK(!aot_lookup(aot_render_row(d, 0), 0, nil));
     CHECK(aot_lookup(aot_render_row(d, 0), 1, &e)); CHECK(dm_aot_compiler_count(1) == 1);
+    // A mesh or stripped descriptor from a base must never enter vertex specialization.
+    d.colorAttachments[0].pixelFormat = MTLPixelFormatRG8Unorm;
+    pbase_key key; pbase_key_of(d, &key);
+    MeshBaseFixture *base = [MeshBaseFixture new];
+    MTL4MeshRenderPipelineDescriptor *md = [MTL4MeshRenderPipelineDescriptor new];
+    for (int i = 0; i < 8; i++) pso_col4(md.colorAttachments[i], d.colorAttachments[i]);
+    base->desc = md; hm_put_id(&g_pbase, &key, base);
+    uint64_t counted = dm_aot_compiler_count(1);
+    CHECK(pso_build_ex(d, nil, 0) == (id)base);
+    md.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA8Unorm;
+    CHECK(!pso_build_ex(d, nil, 0)); CHECK(dm_aot_compiler_count(1) == counted);
+    MTL4RenderPipelineDescriptor *stripped = [MTL4RenderPipelineDescriptor new];
+    for (int i = 0; i < 8; i++) pso_col4(stripped.colorAttachments[i], d.colorAttachments[i]);
+    base->desc = stripped; CHECK(pso_build_ex(d, nil, 0) == (id)base);
+    hm_del_id(&g_pbase, &key);
     // New final state is learned even when it was not in the input inventory.
     aot_record(aot_render_row(d, 0));
     fprintf(stderr, "t_aot: archive-only startup, exact render/compute/mesh/helper hits; strict miss counted\n");

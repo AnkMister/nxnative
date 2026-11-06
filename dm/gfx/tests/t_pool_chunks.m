@@ -73,6 +73,7 @@ int main(void) { @autoreleasepool {
     t.pool = &pool; t.mem = mem + 700 * MB;
     uint32_t *lin = malloc(256 * 256 * 4); for (uint32_t i = 0; i < 256 * 256; i++) lin[i] = i * 2654435761u;
     CHECK("swizzle", !nvn_swizzle(&t.d, 0, 0, lin, 256 * 4, t.mem));
+    if (stutter_on()) { mtl_tex_init(&t); nvn_dirty_add_range(t.mem, t.L.size); }
     int n2 = g_npool; mtl_sub_begin(); id<MTLTexture> image = tex_mtl(&t); CHECK("texture resolves", image != nil); finish();
     CHECK("the upload made no chunk", g_npool == n2);
     id<MTLBuffer> rb = [g_dev newBufferWithLength:256 * 256 * 4 options:MTLResourceStorageModeShared];
@@ -81,7 +82,41 @@ int main(void) { @autoreleasepool {
     [ce endEncoding]; [cb commit]; [cb waitUntilCompleted];
     CHECK("the texture holds what the pool holds", !memcmp(rb.contents, lin, 256 * 256 * 4));
     free(lin);
+    if (stutter_on()) {
+        uint64_t uploads = g_pkg_uploads, ghosts = g_ghost_puts;
+        mtl_sub_begin();
+        tex_t copy = t;
+        for (int i = 0; i < 600; i++) { copy.serial = 99800 + i; CHECK("retired descriptors reuse packaged storage", tex_mtl(&copy) == image); }
+        finish();
+        CHECK("retired lookups do not churn uploads or the ghost ring", g_pkg_uploads == uploads && g_ghost_puts == ghosts);
+        pthread_mutex_lock(&g_smu);
+        alias_key key = {0}; key.pool = (uintptr_t)t.pool; key.off = (uintptr_t)t.mem; key.d = t.d;
+        NvPkg *pkg = hm_get_id(&g_pkg_alias, &key);
+        for (int i = 1; i <= 600; i++) { key.off = (uintptr_t)t.mem + i * 4096; pkg_alias_put(&key, pkg); }
+        pthread_mutex_unlock(&g_smu);
+        CHECK("packaged alias cache grows past 512 entries", g_pkg_alias.n >= 601);
+        uint64_t lo = (uintptr_t)t.mem + 16, hi = lo + 1;
+        pkg_alias_drop_range(lo, hi);
+        key.off = (uintptr_t)t.mem;
+        CHECK("unmap in the middle of texture storage invalidates it", !hm_get_id(&g_pkg_alias, &key));
+        nvn_dirty_remove_range(t.mem);
+    }
+    id held_pkg = tex_get(t.serial);
     mtl_tex_release(&t);
+    if (stutter_on()) {
+        pthread_mutex_lock(&g_smu);
+        CHECK("finalized packaged serial leaves the held count", !serial_table_holds((__bridge void *)held_pkg));
+        pthread_mutex_unlock(&g_smu);
+        up_begin(); uint64_t x, y;
+        id<MTLBuffer> one = up_big_src(base + 700 * MB, 4096, &x, 0);
+        id<MTLBuffer> two = up_big_src(base + 700 * MB + 32, 8192, &y, 0);
+        CHECK("upload chunks reuse their 16 MB buffer", one == two && y == x + 32 && one.length == BIG_S);
+        CHECK("cached source held through upload", [g_up_views containsObject:one]);
+        up_drop_pool(base + 700 * MB + 1, base + 700 * MB + 2);
+        CHECK("overlapping unmap invalidates upload chunk", ![g_up_big_src.allValues containsObject:one]);
+        CHECK("unmap retains pending upload source", [g_up_views containsObject:one]);
+        up_flush(); mtl_drain();
+    }
     // Raw global memory: the table reaches all of it, and lookups then have the whole pool
     mtl_pool_buffer_addr(mem, GB);
     mtl_sub_begin(); id<MTLBuffer> old_map = gmem_map(); CHECK("pool table made", old_map != nil); finish();
@@ -101,6 +136,7 @@ int main(void) { @autoreleasepool {
     CHECK("its buffer is the whole pool", look((uint64_t)(uintptr_t)small + 10, 16).length == 64 * MB);
     mtl_pool_del(mem); mtl_drain();
     CHECK("no large pool left", g_nbig == 0);
+    CHECK("pool deletion evicts all packaged aliases", !g_pkg_alias.n);
     CHECK("only the small pool's entry is left of those added", g_npool == pools0 + 1);
     CHECK("the small pool still answers, its entry moved", look((uint64_t)(uintptr_t)small + 20, 16).length == 64 * MB);
     CHECK("the large pool's addresses do not", !mtl_gpu_addr(base + 100, 4, &mb, &mo, &gpu));
@@ -154,6 +190,14 @@ int main(void) { @autoreleasepool {
     mtl_drain();
     mtl_sub_begin(); gmem_map(); finish();
     CHECK("with the pools gone the table is the least again", g_gmem_buf.length / DMSH_GMEM_MAP_ENTRY == DMSH_GMEM_MAP_ENTRIES);
+    if (stutter_on()) {
+        up_begin(); uint64_t x, y;
+        id<MTLBuffer> one = up_big_src((uintptr_t)small + 16384, 4096, &x, 1);
+        id<MTLBuffer> two = up_big_src((uintptr_t)small + 16384, 4096, &y, 1);
+        CHECK("texture-only pool outside g_big still caches uploads", one && one == two);
+        up_flush(); mtl_drain();
+    }
     mtl_pool_del(small); mtl_drain();
+    CHECK("pool deletion clears its upload buffers", !g_up_big_src.count);
     printf("t_pool_chunks: %d checks, %d failed\n", checks, failed); return failed != 0;
 }}

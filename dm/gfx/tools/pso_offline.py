@@ -31,6 +31,7 @@
 #   otherwise: the SDK's version on a Mac whose system is older than its Xcode's SDK (macOS 26.6 with Xcode 27.1) left that Mac without them (GitHub issue #673)
 import concurrent.futures as cf
 import argparse, filecmp, hashlib, json, os, shutil, struct, subprocess, sys, time
+import concurrent.futures as cf
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'tools'))
@@ -122,7 +123,7 @@ def plan(lib_dir, chain, pairs, zero, aot=False):
     bases, rest, seen, left = [], [], set(), dict.fromkeys(('reflection', 'stage inputs', 'library', 'layer', 'primitive ID', 'entry'), 0)
     for vk, fk in pairs:
         vj, fj = refl(vk), refl(fk)
-        if not vj or not fj or vj.get('chain') != chain or fj.get('chain') != chain or (vj.get('mesh_stage') and os.environ.get('DMSH_OOT_VISUAL') == '1'): left['reflection'] += 1; continue
+        if not vj or not fj or vj.get('chain') != chain or fj.get('chain') != chain or vj.get('mesh_stage'): left['reflection'] += 1; continue
         ventry = vj['entry_z'] if zero and vj.get('entry_z') else vj.get('entry'); fentry = fj.get('entry') or 'main0'
         pull = isinstance(vj.get('pull'), dict)
         if not pull and vj.get('vertex_inputs'): left['stage inputs'] += 1; continue

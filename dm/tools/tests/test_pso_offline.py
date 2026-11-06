@@ -15,6 +15,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 import tracemalloc
 import threading
@@ -140,6 +141,14 @@ fragment float4 main0(F in [[stage_in]]) {return in.c;}'''
             self.assertEqual(row['attrs'], [])
             self.assertEqual(row['layouts'], [])
 
+    def test_mesh_pairs_never_become_vertex_bases(self):
+        self.shader('m', {'stage': 'ms', 'mesh_stage': {'threads': 32}}, {'_b': [('main0', False)]})
+        self.shader('f', {'stage': 'ps'}, {'_b': [('main0', False)]})
+        for aot in (False, True):
+            bases, rest, left = po.plan(self.d, CHAIN, [('m', 'f')], False, aot=aot)
+            self.assertEqual((bases, rest), ([], []))
+            self.assertEqual(left['reflection'], 1)
+
     def test_aot_packed_libraries_keep_descriptors_and_cache_inputs(self):
         self.shader('c', {'stage': 'cs'}, {'_b': [('main0', False)]})
         host = self.d.parent / 'host'; host.mkdir()
@@ -158,16 +167,6 @@ fragment float4 main0(F in [[stage_in]]) {return in.c;}'''
         self.assertEqual(po.functions(extracted / 'c_b.metallib'), {'main0': False})
         self.assertFalse((extracted / 'host:helper.metallib').exists())
         po.clear_real_libraries(work)
-
-    def test_mesh_pairs_stay_out_of_vertex_descriptors_when_enabled(self):
-        self.shader('mesh', {'stage': 'ms', 'mesh_stage': {'kind': 'ms'}}, {'_b': [('main0', False)]})
-        self.shader('fs', {}, {'_b': [('main0', False)]})
-        for flag in ('0', '1'):
-            with self.subTest(flag=flag), mock.patch.dict(os.environ, DMSH_OOT_VISUAL=flag):
-                bases, rest, left = po.plan(self.d, CHAIN, [('mesh', 'fs')], False)
-                self.assertEqual(len(bases), 0 if flag == '1' else 1)
-                self.assertEqual(rest, [])
-                self.assertEqual(left['reflection'], 1 if flag == '1' else 0)
 
     def test_bases_rest_and_left_out(self):
         vz = [('main0', False), ('main0_z', False)]

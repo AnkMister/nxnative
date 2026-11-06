@@ -767,6 +767,15 @@ static void pool_res(int i) {
 enum { BIG_MIN = 512u << 20, BIG_S = 16u << 20, BIG_UNKNOWN = 64u << 20, BIG_MAX = 32 };
 typedef struct { uintptr_t lo, hi, a, b; const void *mem; int *chunk, full, raw; NSMutableArray *old; } big_pool;   // chunk: stride → g_pools index + 1; full: the whole pool's entry + 1; old: buffers a longer chunk replaced, alive with the pool
 static big_pool g_big[BIG_MAX]; static int g_nbig;
+static NSMutableDictionary *g_up_big_src;   // range -> no-copy upload buffer, under g_mu
+static int stutter_on(void) { static int on = -1; if (on < 0) { const char *e = getenv("DM_NVN_P1444_STUTTER"); on = e && atoi(e) > 0; } return on; }
+static void up_drop_pool(uint64_t lo, uint64_t hi) {   // g_mu held
+    NSMutableArray *keys = [NSMutableArray array];
+    for (NSValue *k in g_up_big_src) { NSRange r = k.rangeValue;
+        if (r.location < hi && r.location + r.length > lo) { defer_obj_release(g_up_big_src[k]); [keys addObject:k]; } }
+    [g_up_big_src removeObjectsForKeys:keys];
+}
+static void pkg_alias_drop_range(uint64_t lo, uint64_t hi);
 // A pool becomes reachable by raw guest pointers when NVN issues its GPU address,
 // creates a buffer in it, or an explicit GPU binding resolves its address. Merely
 // keeping a texture's tiled CPU bytes does not make that pool a shader pointer.
@@ -843,6 +852,7 @@ static void big_moved(int i) {   // caller holds g_mu: entry i has a new index
         return; }
 }
 void mtl_pool_del(const void *mem) {
+    uint64_t drop_lo = UINT64_MAX, drop_hi = 0;
     g_reg_gen++;
     pthread_mutex_lock(&g_mu);
     // The no-copy buffer goes through deferred release (out of the residency set and unreferenced after submitted commands complete). It used to be removed only from g_keep while the residency set still held a strong reference: after the pool was freed the buffer stayed alive wrapping that guest memory,
@@ -853,13 +863,16 @@ void mtl_pool_del(const void *mem) {
     uint64_t retire = idle_retire_on() ? g_pool_retire_fence : g_fence + 1;
     int bg = -1; for (int k = 0; k < g_nbig; k++) if (g_big[k].mem == mem) bg = k;
     for (int i = 0; i < g_npool; i++)
-        if (g_pools[i].key == mem) { id<MTLBuffer> b = g_pools[i].buf; [g_keep removeObject:b]; defer_obj_at(b, 0, retire); if (g_pools[i].res) g_pool_res_n--;
+        if (g_pools[i].key == mem) {
+            drop_lo = MIN(drop_lo, g_pools[i].lo); drop_hi = MAX(drop_hi, g_pools[i].hi);
+            id<MTLBuffer> b = g_pools[i].buf; [g_keep removeObject:b]; defer_obj_at(b, 0, retire); if (g_pools[i].res) g_pool_res_n--;
             if (!g_dead_pools) g_dead_pools = [NSHashTable weakObjectsHashTable];
             [g_dead_pools addObject:b]; g_pools[i] = g_pools[--g_npool]; g_pidx_ok = 0; g_plast = -1; atomic_fetch_add(&g_pool_gen, 1);
             if (i < g_npool) big_moved(i);   // the entry moved into this place
             if (bg < 0) break;   // a large pool has an entry per chunk
             i--; }
     if (bg >= 0) {
+        drop_lo = MIN(drop_lo, g_big[bg].lo); drop_hi = MAX(drop_hi, g_big[bg].hi);
         for (id<MTLBuffer> b in g_big[bg].old) defer_obj_at(b, 0, retire);
         // An autoreleased array can outlive its table entry on a guest thread.
         // The deferred queue now owns these buffers until their fence completes.
@@ -870,8 +883,10 @@ void mtl_pool_del(const void *mem) {
         if (idle_retire_on()) g_big[g_nbig] = (big_pool){0};
         g_pidx_ok = 0; g_plast = -1; atomic_fetch_add(&g_pool_gen, 1); atomic_fetch_sub(&g_big_n, 1);
     }
+    if (drop_hi > drop_lo) up_drop_pool(drop_lo, drop_hi);
     }
     pthread_mutex_unlock(&g_mu);
+    if (drop_hi > drop_lo) pkg_alias_drop_range(drop_lo, drop_hi);
 }
 
 // Address → pool: the last hit first, then a binary search over indices sorted by start address, and a full linear scan only when that fails (pools overlapping).
@@ -2260,6 +2275,31 @@ static void ser_note(uint64_t serial) {
 typedef struct { uint64_t pool; int64_t off; nvn_texdesc d; } alias_key;
 static nvn_hmap g_alias = {.klen = sizeof(alias_key)};
 static nvn_hmap g_alias_seen = {.klen = sizeof(alias_key)};   // key → g_fence + 1 at its last lookup or creation (alias_take_over spares entries looked up lately)
+static nvn_hmap g_pkg_alias = {.klen = sizeof(alias_key)};   // packaged textures by (pool, storage address, desc), under g_smu
+static void pkg_alias_put(const alias_key *k, id pk) {   // caller holds g_smu
+    id old = hm_get_id(&g_pkg_alias, k);
+    if (old && old != pk) defer_obj_release(old);
+    hm_put_id(&g_pkg_alias, k, pk);
+}
+static void pkg_alias_drop_range(uint64_t lo, uint64_t hi) {   // caller does not hold g_smu
+    pthread_mutex_lock(&g_smu);
+    uint32_t n = 0; alias_key *ks = NULL;
+    for (uint32_t i = 0; i < g_pkg_alias.cap; i++) {
+        if (!g_pkg_alias.vals[i]) continue;
+        alias_key k; memcpy(&k, g_pkg_alias.keys + (size_t)i * g_pkg_alias.klen, sizeof k);
+        uint64_t addr = (uint64_t)k.off;
+        nvn_texlayout L = {0}; nvn_tex_layout(&k.d, &L);
+        uint64_t end = addr + (L.size ? L.size : 1);
+        if (addr >= hi || end <= lo) continue;
+        alias_key *nk = realloc(ks, (n + 1) * sizeof *ks); if (!nk) break; ks = nk; ks[n++] = k;
+    }
+    for (uint32_t j = 0; j < n; j++) {
+        void *old = nvn_hm_del(&g_pkg_alias, &ks[j]);
+        if (old) defer_obj_release(CFBridgingRelease(old));
+    }
+    pthread_mutex_unlock(&g_smu);
+    free(ks);
+}
 // Live GPU-only image descriptions, including those not used yet. A dynamic-resolution family declares its largest image before any particular resolution is used.
 // Keeping only descriptions here lets its first allocation cover that family exactly, without allocating every resolution or rounding to a power of two.
 static nvn_hmap g_image_desc = {.klen = 8};   // serial → malloc'ed tex_t, under g_smu
@@ -2304,8 +2344,19 @@ void mtl_alias_drop_pool(const void *pool) {
         defer_obj_release(o);
     }
     if (n) { g_ser_gen++; g_alias_evicted += n; }
+    uint32_t pn = 0; alias_key *pks = NULL;
+    for (uint32_t i = 0; i < g_pkg_alias.cap; i++) {
+        if (!g_pkg_alias.vals[i]) continue;
+        alias_key k; memcpy(&k, g_pkg_alias.keys + (size_t)i * g_pkg_alias.klen, sizeof k);
+        if (k.pool != (uint64_t)(uintptr_t)pool) continue;
+        alias_key *nk = realloc(pks, (pn + 1) * sizeof *pks); if (!nk) break; pks = nk; pks[pn++] = k;
+    }
+    for (uint32_t j = 0; j < pn; j++) {
+        void *old = nvn_hm_del(&g_pkg_alias, &pks[j]);
+        if (old) defer_obj_release(CFBridgingRelease(old));
+    }
     pthread_mutex_unlock(&g_smu);
-    free(ks);
+    free(ks); free(pks);
     cpu_tex_drop_pool(pool);
     treg_drop_pool_views(pool);   // outside g_smu: the texture ID registry lock g_rmu is taken before g_smu
 }
@@ -3117,14 +3168,32 @@ static int gmem_all(void); static int bm_has(uint64_t lo);
 // A zero-copy buffer over [addr, addr + len) of a large pool for the open upload batch, which retires it with its staging; nil outside a large pool (or if it is refused: the caller looks the address up as usual).
 // The same for a texture in a pool the game took no buffer address in (texture_only set, see mtl_pool_buffer_addr): such a pool is in no pool table, and an upload must not wire it whole for good
 static id<MTLBuffer> up_big_src(uint64_t addr, uint64_t len, uint64_t *off, int texture_only) {
-    int in = texture_only; if (!in) { pthread_mutex_lock(&g_mu); in = big_of(addr) >= 0; pthread_mutex_unlock(&g_mu); }
-    if (!in || !len) return nil;
-    uintptr_t pg = (uintptr_t)getpagesize(), a = (uintptr_t)addr & ~(pg - 1), b = ((uintptr_t)addr + len + pg - 1) & ~(pg - 1);
-    nvn_dirty_require((const void *)a, b - a);
-    id<MTLBuffer> buf = [g_dev newBufferWithBytesNoCopy:(void *)a length:b - a options:MTLResourceStorageModeShared deallocator:nil];
+    if (!len || len > UINTPTR_MAX - addr) return nil;
+    uintptr_t pg = (uintptr_t)getpagesize(), a = addr & ~(pg - 1), b = (addr + len + pg - 1) & ~(pg - 1);
+    pthread_mutex_lock(&g_mu);
+    int bi = big_of(addr);
+    if (!texture_only && bi < 0) { pthread_mutex_unlock(&g_mu); return nil; }
+    if (bi >= 0 && addr + len > g_big[bi].hi) { pthread_mutex_unlock(&g_mu); return nil; }
+    // Texture-only pools need not be in g_big. Keep their exact page range.
+    if (stutter_on() && !dd_on() && bi >= 0) {
+        uintptr_t base = g_big[bi].a;
+        a = base + ((addr - base) & ~((uintptr_t)BIG_S - 1));
+        b = MIN(g_big[bi].b, base + ((addr + len - base + BIG_S - 1) & ~((uintptr_t)BIG_S - 1)));
+    }
+    NSValue *key = [NSValue valueWithRange:NSMakeRange(a, b - a)];
+    int cache = stutter_on() && !dd_on();   // dedupe must be able to release cold guest pages
+    id<MTLBuffer> buf = cache ? g_up_big_src[key] : nil;
+    if (!buf) {
+        nvn_dirty_require((const void *)a, b - a);
+        buf = [g_dev newBufferWithBytesNoCopy:(void *)a length:b - a options:MTLResourceStorageModeShared deallocator:nil];
+        if (buf) { res_add(buf); if (cache) { if (!g_up_big_src) g_up_big_src = [NSMutableDictionary dictionary]; g_up_big_src[key] = buf; } }
+    }
+    pthread_mutex_unlock(&g_mu);
     if (!buf) return nil;
-    res_add(buf); [g_up_keep addObject:buf]; *off = (uint64_t)addr - a;
-    return buf;
+    // Cached buffers have residency until pool deletion. Batch refs only retain them.
+    if (cache) { if (!g_up_views) g_up_views = [NSMutableArray array]; [g_up_views addObject:buf]; }
+    else [g_up_keep addObject:buf];
+    *off = addr - a; return buf;
 }
 static id<MTLTexture> pkg_upload_(const tex_t *t, uint64_t *stamp, id<MTLTexture> reuse, MTLTextureUsage keep) {
     MTLTextureDescriptor *d = tex_desc(t, 1);
@@ -3159,7 +3228,8 @@ static id<MTLTexture> pkg_upload_(const tex_t *t, uint64_t *stamp, id<MTLTexture
     id<MTLBuffer> upsrc = nil;
     int tex_only = t->pool && (dd_on() || (!gmem_all() && !bm_has((uint64_t)(uintptr_t)t->pool->mem)));
     if (!rb_shift && !sparse && g_nvn_deswz_gpu && (g_nbig || tex_only)) { up_begin(); upsrc = up_big_src((uint64_t)t->mem, t->L.size, &mo, tex_only); if (upsrc) mb = (__bridge void *)upsrc; }
-    int use_gpu = !rb_shift && !sparse && g_nvn_deswz_gpu && (upsrc || mtl_addr((uint64_t)t->mem, t->L.size, &mb, &mo));   // a sparse pool's texture is gathered through its page table on the CPU
+    int gathered = stutter_on() && sparse && !rb_shift && g_nvn_deswz_gpu;
+    int use_gpu = !rb_shift && g_nvn_deswz_gpu && (gathered || (!sparse && (upsrc || mtl_addr((uint64_t)t->mem, t->L.size, &mb, &mo))));
     if (g_nvn_deswz_gpu && !use_gpu && !sparse && !rb_shift) RED_ONCE(40, "swizzled texture storage is not in a memory pool; falling back to the CPU");
     if (use_gpu) {
         // The GPU reads the memory pool at execution time, which is closer to a real Switch than a snapshot at CPU upload time; the dirty-page stamp is still taken before encoding, and later writes still trigger a re-upload.
@@ -3182,7 +3252,13 @@ static id<MTLTexture> pkg_upload_(const tex_t *t, uint64_t *stamp, id<MTLTexture
         }
         size_t stg_off;
         id<MTLBuffer> stg = up_alloc(total ? total : 16, &stg_off);
-        if (upsrc) { uint64_t mo2; id<MTLBuffer> u2 = up_big_src((uint64_t)t->mem, t->L.size, &mo2, tex_only); if (u2) { upsrc = u2; mb = (__bridge void *)u2; mo = mo2; } }   // up_alloc may have flushed the batch that held the first one
+        if (gathered) {   // up_alloc may flush: gather into the batch that will read these pages.
+            upsrc = [g_dev newBufferWithLength:t->L.size ? t->L.size : 1 options:MTLResourceStorageModeShared];
+            if (!upsrc) MDIE("sparse upload source allocation failed");
+            nvn_sparse_copy(t->pool, upsrc.contents, (uint64_t)(uintptr_t)t->mem, t->L.size);
+            res_add(upsrc); [g_up_keep addObject:upsrc]; mb = (__bridge void *)upsrc; mo = 0;
+        }
+        else if (upsrc) { uint64_t mo2; id<MTLBuffer> u2 = up_big_src((uint64_t)t->mem, t->L.size, &mo2, tex_only); if (u2) { upsrc = u2; mb = (__bridge void *)u2; mo = mo2; } }   // up_alloc may have flushed the batch that held the first one
         size_t off = 0; int enc_ok = g_up_ce != nil, nb0 = g_nup_blits;
         for (unsigned l = 0; enc_ok && l < d.mipmapLevelCount; l++) {
             uint32_t w = MAX(t->d.width >> l, 1u), h = MAX(t->d.height >> l, 1u), z = t->d.target == 2 ? MAX(t->d.depth >> l, 1u) : 1;
@@ -3913,6 +3989,7 @@ static id<MTLTexture> image_texture(const tex_t *t, MTLTextureDescriptor *d) {
 // The host texture a texture already has, made and refreshed by nothing: for a texture whose storage is gone (a memory pool finalized, tex_mtl_ and tex_by_id). nil if it has none
 static id<MTLTexture> tex_made(const tex_t *t) {
     id have = tex_get(t->serial);
+
     if ([have isKindOfClass:[NvPkg class]]) { NvPkg *pk = have; return pk->view ? pk->view : pk->tex; }
     return have;
 }
@@ -3962,6 +4039,17 @@ static id<MTLTexture> tex_mtl_(const tex_t *ct) {
         }
     }
     id have = tex_get(t->serial);
+    pthread_mutex_lock(&g_smu); int is_live = t->serial >= (1ull << 62) || nvn_hm_get(&g_tex_live, &t->serial); pthread_mutex_unlock(&g_smu);
+    alias_key pk_ak = {0}; int pk_cache = stutter_on() && t->pool && t->mem && !(t->pool->flags & NVN_MEMORY_POOL_FLAGS_VIRTUAL);
+    if (pk_cache) {
+        pk_ak.pool = (uint64_t)(uintptr_t)t->pool; pk_ak.off = (int64_t)(uintptr_t)t->mem; pk_ak.d = t->d; pk_ak.d.flags &= ~NVN_TEXTURE_FLAGS_IMAGE;
+        if (!have) {
+            pthread_mutex_lock(&g_smu); NvPkg *cached = hm_get_id(&g_pkg_alias, &pk_ak); pthread_mutex_unlock(&g_smu);
+            if (cached) { if (!t->has_layout) mtl_tex_cpu_written(t); packaged = 1; have = cached;
+                if (is_live) tex_put(t->serial, cached); else g_stat_ghost_skip++; }
+        }
+    }
+
     if (!packaged && !have && DM_GAME_TEX_DIRTY_UPLOAD && t->mem && on_sub_thread()) { int nvn_ft_written(const tex_t *); packaged = nvn_ft_written(t); }   // first use of a texture the CPU wrote since init without a flush (hle_nvn.c)
     if (!packaged && !have && on_sub_thread() && tex_cpu_content(t)) { mtl_tex_cpu_written(t); packaged = 1; }   // storage the CPU wrote before its first use (tex_cpu_content)
     if (packaged) {
@@ -4008,7 +4096,8 @@ static id<MTLTexture> tex_mtl_(const tex_t *ct) {
         pkg_edges_take(pk, t); dd_note(pk, t);
         if (pk->sparse) sparse_view(pk, t);
         zb_report(t, pk->sparse ? (unsigned)pk->vbase : 0, "upload");
-        tex_put(t->serial, pk);
+        if (pk_cache && !pk->sparse && !pk->ps) { pthread_mutex_lock(&g_smu); pkg_alias_put(&pk_ak, pk); pthread_mutex_unlock(&g_smu); }
+        if (!pk_cache || is_live) tex_put(t->serial, pk); else g_stat_ghost_skip++;
         return pk->view ? pk->view : pk->tex;
     }
     int stale = 0;
@@ -4158,8 +4247,25 @@ void mtl_tex_release(tex_t *t) {
     void *pool = nvn_hm_del(&g_cpu_tex, &t->serial);
     if (pool && t->pool && t->mem) nvn_hm_put(&g_cpu_tex_retired, &t->serial, pool);
     pthread_mutex_unlock(&g_cpu_tex_mu);
+    int pkg_saved = 0;
+    if (stutter_on() && was_live && t->pool && t->mem && !(t->pool->flags & NVN_MEMORY_POOL_FLAGS_VIRTUAL)) {
+        id cur = hm_get_id(&g_by_serial, &t->serial);
+        if ([cur isKindOfClass:[NvPkg class]]) {
+            NvPkg *pk = cur;
+            if (!pk->sparse && !pk->ps) {
+                alias_key pk_ak; memset(&pk_ak, 0, sizeof pk_ak);
+                pk_ak.pool = (uint64_t)(uintptr_t)t->pool; pk_ak.off = (int64_t)(uintptr_t)t->mem; pk_ak.d = t->d; pk_ak.d.flags &= ~NVN_TEXTURE_FLAGS_IMAGE;
+                pkg_alias_put(&pk_ak, pk);
+                defer_obj_unref(pk);
+                held_add((__bridge void *)pk, -1);
+                hm_del_id(&g_by_serial, &t->serial);
+                ser_note(t->serial);
+                pkg_saved = 1;
+            }
+        }
+    }
     pthread_mutex_unlock(&g_smu);
-    serial_del(t->serial);
+    if (!pkg_saved) serial_del(t->serial);
     mtl_vc_drop(t->serial);
     // Only the first release of a serial retires its descriptors. NVNtexture is plain data: Breath of the Wild copies texture objects and finalizes each copy
     // (about 100 a frame), so the same serial came back here again and again while its descriptor list grew (5,900 IDs registered with one serial); each walk
@@ -5327,12 +5433,14 @@ void mtl_set_depth_zero(int on) {
 // specialized with, not an MTLFunction, so every function made from a library is noted here as it is made. A function with no note (the diagnostic fragment overrides
 // DM_NVN_HILITE and DM_NVN_MAGSCAN) keeps the MTLDevice path
 static os_unfair_lock g_fn4_lock = OS_UNFAIR_LOCK_INIT;
-static NSMapTable *g_fn4;   // id<MTLFunction> → MTL4FunctionDescriptor
+static NSMapTable *g_fn4;   // function → descriptor, or portable [library, entry] for task/mesh
 static id<MTLFunction> fn4_note(id<MTLFunction> f, id<MTLLibrary> lib, NSString *name, MTLFunctionConstantValues *cv) {
     if (!f || !lib || !name) return f;
-    MTL4LibraryFunctionDescriptor *ld = [MTL4LibraryFunctionDescriptor new]; ld.library = lib; ld.name = name;
-    MTL4FunctionDescriptor *d = ld;
-    if (cv) { MTL4SpecializedFunctionDescriptor *sd = [MTL4SpecializedFunctionDescriptor new]; sd.functionDescriptor = ld; sd.constantValues = cv; d = sd; }
+    int mesh = f.functionType == MTLFunctionTypeMesh || f.functionType == MTLFunctionTypeObject;
+    id d = nil;
+    if (mesh) d = @[lib.label ?: @"", name];
+    else { MTL4LibraryFunctionDescriptor *ld = [MTL4LibraryFunctionDescriptor new]; ld.library = lib; ld.name = name; d = ld; }
+    if (cv && !mesh) { MTL4SpecializedFunctionDescriptor *sd = [MTL4SpecializedFunctionDescriptor new]; sd.functionDescriptor = d; sd.constantValues = cv; d = sd; }
     os_unfair_lock_lock(&g_fn4_lock);
     if (!g_fn4) g_fn4 = [[NSMapTable alloc] initWithKeyOptions:NSPointerFunctionsStrongMemory | NSPointerFunctionsObjectPointerPersonality valueOptions:NSPointerFunctionsStrongMemory capacity:0];   // by identity: a function made again from the same library and name (other constants: bf_fn) is another function
     [g_fn4 setObject:d forKey:f];
@@ -5342,7 +5450,7 @@ static id<MTLFunction> fn4_note(id<MTLFunction> f, id<MTLLibrary> lib, NSString 
 static MTL4FunctionDescriptor *fn4_of(id<MTLFunction> f) {
     if (!f) return nil;
     os_unfair_lock_lock(&g_fn4_lock); MTL4FunctionDescriptor *d = [g_fn4 objectForKey:f]; os_unfair_lock_unlock(&g_fn4_lock);
-    return d;
+    return [d isKindOfClass:MTL4FunctionDescriptor.class] ? d : nil;
 }
 static id<MTLFunction> aot_function(id<MTLLibrary> lib, NSString *name) {
     id<MTLFunction> f = [lib newFunctionWithName:name]; return dm_aot_on() ? fn4_note(f, lib, name, nil) : f;
@@ -7947,7 +8055,26 @@ static id<MTLRenderPipelineState> pso_build_ex(MTLRenderPipelineDescriptor *d, N
     }
     if (!rast) return base;   // NOLINT(clang-analyzer-osx.cocoa.RetainCount): job stays in g_pbase_pending (hm_put_id's CFBridgingRetain) until hm_rel releases it, not a leak
     uint64_t ts = bp_now();
-    MTL4RenderPipelineDescriptor *s = (MTL4RenderPipelineDescriptor *)[base newRenderPipelineDescriptorForSpecialization];
+    MTL4PipelineDescriptor *special = [base newRenderPipelineDescriptorForSpecialization];
+    if ([special isKindOfClass:MTL4MeshRenderPipelineDescriptor.class] || ![(MTL4RenderPipelineDescriptor *)special vertexFunctionDescriptor]) {
+        // A mesh base cannot be specialized through a vertex pipeline descriptor.
+        int match = 1;
+        for (int i = 0; i < 8; i++) {
+            MTL4RenderPipelineColorAttachmentDescriptor *c = [special isKindOfClass:MTL4MeshRenderPipelineDescriptor.class]
+                ? ((MTL4MeshRenderPipelineDescriptor *)special).colorAttachments[i] : ((MTL4RenderPipelineDescriptor *)special).colorAttachments[i];
+            MTL4RenderPipelineColorAttachmentDescriptor *want = [MTL4RenderPipelineColorAttachmentDescriptor new]; pso_col4(want, d.colorAttachments[i]);
+            if (c.pixelFormat != want.pixelFormat || c.writeMask != want.writeMask || c.blendingState != want.blendingState
+                || c.sourceRGBBlendFactor != want.sourceRGBBlendFactor || c.destinationRGBBlendFactor != want.destinationRGBBlendFactor
+                || c.sourceAlphaBlendFactor != want.sourceAlphaBlendFactor || c.destinationAlphaBlendFactor != want.destinationAlphaBlendFactor
+                || c.rgbBlendOperation != want.rgbBlendOperation || c.alphaBlendOperation != want.alphaBlendOperation) match = 0;
+        }
+        if (match) return base;
+        if (!compile) return nil;
+        MTL4RenderPipelineDescriptor *whole = pso_desc4(d, 0);
+        int vd = 0; for (int i = 0; i < 31; i++) vd |= bk.va[i][0] != 0;
+        return whole ? arch_capture(whole, e, vd) : pso_build_dev(d, e);
+    }
+    MTL4RenderPipelineDescriptor *s = (id)special;
     for (int i = 0; i < 8; i++) pso_col4(s.colorAttachments[i], d.colorAttachments[i]);
     dm_aot_event("render-specialization", d.description, "base specialization", 1);
     id<MTLRenderPipelineState> ps = [g_comp4 newRenderPipelineStateBySpecializationWithDescriptor:s pipeline:base error:e];
@@ -8186,7 +8313,7 @@ static NSDictionary<NSString *, NSString *> *pre_fail_load(NSString *path, NSStr
     *other = 1; return @{};
 }
 static MTL4FunctionDescriptor *pre_fn(id<MTLLibrary> lib, NSString *name) {   // as shader_load notes them (fn4_note): constants specialized with an empty set
-    id<MTLFunction> f = aot_function(lib, name); if (!f) return nil;
+    id<MTLFunction> f = aot_function(lib, name); if (!f || f.functionType == MTLFunctionTypeMesh || f.functionType == MTLFunctionTypeObject) return nil;
     MTL4LibraryFunctionDescriptor *ld = [MTL4LibraryFunctionDescriptor new]; ld.library = lib; ld.name = name;
     if (!f.functionConstantsDictionary.count) return ld;
     MTL4SpecializedFunctionDescriptor *sd = [MTL4SpecializedFunctionDescriptor new]; sd.functionDescriptor = ld; sd.constantValues = [MTLFunctionConstantValues new]; return sd;
@@ -8195,7 +8322,7 @@ static NSDictionary *pre_json(NSString *key) { NSData *d = msl_data([NSString st
 // The base of one pair as the draws make it (pso_desc_pull / pso_desc), or nil when the pair is left to the draws. Call inside an autorelease pool
 static MTL4RenderPipelineDescriptor *pre_desc(NSString *vk, NSString *fk, int zero) {
     NSDictionary *vj = pre_json(vk), *fj = pre_json(fk);
-    if (!vj || !fj || ![vj[@"chain"] isEqual:@DMSH_CHAIN] || ![fj[@"chain"] isEqual:@DMSH_CHAIN]) return nil;
+    if (vj[@"mesh_stage"] || !vj || !fj || ![vj[@"chain"] isEqual:@DMSH_CHAIN] || ![fj[@"chain"] isEqual:@DMSH_CHAIN]) return nil;
     NSString *ventry = zero && vj[@"entry_z"] ? vj[@"entry_z"] : vj[@"entry"], *fentry = fj[@"entry"] ?: @"main0";
     int pull = [vj[@"pull"] isKindOfClass:[NSDictionary class]];
     if (!pull && [vj[@"vertex_inputs"] count]) return nil;   // stage inputs and no pulling library: its pipelines need the draw's layout

@@ -9,7 +9,7 @@ Upstream source is PR #1444 at `e03bdc8f`, including `d3b79f38` and `37520e4b`.
 
 - `DMSH_OOT_VISUAL=1` enables the new BarrierExits, threadgroup store fences,
   loop guard, point mesh topology/point size, mesh padding, mesh/pixel pair
-  extraction, and offline vertex-descriptor exclusion of mesh shaders. The
+  extraction, and the NDSR descriptor walk. The integrated stutter lane excludes mesh shaders from ordinary vertex descriptors unconditionally as a type-safety fix. The
   existing SULD, strict F2IP, task-payload readback, float CAS, and LDSM gates
   remain. VOTEU and guarded-handle tracing are on by default, explicitly
   requested exceptions to the shared context's default-off policy.
@@ -46,7 +46,7 @@ Upstream source is PR #1444 at `e03bdc8f`, including `d3b79f38` and `37520e4b`.
   Padding initializes both mesh depth entries with (0,0,0,1).
 - Preserve pso_offline.py's romfs/shader_lib packed input support, AOT handling,
   bounded extraction, and refused-descriptor isolation. Only add upstream's
-  mesh reflection exclusion, gated. Do not take upstream's unrelated packed
+  mesh reflection exclusion; the integrated stutter lane applies it unconditionally. Do not take upstream's unrelated packed
   support removals or missing write_script calls.
 - ixc.metal's dispatch/mesh clamps require host-side consumers and are left to
   the renderer lane. dmsh_abi.h's upstream diff is an obsolete fixed-table
