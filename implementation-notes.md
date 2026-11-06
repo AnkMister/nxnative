@@ -373,3 +373,32 @@ Final pack inspection found the Mac packer's file allow-list omitted the AOT
 inventory and preflight/refusal JSON. DM_AOT=1 now includes those files in both
 copy selection and the pack reuse fingerprint. A real-packer fixture verifies
 packing, default-off selection, and repacking after each JSON changes.
+
+
+## Final oot-play handoff
+
+Merged final oot-play-fixes 94c64008, including accepted descriptor counts and
+Mac packing of the AOT inventory, preflight and refusal audit. File selection
+also fingerprints those reports so cached packs cannot keep stale inventory.
+No translator or chain source changed after the one source publish.
+
+Full tools discovery passes 1,383 tests with ten skips. Graphics Python passes
+420 tests with two skips, with the local translator, Metal and GPU enabled.
+All 134 native graphics targets pass, plus four pull and five budget checks.
+The full native host tests, 5,344 texture checks and host compile/link pass.
+Lock, header, 435 fingerprints, required ancestry and added user-path scans pass.
+Optional lint retains 28 findings above baseline in five inherited files; no
+baseline was weakened. Build warnings and initial failed runs remain evidence.
+
+Updated the fork README and play/default/verification notes. Mesh layout,
+gameplay, display colour and zero play compiler entries remain open gates.
+PR 1444 is pinned as a later source comparison and is not integrated here.
+Adoption requires full shader and archive rebuilding, then the matching host.
+The external oot-play report provides the exact next command and environment.
+
+Retained build and evidence roots because process working directories remained
+open in this checkout. No retained build/evidence roots or other agents' files
+were removed. Drivers export the approved TMPDIR; upstream plain BSD mktemp
+fixtures use system temporary roots despite that setting and remove them with
+their existing cleanup traps. An empty probe directory was removed with rmdir.
+No game, full shader build, settings write, push or remote branch change ran.

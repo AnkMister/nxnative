@@ -16,9 +16,9 @@ host. A host rebuild alone will reject the old library stamp.
 
 ## Split, rewrite and shader-build environment
 
-**No runtime shader compilation. Everything is ahead of time; lazy shaders
-stay off.** Build the entire shader map, with `SEEN_SHADERS=False` /
-`--no-seen-shaders`; do not enable any future lazy-shader option.
+**Build the entire shader map ahead of time. Lazy shaders stay off.** Use
+`SEEN_SHADERS=False` / `--no-seen-shaders`. Zero compiler entries during play
+remain an acceptance requirement that this branch has not proved.
 
 Use an independent writable game build/output root on the NSP drive. Use this
 branch's bundled translator and matching tool lock, not a PR-shipped binary.

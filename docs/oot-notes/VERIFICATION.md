@@ -1,3 +1,48 @@
+# oot-play verification
+
+The combined source includes final `oot-play-fixes` at `94c64008`. The selected
+play settings are in [PLAY-BUILD](PLAY-BUILD.md). The entries below supersede
+the earlier variant results for this branch.
+
+| Check | Result |
+| --- | --- |
+| Full tools discovery | PASS: 1,383 tests, 10 skips |
+| Full graphics Python discovery | PASS: 420 tests, 2 skips |
+| Native graphics run | PASS: 134 targets, plus four pull and five TBDR-budget tests |
+| Native host tests | PASS |
+| Native texture tests | PASS: 5,344 checks, zero sRGB violations |
+| Ocarina host compile and link | PASS |
+| Lock, header and source/distribution fingerprints | PASS: 435 matching fingerprints |
+| Default chain | `e16dbb187984` |
+| Play chain, visual translation on and tensor off | `4323760be52f` |
+
+Graphics Python checks enable the source-built translator, Metal, GPU execution
+and native geometry, PrimitiveID, transform-feedback and border helpers. The AOT
+fixture tests real archive/prewarm requests for SDR and HDR present pipelines.
+The direct common-encoder HDR fixture preserves MetalFX for original sRGB inputs
+with both HDR destinations and counts scaler creation. Idle-retirement lifetime
+and stalled-watchdog checks pass with the option off for play.
+
+The translator was published once from source using 57 cooled, audited NuGet
+versions. SPIRV-Cross was built from pinned source. Generated conflicts were
+rebuilt. No PR-shipped translator binary was executed. Heavy steps used nice 19,
+with at most four native make jobs and two source-build jobs.
+
+Optional Python lint still reports 28 new-to-baseline findings in five inherited
+Ocarina analysis/test files that are byte-identical to oot-1439. The baseline
+was not weakened. Required test groups pass; builds retain compiler warnings.
+
+The existing package uses chain `992d6981956f`. A full shader and archive rebuild
+is required before the matching host can use oot-play. Gameplay, display colour,
+indirect-mesh layout and zero compiler entries during play remain open gates.
+Strict AOT reports misses and still compiles them to preserve geometry. No game,
+full shader build, user settings write, push or remote default-branch change ran.
+
+Evidence, exact commands and the next full-build environment are in the external
+oot-play report and oot-play-evidence folder. Retained build and evidence roots
+were not removed because process working directories remained open in this
+checkout. Earlier failed attempts and corrected reruns are preserved.
+
 # Integrated verification
 
 Both final source variants pass. oot-hyper-main is selected as the basis for the

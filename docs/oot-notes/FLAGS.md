@@ -194,7 +194,7 @@ unknown implementations. Crop, colour and all quality cases run with validation.
 | `DM_NVN_GMEM_ALL=1` | Off | Exposes all raw pools and increases residency pressure; leave off | Diagnostic comparison against address-mark filtering | oot-stable, #1394 |
 | `DM_TEST_GPU_HANG` | Off | Fault injection stops safe-mode process; never set for play | Synthetic callback/diagnostic test only, no real GPU hang required | oot-stable, #1382 |
 | `DM_FAST_CLOCK=1` (module rewrite) | Off; exact `1` enables | Counter frequency/epoch, pause, capture and fallback semantics need gameplay acceptance | Branch microbenchmark 22.6 to 8.8 ns per read, 45 SDK sites; not integrated gameplay gain | oot-clock |
-| `SEEN_SHADERS`, `--seen-shaders` | Off; require `False` / `--no-seen-shaders` for play | Partial maps omit geometry/effects; not acceptable for the user | No runtime shader compilation: full offline shader corpus required; lazy shaders stay off | Existing packer, user play-build rule |
+| `SEEN_SHADERS`, `--seen-shaders` | Off; require `False` / `--no-seen-shaders` for play | Partial maps omit geometry/effects; not acceptable for the user | Full offline shader corpus required; lazy shaders stay off; zero play compiler entries remain unproven | Existing packer, user play-build rule |
 | `DM_HDR=1` | Off, including play | HDR display and colours need gameplay validation | Optional guest HDR output | oot-hdr, #1176 |
 | `DM_CLOCK_STATS=1` | Off | Diagnostic overhead; forces full clock gate and disables fast entry | Counts physical, virtual and frequency reads per thread; no speedup | oot-clock |
 | `DM_REWRITE_J` | Existing rewrite worker policy | Build resource use only | Set `4` at most for a re-rewrite; no visual gain | oot-clock, existing build input |

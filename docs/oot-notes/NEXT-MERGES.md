@@ -6,7 +6,7 @@
 | --- | --- |
 | `oot-1439`, `575f834e` | The reviewed `oot-hyper-main` stack, review 3 fixes and serial-held lookup from #1439. |
 | `origin/main`, `c83c48f2` | Includes present crop `2202d610` and cube-array texture fitting. |
-| `oot-play-fixes`, `71b8bec4` | Regenerated inputs, offline archive parallelism and refusal isolation. The final head is merged after the other inputs. |
+| `oot-play-fixes`, `94c64008` | Regenerated inputs, offline archive parallelism, refusal isolation and packed AOT inventory/audits. The final head is merged after the other inputs. |
 | `oot-brent2`, `0a0dfeca` | Depth feedback, raw commit words, live shared textures, tensor HMMA, diagnostics and NDSR keys. |
 | `ankmister/oot-brent2-cloud`, `cd2d7b89` | Unique #1434, #1332, #1417 and #1428 ports, plus corrected disabled-hook accounting. |
 | `ankmister/oot-brent2-movie`, `b6d5f6c4` | Optional parallel AV1 decoding and movie clock, with cloud reset/finalize serialization follow-up. |
@@ -31,3 +31,13 @@ resolution override and the remaining performance experiments off.
 The [play recipe](PLAY-BUILD.md) is the source for recommended settings.
 Future AOT changes must preserve final render state, packed-library loading and
 visible geometry. No lazy shader path is selected.
+
+## Follow-up candidate, PR #1444
+
+[PR #1444](https://github.com/seedds/nxnative/pull/1444), pinned at `e03bdc8f`,
+is not integrated. Its actual mesh/fragment variation pairs and point-topology
+support merit comparison with the current inference and triangle path. Texture
+view/heap ownership and cached large-pool uploads are other candidates. Several
+changes overlap this stack. The author's M5 Pro gameplay claims are not M4 Max
+or oot-play validation. Port only unique reviewed source changes in a later
+shader-chain revision, with image acceptance and a source translator rebuild.
