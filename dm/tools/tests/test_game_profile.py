@@ -40,6 +40,21 @@ class PsoGPU(unittest.TestCase):
             self.assertIn(': pso_gpu takes 1-4 whitespace-separated GPU architectures', out, rows)
 
 
+class SafeGPU(unittest.TestCase):
+    def test_profile_default_and_validation(self):
+        for rows, expected in (('', 0), ('safe_gpu\ton\n', 1), ('safe_gpu\toff\n', 0)):
+            with self.subTest(rows=rows), tempfile.TemporaryDirectory() as d:
+                Path(d, ID).mkdir()
+                (Path(d, ID) / 'game.tsv').write_text(TSV + rows)
+                dest = Path(d, 'game.h')
+                r = subprocess.run([sys.executable, str(GAME), 'header', ID, str(dest)], env={**os.environ, 'DM_GAMES_DIR': d}, capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertIn(f'#define DM_GAME_SAFE_GPU {expected}\n', dest.read_text())
+        rc, out = header('safe_gpu\tbad\n')
+        self.assertNotEqual(rc, 0)
+        self.assertIn('safe_gpu must be on or off', out)
+
+
 
 MAP = ('# kind: evidence  Test shaders\n# column 5 records where each key first appears\npackage\tindex\tstage\tdm_ctl_sha16\tsource\n'
        'cs_other.bin\t1\tcompute\tc56db3d5a0f1b5af\t/Lib/agl/agl_resource.Nin_Ounce_NVN2.release.sarc.zs/agl_ndsr.pck#NDSR@0x124900\n'
@@ -65,6 +80,23 @@ class UpscalerKeys(unittest.TestCase):
         self.assertEqual(macros(None), none)
         self.assertEqual(macros(MAP.split('cs_other.bin')[0]), none)
         self.assertEqual(macros(MAP), ['#define DM_GAME_UPSCALER_KEYS "7629d857a0a93833,c56db3d5a0f1b5af"', '#define DM_GAME_UPSCALER_N 2'])
+
+    def test_vr_and_movie_ndsr_are_not_the_scene_upscaler(self):
+        other = ('cs_other.bin\t6\tcompute\t1111111111111111\t/Lib/agl/agl_ndsr_vr.pck#NDSR@0x40\n'
+                 'cs_other.bin\t7\tcompute\t2222222222222222\t/Lib/agl/agl_ndsr_vr_light.pck#NDSR@0x40\n'
+                 'cs_movie.bin\t0\tcompute\t3333333333333333\t/Movie/Ndve/Ndve-Nvn2-vid_seq5.dat.zs#NDVE#NDSR@0x40\n')
+        self.assertEqual(macros(MAP + other), ['#define DM_GAME_UPSCALER_KEYS "7629d857a0a93833,c56db3d5a0f1b5af"', '#define DM_GAME_UPSCALER_N 2'])
+
+    def test_ocarina_header_from_real_profile(self):
+        expected = sorted('abef20ad0d9a9b12 725bcf5c3f4bb3f3 e9213c7fba8ccf93 87bdc29ac7ce9adb aa1243f635baa8e8 54c6b94ddf539d9f '
+                          '1de2a54f4b81e4e0 18f53257e4a46245 3fe6b091bb8c40ce e16733ed9a14fc7a fdeb898427db8562 a326e7353ec81e2c '
+                          '4acef5afefba098b c78798281d3519c1 37121447f861a7d3 add52a00627e7e84 fb5038f1befcd03b fbe679b956a85e1f '
+                          '196dfe02185a7518 0253bd17deceee79 028bd0b187f7342c f54f031dbc6f65f5'.split())
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d, 'game.h')
+            subprocess.run([sys.executable, str(GAME), 'header', str(REPO / 'dm/games/0400486024DEC000'), str(out)], check=True, capture_output=True)
+            self.assertEqual([line for line in out.read_text().splitlines() if 'UPSCALER' in line],
+                             [f'#define DM_GAME_UPSCALER_KEYS "{",".join(expected)}"', '#define DM_GAME_UPSCALER_N 22'])
 
 
 if __name__ == '__main__':

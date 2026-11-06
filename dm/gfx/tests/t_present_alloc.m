@@ -75,6 +75,7 @@ static int bad_pixels(id<MTLTexture> t, uint8_t left, uint8_t right) {
 int main(void) { @autoreleasepool {
     alarm(30); setbuf(stdout, NULL);
     setenv("DM_PRESENT_HZ", "0", 1);
+    setenv("DM_PRESENT_ABSOLUTE", "1", 1);
     mtl_init();
     g_test_layer = offscreen_layer(); g_layers = [NSMutableArray new];
     // Display-link mode without a link thread: link_sync sees a started link that is not there yet, the present thread leaves the queue to the callback
@@ -109,5 +110,14 @@ int main(void) { @autoreleasepool {
     CHECK("no frame dropped after ticket 2", g_link_dropped == 1);
     bad = bad_pixels(fifth.texture, 50, 150); printf("ticket 5 drawable: %d of 64 pixels wrong\n", bad);
     CHECK("ticket 5 shows its own picture", bad == 0);
+    for (uint64_t ticket = 9; ticket <= 11; ticket++) {
+        CHECK("absolute direct present submits", present_now(&a, 1. / 30, ticket, ticket, NULL, drawable(), 0, atomic_load(&g_eco_work), 1));
+        pthread_mutex_lock(&g_pq_mu);
+        struct timespec deadline; clock_gettime(CLOCK_REALTIME, &deadline); deadline.tv_sec += 5;
+        while (g_present_alloc_done[ticket % 3] < ticket && pthread_cond_timedwait(&g_pq_cv, &g_pq_mu, &deadline) != ETIMEDOUT) {}
+        int done = g_present_alloc_done[ticket % 3] == ticket;
+        pthread_mutex_unlock(&g_pq_mu);
+        CHECK("absolute direct present completes", done);
+    }
     printf("present allocators: %d checks, %d failed\n", checks, failed); return failed != 0;
 } }

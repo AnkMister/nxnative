@@ -52,6 +52,7 @@ typedef struct {
 static aout *g_aos[AOMAX];
 static pthread_mutex_t g_aos_lock = PTHREAD_MUTEX_INITIALIZER;
 static int g_suspended;
+static _Atomic int g_paused;
 static aout *ao(const void *g) { aout *a = objmap_get(g); if (!a) die("AudioOut %p was not created by the host", g); return a; }
 // the call site as "module+offset"; "host" when the host itself calls (in-process audio renderer)
 static const char *site(void *lr, char *buf, size_t n) {
@@ -92,6 +93,7 @@ static void *event_notify(void *p) {
 
 // Take n bytes from the pending queue and hand them to the output side; once a whole block has played, move it to released and notify the ordinary thread.
 static void pull(aout *a, uint8_t *dst, uint64_t n) {
+    if (atomic_load(&g_paused)) { memset(dst, 0, n); return; }
     int released = 0;
     int16_t *s16 = (int16_t *)dst; uint64_t ns = n / 2;
     uint32_t qh = atomic_load_explicit(&a->q_head, memory_order_relaxed);
@@ -266,7 +268,7 @@ static void *null_sink(void *p) {
     return NULL;
 }
 // Backend changes; callers hold g_aos_lock. pull() takes no lock, so joining a sink under it cannot deadlock
-static void null_start(aout *a) { atomic_store_explicit(&a->hold_device, 1, memory_order_release); atomic_store_explicit(&a->null_run, 1, memory_order_release); pthread_create(&a->null_th, NULL, null_sink, a); a->backend = BK_NULL; }
+static void null_start(aout *a) { if (atomic_load(&g_paused)) return; atomic_store_explicit(&a->hold_device, 1, memory_order_release); atomic_store_explicit(&a->null_run, 1, memory_order_release); pthread_create(&a->null_th, NULL, null_sink, a); a->backend = BK_NULL; }
 static void null_stop(aout *a) { atomic_store_explicit(&a->null_run, 0, memory_order_release); pthread_join(a->null_th, NULL); a->backend = BK_NONE; }
 static void au_halt(aout *a) {
     if (a->start_phase == AU_STARTING) a->start_phase = AU_CANCELED;
@@ -321,7 +323,7 @@ static void au_start_device(void *p) {
     pthread_mutex_unlock(&g_aos_lock);
 }
 static void au_request_start(aout *a) {
-    if (!a->au || g_suspended || a->start_phase != AU_IDLE) return;
+    if (!a->au || g_suspended || atomic_load(&g_paused) || a->start_phase != AU_IDLE) return;
     a->start_phase = AU_STARTING;
     dispatch_async_f(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), a, au_start_device);
 }
@@ -359,7 +361,7 @@ static void *au_watchdog(void *p) {
         pthread_mutex_lock(&g_aos_lock);
         uint64_t t = now_ns(), gap = t - last; last = t;
         for (int i = 0; i < AOMAX; i++) {
-            aout *a = g_aos[i]; if (!a || !a->au) continue;
+            aout *a = g_aos[i]; if (!a || !a->au || atomic_load(&g_paused)) continue;
             uint64_t n = atomic_load_explicit(&a->cb_n, memory_order_relaxed);
             if (a->start_phase == AU_WAIT_CALLBACK) {
                 if (n != a->wd_n) {
@@ -564,6 +566,8 @@ HLE_FORCE("_ZN2nn5audio25GetReleasedAudioOutBufferEPNS0_8AudioOutE", "get a play
 // No device is listed and an open fails, so the calls that need an open AudioIn are never reached; they still answer without touching the guest object, in case a game ignores the open's result.
 // The buffer descriptor functions (SetAudioInBufferInfo, GetAudioInBufferDataPointer / Size) only fill and read the game's own struct and run in the sdk
 HLE_FORCE("_ZN2nn5audio12ListAudioInsEPNS0_11AudioInInfoEi", "audio input device list; the host has no microphone: 0 entries", int, h_ai_List, void *info, int n) { (void)info; (void)n; return 0; }
+// SDK 22's virtual input devices (the Switch 2's microphone routing, listed through auddmg:u, which The Legend of Zelda: Ocarina of Time (0400486024DEC000) lists at boot) are
+// answered with the SDK 21 input streams below (h_is_List): one forced takeover entry per symbol, the loader refuses duplicates
 static Result ai_open(const char *name, void *lr) {
     static _Atomic int once; char sb[64];
     if (!atomic_exchange(&once, 1)) LOG("audio input %s: the host has no microphone, the open fails (call site %s)", name ? name : "(default)", site(lr, sb, sizeof sb));
@@ -724,6 +728,25 @@ void dm_pcmout_start(void *k) { au_start_at(k, NULL); }
 void dm_pcmout_close(void *k) { au_close(k, NULL); free(k); }   // stop, take it out of the registry (frees its AOMAX slot), free it and its key
 int dm_pcmout_append(void *k, void *b) { return (int)h_au_Append(k, b); }
 void *dm_pcmout_released(void *k) { return h_au_Released(k); }
+
+// Clock pause differs from background mute: stop both consumers, preserving the
+// pending queue, partial-buffer offset and release queue. Backend joins/stops
+// finish before the caller freezes guest time. Late callbacks only emit silence.
+void dm_audio_pause(int on) {
+    pthread_mutex_lock(&g_aos_lock);
+    if (atomic_exchange(&g_paused, !!on) != !!on) {
+        for (int i = 0; i < AOMAX; i++) {
+            aout *a = g_aos[i]; if (!a) continue;
+            if (on) {
+                au_halt(a);
+                if (a->backend == BK_NULL) null_stop(a);
+            } else if (atomic_load(&a->state) == STATE_STARTED) {
+                null_start(a); au_request_start(a);
+            }
+        }
+    }
+    pthread_mutex_unlock(&g_aos_lock);
+}
 
 // Front-end lifecycle / audio session interruption: suspend real audio output, with the silent sink taking over real-time consumption meanwhile (pacing unbroken); switch back to the AudioUnit on resume.
 // The front end calls with 1 on going to background / interruption began, and with 0 on returning to foreground / interruption ended (shouldResume).

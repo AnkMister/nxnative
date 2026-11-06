@@ -275,6 +275,11 @@ static void tile_case(const char *dir) {
     fb_prepare(pr);
     CHECK(g_enc == first && g_fb_n == 0 && g_fb_count == copies + 1 && g_fb_tseq == g_draw_seq && g_fb_tfn && g_fb_tile_draws == tiles + 1 && g_fb_tdesc.fbmask == 1 && g_fb_tdesc.fx[0] == 0,
           "after a barrier the draw reads the tile: no snapshot, the pass stays open");
+    {   // bf_fn's numeric memo: the same shader, redirections, mask and map give the function the draw got; another mask is another specialization, not the remembered one
+        int fx[32] = {0}; for (int i = 0; i < 32; i++) fx[i] = g_fb_tdesc.fx[i]; uint8_t lm[8]; memcpy(lm, g_fb_tlmap, 8);
+        id<MTLFunction> a = bf_fn(fs, fx, g_fb_tdesc.fbmask, lm), b = bf_fn(fs, fx, g_fb_tdesc.fbmask, lm), c = bf_fn(fs, fx, (uint8_t)(g_fb_tdesc.fbmask | 2), lm);
+        CHECK(a && a == g_fb_tfn && b == a && c != a, "the readable-tile function is remembered by its numbers, and a different attachment mask is not taken for it");
+    }
     g_pso_lmap = g_fb_tlmap; g_pso_fsfn = g_fb_tfn; g_pso_fz = g_fb_tdesc;
     id<MTLRenderPipelineState> ps = pso_get(pr, nil);
     g_pso_lmap = NULL; g_pso_fsfn = nil; memset(&g_pso_fz, 0, sizeof g_pso_fz);
@@ -411,6 +416,15 @@ static void shape_case(void) {
     CHECK(a2 == a && !fresh, "the live snapshot is reused until the next barrier");
     for (int i = 0; i < 8; i++) { g_fbc[i] = (fb_cache_t){0}; } g_fbc_use = 0;
 }
+static void memo_baseline_case(id<MTLFunction> sentinel) {
+    NvShader *sh = [NvShader new]; strcpy(sh->key, "eeeeeeeeeeeeeeee_b");
+    int fx[32] = {0}; uint8_t lm[8] = {0,1,2,3,4,5,6,7};
+    uint64_t h = bf_hash(sh, fx, 0, 0, lm); bf_memo *m = &g_bf_memo[h & 1023];
+    *m = (bf_memo){.fs = sh, .fn = sentinel, .h = h}; memcpy(m->lmap, lm, 8);
+    const char *e = getenv("DM_NVN_FEEDBACK_MEMO"); int enabled = e && !strcmp(e, "1");
+    CHECK(bf_fn(sh, fx, 0, lm) == (enabled ? sentinel : nil), "numeric memo is strictly opt-in; default uses original lookup");
+    memset(m, 0, sizeof *m);
+}
 int main(int argc, char **argv) { @autoreleasepool {
     setenv("DM_NVN_TBDR", "0", 1);
     mtl_init(); NSError *error = nil;
@@ -433,6 +447,7 @@ int main(int argc, char **argv) { @autoreleasepool {
     id<MTLRenderPipelineState> pipeline = [g_dev newRenderPipelineStateWithDescriptor:d error:&error];
     CHECK(pipeline != nil, "synthetic render pipeline compiles");
     if (!pipeline) { fprintf(stderr, "%s\n", error.localizedDescription.UTF8String); return 1; }
+    memo_baseline_case(fs->fn);
     const int slots[] = {0, 128, 255};
     for (int i = 0; i < 3; i++) slot_case(pr, pipeline, slots[i], i);
     reuse_case(pr);

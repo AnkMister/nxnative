@@ -2,6 +2,15 @@
 
 Frame pacing: the host's frame step, engine frame limiters, present intervals and display rates. Each entry: symptom, cause, fix, the games it was found on. The [symptom index](../agents/symptoms.md) lists every symptom.
 
+## Opt-in idle presentation and hidden windows
+
+### Repeated scan-out and unwatched window work
+
+- **Symptom:** a stopped game's display link keeps receiving empty callbacks; a covered or unfocused window can continue rendering.
+- **Cause:** presentation clocks originally remained active independently of queued work. Focus loss normally sends a notification the game may ignore; occlusion only logs visibility.
+- **Fix:** `DM_ECO_SAME_FRAME=1` pauses an empty display link with no tick consumer and wakes it on enqueue or explicit clock demand. It also omits repeat scan-out GPU command buffers when the same private, GPU-only texture has no intervening NVN submission, the display state matches exactly, and the preceding drawable was displayed. Core Animation keeps the old image. Guest draw/compute work is always executed. CPU/shared/sparse/external textures, snapshots and unknown states refuse skipping. `DM_ECO_HIDDEN=pause` stops both audio consumers without releasing queued PCM, freezes the guest clock, and suspends graphics for an inactive app, an unfocused, occluded or minimized window. `slow` keeps game focus and limits NVN acquire/vsync demand to 8 Hz, using classic drawable presentation while hidden. Both modes override `DM_FOCUS_KEEP` only when explicitly enabled. See the [soundness limits and measurement recipe](../oot-notes/oot-idle-fix.md).
+- **Found on:** host source inspection for the [Ocarina of Time efficiency experiment](../../dm/games/0400486024DEC000/README.md#open); unit and offscreen Metal tests only. Whole-process sleep, real window transitions, game correctness and energy savings remain unvalidated. A visible game's active vsync/audio/timer consumers may still wake it even without submitted frames.
+
 ## Frame step
 
 ### Frame cap checked and used from the same sample
@@ -329,6 +338,26 @@ Frame pacing: the host's frame step, engine frame limiters, present intervals an
 
 ## CPU cost and pacing
 
+### A full-frame shader overflows the raw write log
+
+- **Symptom:** `[RED] raw global memory: a write log ran out of slots` while the AV1 title movie plays at about 21 fps. A relaxed GPU timestamp may put part of the movie dispatches' time before the compute encoder's reported start.
+- **Cause:** the movie shaders write through loaded pointers across full image planes. The page log repeatedly probes occupied slots with atomic compare-and-swap, and every raw pointer access searches the pool table. A Metal System Trace shows sustained compute activity through the apparent idle interval.
+- **Fix:** [Raw global memory uses tagged lookup hints and a pool bitmap](shaders.md#global-memory-at-an-address-loaded-from-memory). The bitmap fits every entry, and the GPU only issues the atomic OR when its bit is still clear.
+- **Found on:** [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md).
+
+### A bindless pool table rebuilt for every registration
+
+- **Symptom:** a 3D scene whose `NVN submit+present` time is most of the frame while the GPU time is far lower; in a `sample` of the process the submitting thread spends most of its time in `pool_gpu` → `pool_entry` → `tex_by_id`, much of it in `newTextureViewWithPixelFormat`. The `pool for handles traced to no slot` line counts tens of thousands of builds, and the memory line shows a ghost table with millions of puts (`finalized textures still referenced 512 (small table, … put in total)`).
+- **Cause:** two loops fed each other.
+  - The table of a texture pool that shaders index with handles (`pool_gpu`) was built whole, every ID resolved, whenever `g_reg_gen` or `g_ser_gen` had moved since the last build. The game's other threads register descriptors for later frames while the replay draws, so nearly every draw that read the 33,025-entry pool rebuilt it.
+  - A third of those IDs held descriptors whose texture object the game had finalized, each at the storage of a live texture. Their textures resolved through the 512-entry ghost ring, so a walk put each through it and evicted another. Every put and eviction is a storage note (`g_ser_gen`), and their views lasted one submission and were never cached (the serial is not live).
+- **Fix:**
+  - Texture and sampler registrations (`reg_bump`) and noted storage changes (`ser_note`) are logged by generation. When every generation since a table was built is in those logs, `pool_gpu` resolves only the IDs they name: the table is kept when none changes, otherwise copied and patched, so draws already encoded keep reading their own. Any other bump (a memory pool, a storage takeover, a texture upgrade), a sparse texture, a resized pool or a ring overrun still builds it whole.
+  - A finalized serial whose storage the sharing table holds resolves to that shared texture without a ghost entry (`tex_mtl_`), and a retired ID's view of such a texture lasts across submissions; `alias_sweep` drops those views once the texture leaves the sharing table, so they pin nothing past it.
+  - The `pool for handles traced to no slot` line counts the builds by cause and the tables patched or kept.
+- **Found on:** [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md): in Kokiri Forest on an Apple M5 the frame went from a 46–49 ms median (submit 45 ms, GPU 14–18 ms) to 16–21 ms (submit 5–8 ms); the GPU is now the limit. Whole builds fell from about 94,000 to about 1,000 in a 90 s run, ghost puts from about 10,000 a frame to none. Resident memory holds at 13–14.3 GB over 160 s (11.8–11.9 GB before, with 22,000 objects waiting in the deferred-release queue that are now about 100). Not yet rerun on other games: no prepared Mac builds were on the machine for `regress.py`.
+- **Check:** `make -C dm/gfx/tests run` (`t_upgrade_alias` checks that a finalized serial sees an upgraded shared texture).
+
 ### Arena buffer ownership on allocation
 
 - **Symptom:** autorelease work takes a measurable share of replay time, with temporary arena-buffer ownership traffic a few times per draw.
@@ -415,9 +444,37 @@ Frame pacing: the host's frame step, engine frame limiters, present intervals an
 - **Fix:** main-thread registration calls the same `qos_apply` used by worker threads, before recording the actual class, and logs the resulting class. With diagnostics enabled, `DM_NVN_CPUPROF=1` measures inclusive CPU/wall time in pass begin/end, pipeline lookup, argument encoding, texture lookup, draw, geometry, and submission indexing. These nested phase times overlap. The thread regression confirms `0x21`; on-device performance remains to be validated.
 - **Found on:** [NieR:Automata US 1.0.3](../../dm/games/010056B015FE8000/README.md), where the slow gameplay captures show 159–160 million host translation instructions per frame, considerable scheduling delay, nominal thermal state, and ample memory headroom.
 
+### Uniform-copy consumers spin while their worker is delayed
+
+- **Symptom:** a thread waiting for uniform-shadow copies can burn CPU while another app delays the copy worker.
+- **Cause:** `ubc_wait` polls the completion counter with ARM yield and has no blocking path. The worker already sleeps when its input queue is empty.
+- **Fix:** optional Mac `DM_ECO_COPY_WAIT=1` waits on a separate completion condition variable. The worker publishes copied bytes with release ordering before broadcasting under the wait mutex. Consumers recheck with acquire ordering, including after spurious wakes. Default off for gameplay A/B; blocking can increase latency for short copies. Synthetic tests cover real queued copies, concurrent consumers, completed waits and spurious wakes. Gameplay CPU and energy savings remain unmeasured.
+- **Found on:** source audit for [Ocarina of Time](../../dm/games/0400486024DEC000/README.md), with other apps running as the target workload. No gameplay run was made for this change.
+
+### Compile pools compete with other apps
+
+- **Symptom:** shader preparation or newly encountered pipelines can compete for CPU with other apps even when gameplay targets 30 fps.
+- **Cause:** prepare defaults to all active CPUs. Background prebuild and hybrid compilation have separate pools. Lower background QoS does not limit the number of concurrent tasks.
+- **Fix:** optional Mac `DM_ECO_COMPILE_THREADS=1..64` caps each pool without enlarging a smaller pool. It covers prepare, prebuild, hybrid queues and speculative admission. Unset or `0` preserves the defaults. Synchronous draw compiles and Metal's private services are outside the cap. Lower caps can extend preparation and increase first-use stutter. Pools drain when their work ends; no permanent busy compile loop was found. Tests cover prepare counts, actual utility-queue rotation, speculative admission and demand bypass. Gameplay savings remain unmeasured.
+- **Found on:** source audit for [Ocarina of Time](../../dm/games/0400486024DEC000/README.md). Existing `DM_QOS_MAP=1 DM_QOS_EDGES=-1,59` can separately place guest priorities 0 through 59 at USER_INITIATED and 60 through 63 at UTILITY, while audio and vsync helpers keep their explicit QoS.
+
 ### Time-constraint computation declared below the thread's peaks
 
 - **Symptom:** stalls of 30–60 ms about once a second, at 30 fps and at 60 (99th percentile 63–127 ms); the main thread waits 20–34 ms for the render thread once a second.
 - **Cause:** the thread that acquires the window (here the render thread) runs under a time-constraint policy whose computation the host re-declares every 120 frames; it was 1.25 × the 90th percentile of that thread's CPU time per frame. This render thread needs 1.9–2.0 ms a frame with one or two frames in 120 near 4.4 ms, against 2.5 ms declared, and each frame past the declaration stalled the thread. Probes on both threads' waits showed the main thread's waits; adding probes slowed the render thread and the stalls vanished, and `DM_RT=0` or a fixed `DM_RT_COMP=5` / `10` removed them too (99th percentile 18–21 ms) at the same CPU energy.
 - **Fix:** the declaration also covers 1.1 × the window's peak (`rt_comp_tick` in `hle_nvn.c`): 5.6 ms here, 60.0 fps, 99th percentile 21 ms.
 - **Found on:** [DARK SOULS: REMASTERED](../../dm/games/01004AB00A260000/README.md), in the Asylum cell.
+
+### Absolute cadence experiment for direct presentation
+
+- **Symptom:** upstream PR #1405 reports higher enqueue-to-display latency after faster compute shaders at the direct-present 30 fps cap.
+- **Cause:** open. The direct path uses `presentAfterMinimumDuration`, while the host's `nvn_pace` keeps an absolute phase. A missed refresh can lengthen a relative hold without letting the next frame recover that phase. This is a plausible source of queued delay, not a confirmed diagnosis of those runs.
+- **Fix (experimental):** `DM_PRESENT_ABSOLUTE=1` on the Mac schedules direct drawables with `presentAtTime` using the existing absolute pacer. A small miss keeps the phase, a miss of at least one period restarts it, and uncapped or display-link presentation resets the experiment's phase. The flag is off by default. The pure pacer test covers repeated small misses; gameplay latency and on-screen cadence still need A/B measurement.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md), from the [upstream experiment](https://github.com/seedds/nxnative/pull/1405). No gameplay or latency measurement was made for this local change.
+### A failed GPU event holds a completed fence wait
+
+- **Symptom:** rendering freezes after GPU command errors, with the main thread in `IOSurfaceSharedEvent waitUntilSignaledValue:timeoutMS:` although commit feedback has completed its fence.
+- **Cause:** the fast fence wait could block for one hour on a GPU event. A rejected command buffer completed through its feedback handler, but the queue's event remained at zero, so that wait could not see the published completion.
+- **Fix:** the fast event wait is bounded to 100 ms before rechecking completion and using the feedback condition variable. Finite waits retain their original total timeout budget.
+- **Found on:** Ocarina of Time (Switch 2, #1299), after a gameplay GPU memory fault. The GPU fault itself remains open.
+- **Check:** `make -C dm/gfx/tests GAME=0400C3F00006E000 perf-order-cpu` checks a completion callback with an unsignaled event, finite timeout budgets, and both fast-wait and feedback paths.

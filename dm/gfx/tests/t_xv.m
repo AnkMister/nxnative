@@ -36,7 +36,9 @@ static void cycle(const tex_t *a, const tex_t *b, int aid, int kind, uint8_t px[
     if (kind) readback(b,px); else commit();
 }
 int main(void){@autoreleasepool{setvbuf(stdout,NULL,_IONBF,0);setenv("DM_NVN_TBDR","1",1);
-    char path[256]; snprintf(path,sizeof path,"/tmp/t_xv_%d.txt",(int)getpid()); unlink(path); setenv("DM_XV_FILE",path,1);
+    setenv("DM_NVN_XV","1",1);
+    const char *tmp = getenv("TMPDIR"); if (!tmp || !*tmp) { fprintf(stderr,"set TMPDIR to a durable scratch directory\n"); return 1; }
+    char path[4096]; snprintf(path,sizeof path,"%s/t_xv_%d.txt",tmp,(int)getpid()); unlink(path); setenv("DM_XV_FILE",path,1);
     mtl_init(); setup_prog(t_pg); t_mid=tex(8); t_x=tex(8); uint8_t ref[256],px[256]; int dc=0,viol=0,dc0,viol0;
     // ① Positive case: during the trial period (XV_TRIAL compliant cycles) it is stored as usual, and only afterwards is it not stored; after being invalidated it is cleared and drawn again, and the contents match the original
     { tex_t a=tex(8),b=tex(8); int aid=view(&a,0);

@@ -95,8 +95,38 @@ static int test_output_lifetime(void) {
     printf("AudioOut fields and lifetime (%s): %d guarded open / close / unmap / resume cycles, no consumer left\n", real_audio() ? "real output" : "silent sink", CYCLES);
     return 0;
 }
+static int test_clock_pause(void) {
+    setenv("DM_AUDIO", "0", 1);
+    uint8_t key[64] = {0}, param[8] = {0};
+    int16_t pcm[4800 * 2]; for (int i = 0; i < 9600; i++) pcm[i] = (int16_t)i;
+    gbuf b = {.ptr = pcm, .size = sizeof pcm, .cap = sizeof pcm};
+    if (h_au_OpenDef0(key, param)) return 1;
+    aout *a = ao(key);
+    h_au_Append(key, &b); a->pos = 16;   // dialogue partly played
+    dm_audio_pause(1);
+    h_au_Start(key);   // a producer starts/restarts while hidden
+    uint32_t head = atomic_load(&a->q_head), rel = atomic_load(&a->rel_tail);
+    uint64_t pos = a->pos; int sig = atomic_load(&g_sig);
+    usleep(30000);
+    uint8_t out[64]; memset(out, 0x55, sizeof out);
+    AudioBufferList bl = {.mNumberBuffers = 1, .mBuffers = {{2, sizeof out, out}}};
+    au_render(a, NULL, NULL, 0, 16, &bl);   // a late device callback
+    int fail = a->pos != pos || atomic_load(&a->q_head) != head ||
+        atomic_load(&a->rel_tail) != rel || atomic_load(&g_sig) != sig || a->backend != BK_NONE;
+    for (unsigned i = 0; i < sizeof out; i++) fail |= out[i] != 0;
+    dm_audio_suspend(1); dm_audio_suspend(0);   // mute transitions must not defeat pause
+    fail |= a->backend != BK_NONE;
+    dm_audio_pause(0);
+    uint64_t end = now_ns() + 1000000000ull;
+    while (!atomic_load(&a->rel_tail) && now_ns() < end) usleep(1000);
+    fail |= h_au_Released(key) != &b;
+    h_au_Close(key);
+    puts(fail ? "FAIL clock pause preserved PCM/offset/releases" : "clock pause: PCM/offset/releases preserved; resume releases queued dialogue");
+    return fail;
+}
+
 int main(void) {
-    if (test_surround_output() || test_output_lifetime()) return 1;
+    if (test_clock_pause() || test_surround_output() || test_output_lifetime()) return 1;
     char out[64], ev[64]; uint8_t prm[16]; gbuf b[3]; static int16_t pcm[3][4800 * 2];
     h_au_InitParam(prm);
     if (h_au_Open(out, ev, NULL, prm)) return 1;

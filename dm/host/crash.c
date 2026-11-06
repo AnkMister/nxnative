@@ -141,6 +141,16 @@ void dm_guest_write_prep_register(void (*fn)(void *addr, size_t len)) {
 // Called before the host itself writes guest memory (read() straight into a guest buffer, etc.): for a system call a write-protected page does not trigger a page fault but returns EFAULT
 void dm_guest_write_prepare(void *addr, size_t len) { for (int i = 0; i < g_nwrite_prep; i++) g_write_prep[i](addr, len); }
 
+static void (*g_read_prep[MAX_FAULT_HOOK])(const void *, size_t);
+static int g_nread_prep;
+void dm_guest_read_prep_register(void (*fn)(const void *, size_t)) {
+    if (g_nread_prep >= MAX_FAULT_HOOK) die("too many host pre-read hooks");
+    g_read_prep[g_nread_prep++] = fn;
+}
+void dm_guest_read_prepare(const void *addr, size_t len) {
+    for (int i = 0; i < g_nread_prep; i++) g_read_prep[i](addr, len);
+}
+
 // The diagnostics module (the probes in diag.c) and the thread state dump (hle_thread.c) each register themselves here: a unit test that links only this file does not depend on them
 static int (*g_trap_hook)(ucontext_t *uc);
 void crash_set_trap_hook(int (*fn)(ucontext_t *uc)) { g_trap_hook = fn; }

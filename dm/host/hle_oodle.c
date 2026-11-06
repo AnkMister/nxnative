@@ -178,6 +178,7 @@ static int read_all(int fd, void *p, size_t n) {
     return 1;
 }
 static void write_all(int fd, const void *p, size_t n) {
+    dm_guest_read_prepare(p, n);
     for (const uint8_t *q = p; n; ) { ssize_t k = write(fd, q, n); if (k <= 0) die("DM_OODLE_SERVE: answer write failed"); q += k; n -= (size_t)k; }
 }
 // Called twice: before the SDK starts (late = 0) and after nninitStartup and the module constructors, where the job runs (late = 1). Oodle is served at the first: it takes its work memory from the

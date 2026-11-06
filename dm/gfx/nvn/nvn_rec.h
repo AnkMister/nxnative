@@ -20,9 +20,21 @@ static ubc_op g_ubc[UBC_N];
 static _Atomic uint64_t g_ubc_head, g_ubc_done;   // ops queued / made (monotonic)
 static _Atomic int g_ubc_sleeping;
 static pthread_mutex_t g_ubc_mu = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t g_ubc_cv = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t g_ubc_done_cv = PTHREAD_COND_INITIALIZER;
+static int ubc_sleep_wait(void) {
+    static dispatch_once_t once; static int on;
+    dispatch_once(&once, ^{
+#if !TARGET_OS_IPHONE
+        const char *e = getenv("DM_ECO_COPY_WAIT"); on = e && !strcmp(e, "1");
+        if (on) MLOG("DM_ECO_COPY_WAIT=1: uniform copy consumers sleep until completion");
+#endif
+    });
+    return on;
+}
 static int ubc_on(void) { static int v = -1; if (v < 0) { const char *e = getenv("DM_NVN_UB_COPY_THREAD"); v = !(e && !strcmp(e, "0")); } return v; }
 static void *ubc_thread(void *arg) {
     (void)arg; pthread_setname_np("dm-ub-copy"); pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+    int sleep_wait = ubc_sleep_wait();
     for (uint64_t t = 0;;) {
         uint64_t h = atomic_load_explicit(&g_ubc_head, memory_order_acquire);
         if (t == h) {
@@ -33,6 +45,11 @@ static void *ubc_thread(void *arg) {
         }
         for (; t < h; t++) { const ubc_op *o = &g_ubc[t % UBC_N]; memcpy(o->d, o->s, o->n); }
         atomic_store_explicit(&g_ubc_done, t, memory_order_release);
+        if (sleep_wait) {
+            pthread_mutex_lock(&g_ubc_mu);
+            pthread_cond_broadcast(&g_ubc_done_cv);
+            pthread_mutex_unlock(&g_ubc_mu);
+        }
     }
     return NULL;
 }
@@ -40,6 +57,18 @@ static void *ubc_thread(void *arg) {
 static void ubc_wait(uint64_t seq) {
     if (atomic_load_explicit(&g_ubc_done, memory_order_acquire) >= seq) return;
     uint64_t w0 = ws_t0();
+    if (ubc_sleep_wait()) {
+        pthread_mutex_lock(&g_ubc_mu);
+        while (atomic_load_explicit(&g_ubc_done, memory_order_acquire) < seq) {
+            // The completion has its own condition: waking a consumer must not
+            // consume the signal that tells an idle copy worker to run.
+            pthread_cond_signal(&g_ubc_cv);
+            pthread_cond_wait(&g_ubc_done_cv, &g_ubc_mu);
+        }
+        pthread_mutex_unlock(&g_ubc_mu);
+        if (ws_on()) ws_put(WS_UBC, w0, 1);
+        return;
+    }
     while (atomic_load_explicit(&g_ubc_done, memory_order_acquire) < seq) {
         if (atomic_load(&g_ubc_sleeping)) { pthread_mutex_lock(&g_ubc_mu); pthread_cond_signal(&g_ubc_cv); pthread_mutex_unlock(&g_ubc_mu); }
         __builtin_arm_yield();
@@ -117,7 +146,7 @@ static void rec_exec(const rec_t *r) {
         if (r->op == RO_COMMIT) ubc_wait(a[2]);   // the uniform shadows this command buffer reads
         id<MTL4CommandBuffer> buffers[] = {r->op == RO_COMMIT ? g_rx_cb : rec_id(a[1])}; MTL4CommitOptions *o = rec_id(a[0]);
         pthread_mutex_lock(&g_res_mu);
-        if (o) [g_q4 commit:buffers count:1 options:o]; else [g_q4 commit:buffers count:1];
+        safe_gpu_commit4_locked(buffers, 1, o);
         pthread_mutex_unlock(&g_res_mu);
         if (r->op == RO_COMMIT) g_rx_cb = nil;
         break; }
@@ -343,13 +372,13 @@ static void rec_commit(id cb, MTL4CommitOptions *o) {
     if ([cb isKindOfClass:[DmRecCB class]]) { rec_t *r = rec_put(RO_COMMIT, 1); r->a[0] = rec_obj(o); r->a[2] = ubc_head(); return; }
     ubc_wait(ubc_head());
     id<MTL4CommandBuffer> buffers[] = {cb};
-    if (o) [g_q4 commit:buffers count:1 options:o]; else [g_q4 commit:buffers count:1];
+    safe_gpu_commit4(buffers, 1, o);
 }
 // An upload batch: its place in the queue is after what is recorded so far (it reads no uniform shadow)
 static void rec_commit_upload(id cb, MTL4CommitOptions *o) {
     if (rec_on() && g_rb_started) { rec_t *r = rec_put(RO_COMMIT_REAL, 2); r->a[0] = rec_obj(o); r->a[1] = rec_obj(cb); return; }
     id<MTL4CommandBuffer> buffers[] = {cb};
-    if (o) [g_q4 commit:buffers count:1 options:o]; else [g_q4 commit:buffers count:1];
+    safe_gpu_commit4(buffers, 1, o);
 }
 // A queue operation (a sparse texture's mapping update, nvn_mtl.m sparse_*): on the encoding thread in its place among the recorded commits, so it reaches the queue before the upload batch
 // committed after it and after the command buffers committed before it

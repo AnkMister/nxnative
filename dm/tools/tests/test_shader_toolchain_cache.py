@@ -24,6 +24,7 @@ REPO = Path(__file__).resolve().parents[3]
 TOOLS = REPO / 'dm/gfx/tools'
 sys.path.insert(0, str(TOOLS))
 import dmsh_chain  # noqa: E402
+import dmsh_abi as abi  # noqa: E402
 import dmsh_mtlcache  # noqa: E402
 import shader_cache  # noqa: E402
 
@@ -37,15 +38,16 @@ class ShaderCache(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         root = Path(self.tmp.name)
         self.ns: dict[str, Any] = dict(hashlib=hashlib, os=os, json=json, re=re, threading=threading,
-                       subprocess=subprocess, dmsh_chain=dmsh_chain, SPIRV_CROSS='converter',
+                       subprocess=subprocess, dmsh_chain=dmsh_chain, abi=abi, SPIRV_CROSS='converter',
                        XC=['--msl'], MAC_RECORD='mac flags', IOSOUT=None, TARGETS={'mac'},
                        ios_metal=types.SimpleNamespace(RECORD='ios flags'), METAL_FP='tested Metal and SDK',
                        FACTS={}, MAP_ROWS={}, MAP_CONFLICT_ROWS={}, CODE_FP='source', PROFILE_ROWS=b'', PAIRS={},
                        DUAL_WANT=set(), BF_WANT=set(), BF_STATS=collections.Counter(), STORE=shader_cache.Store(root / 'cas.db'), out=str(root / 'out'),
-                       CHAIN='test-chain', clone=shutil.copyfile, shader_rule_source=lambda name: b'')
+                       STAGES=None, CHAIN='test-chain', clone=shutil.copyfile, shader_rule_source=lambda name: b'')
+        self.addCleanup(self.ns['STORE'].close)
         (root / 'out').mkdir()
         names = {'tool_fingerprint', 'shader_key', 'cache_path', 'cache_outputs', 'restore_cache', 'publish_cache', 'atomic_json', 'cache_meta_path',
-                 'bf_digest', 'bf_cache_root', 'bf_cache_restore', 'vs_pad'}
+                 'bf_digest', 'bf_cache_root', 'bf_cache_restore', 'vs_pad', 'pad_locations', 'stage_pass'}
         tree = ast.parse((TOOLS / 'dmsh_build.py').read_text())
         self.tree = tree
         nodes: list[ast.stmt] = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names]
@@ -275,7 +277,7 @@ class TargetSelection(unittest.TestCase):
                 with self.subTest(targets=targets):
                     compile_target = mock.Mock()
                     compose = mock.Mock(return_value='mesh source')
-                    ns: dict[str, Any] = dict(os=os, json=json, subprocess=subprocess, out=td, w=td, TARGETS=targets,
+                    ns: dict[str, Any] = dict(stage_pass=lambda fn, *args: fn(*args), os=os, json=json, subprocess=subprocess, out=td, w=td, TARGETS=targets,
                               IOSOUT=str(ios) if 'ios' in targets else None, MESH_STATS=collections.Counter(),
                               MTL=types.SimpleNamespace(compile=compile_target), dmsh_mesh=types.SimpleNamespace(compose=compose))
                     exec(compile(ast.Module(body=[function], type_ignores=[]), '<mesh targets>', 'exec'), ns)

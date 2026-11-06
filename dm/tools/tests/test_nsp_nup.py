@@ -248,7 +248,7 @@ class Pack(Base):
 
     def test_standalone_updates_keep_their_versions_and_dlc(self):
         write_nup(self.path, [(1, TID, VER, version(marker='older'), META),
-                              (1, TID, VER + 1, version(main=b'newest', marker='newest'), tlv([(pack_nup.T_ICON, b'new icon')])),
+                              (1, TID, VER + 1, version(main=b'newest', marker='newest'), tlv([(pack_nup.T_ICON, b'\xff\xd8new icon')])),
                               (2, TID + 0x1001, 0, {'romfs': {'dlc': b'dlc'}}, b'')], update_flags=pack_nup.STANDALONE)
         n = self.open(); app, base, vers, dlc = pack_nup.scan(n)
         self.assertIsNone(base)
@@ -266,7 +266,7 @@ class Pack(Base):
             self.assertIn('dir/older' if ver == VER else 'dir/newest', romfs_image.read_index(out / 'RomFS.img'))
         self.assertEqual(nacp.name(self.out() / f'v{VER}/control.nacp'), 'Test Game')
         self.assertEqual(nacp.name(self.out() / f'v{VER + 1}/control.nacp'), 'Test Game')
-        self.assertEqual((self.out() / f'v{VER + 1}/icon.jpg').read_bytes(), b'new icon')
+        self.assertEqual((self.out() / f'v{VER + 1}/icon.jpg').read_bytes(), b'\xff\xd8new icon')
         pack_nup.pack_dlc(n, app, dlc, self.out() / 'aoc', say=lambda s: None)
         self.assertIn('dlc', romfs_image.read_index(self.out() / 'aoc/1.img'))
 
@@ -303,10 +303,10 @@ class Pack(Base):
                     self.assertEqual(nacp.name(self.out() / 'control.nacp'), 'Test Game')   # application metadata stays on the base record (SPEC §5.1)
 
     def test_update_metadata_wins_over_the_empty_bases(self):
-        write_nup(self.path, [(0, 0, 0, {}, tlv([(pack_nup.T_ICON, b'old icon')])), (1, TID, VER, version(), tlv([(pack_nup.T_ICON, b'new icon')]))])
+        write_nup(self.path, [(0, 0, 0, {}, tlv([(pack_nup.T_ICON, b'\xff\xd8old icon')])), (1, TID, VER, version(), tlv([(pack_nup.T_ICON, b'\xff\xd8new icon')]))])
         n = self.open(); app, base, vers, _ = pack_nup.scan(n)
         pack_nup.pack_version(n, vers[VER], base, app, self.out(), say=lambda s: None)
-        self.assertEqual((self.out() / 'icon.jpg').read_bytes(), b'new icon')
+        self.assertEqual((self.out() / 'icon.jpg').read_bytes(), b'\xff\xd8new icon')
 
     def test_base_with_files_stays_a_base(self):
         for tree in ({'romfs': {'shared': b'data'}}, {'exefs': version()['exefs']}):
@@ -393,6 +393,14 @@ class Pack(Base):
         pack_nup.pack_version(n, base, base, app, self.out(), say=lambda s: None)
         self.assertFalse((self.out() / 'control.nacp').exists())
         self.assertEqual((self.out() / 'icon.jpg').read_bytes(), b'\xff\xd8 icon')
+
+    @mock.patch.dict(os.environ, DM_OOT_BRENT="1")
+    def test_icon_record_that_is_not_an_image_writes_none(self):   # one Switch 2 NUP carries a BYML of light settings there; sips cannot read it, and the app then has no icon
+        write_nup(self.path, [(0, TID, 0, version(), tlv([(T_NAME, b'TG'), (pack_nup.T_ICON, b'YB\x07\x00 lights')]))])
+        n = self.open(); app, base, _, _ = pack_nup.scan(n)
+        (self.out()).mkdir(parents=True, exist_ok=True); (self.out() / 'icon.jpg').write_bytes(b'stale')
+        pack_nup.pack_version(n, base, base, app, self.out(), say=lambda s: None)
+        self.assertFalse((self.out() / 'icon.jpg').exists())
 
     def test_repeat_keeps_what_is_unchanged(self):
         n = self.open(); app, base, vers, _ = pack_nup.scan(n)

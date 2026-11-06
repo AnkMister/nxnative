@@ -118,3 +118,5 @@ void *guest_sym(const char *name) { (void)name; return NULL; }
 int dm_game_imports(const char *prefix) { (void)prefix; return 0; }
 int dm_mii_standin(const char *dir) { (void)dir; return 0; }
 void dm_thread_service_request(void) {}
+
+void dm_guest_read_prepare(const void *a, size_t n) { (void)a; (void)n; }

@@ -16,6 +16,7 @@
 #include "dm.h"
 #include "dm_input.h"
 #include "front.h"
+#include "../gfx/nvn/nvn_eco.h"
 #include "hle.h"
 #include "pad_slots.h"
 #include "haptics_apple.h"
@@ -52,6 +53,10 @@ static void screen_refresh(NSScreen *screen) {   // main thread: refresh capabil
     g_screen_fps = (int)screen.maximumFramesPerSecond;
     g_screen_id = [screen.deviceDescription[@"NSScreenNumber"] unsignedIntValue];
     g_screen_variable_refresh = screen.minimumRefreshInterval > 0 && screen.maximumRefreshInterval > screen.minimumRefreshInterval;
+    const char *vqa = getenv("DM_NVN_VQA");
+    if (getenv("DM_PRESENT_COLORSPACE") || (vqa && atoi(vqa)))
+        LOG("[vqa] display colour: %s; EDR headroom %.3f, potential %.3f", screen.colorSpace.localizedName.UTF8String,
+            screen.maximumExtendedDynamicRangeColorComponentValue, screen.maximumPotentialExtendedDynamicRangeColorComponentValue);
 }
 static _Atomic int g_fullscreen;   // the window is in fullscreen (set when it has entered and when it has left)
 // The software keyboard input box is up (front_text_input). The game window is not key then, which is not a focus change the game should see: on hardware the inline keyboard is drawn inside
@@ -64,6 +69,28 @@ int front_fullscreen(void) { return g_fullscreen; }   // nvn_mtl.m link_latency:
 // for 60 and 30 fps), for this app only: macOS switches it back when the host quits, crashes included, and leaving fullscreen or that screen switches it back at once. A window keeps the
 // screen's rate, because the switch changes the whole screen for every app and most external screens go black for a second or more. A screen with no such mode keeps the virtual ticks
 static NSWindow *g_win; static _Atomic int g_match_want;   // the game's window; the frame rate to match (0 = not known yet), written by the present thread only
+// Main-thread policy, independent of the game's requested focus-handling mode.
+extern void mtl_link_pause(int on);
+extern void mtl_present_discard(int on);
+static void eco_window_update(void) {
+    nvn_eco_mode mode = nvn_eco_hidden_mode();
+    if (!mode || !g_win) return;
+    int hidden = nvn_eco_hidden(NSApp.isActive, g_win.isKeyWindow,
+        (g_win.occlusionState & NSWindowOcclusionStateVisible) != 0, g_win.miniaturized, g_text_box);
+    static int was = -1;
+    if (hidden == was) return;
+    int paused = hidden && mode == NVN_ECO_PAUSE;
+    was = hidden;
+    nvn_eco_set_hidden(hidden);
+    if (paused) {
+        dm_audio_pause(1); dm_focus_set(2); guest_clock_freeze_for(3, 1);
+        mtl_present_discard(1); dm_gfx_suspend(1); mtl_link_pause(1);
+    } else {
+        mtl_link_pause(0); dm_gfx_suspend(0); mtl_present_discard(0); guest_clock_freeze_for(3, 0);
+        dm_audio_pause(0); dm_focus_set(1);
+    }
+    LOG("[eco] window %s: %s", hidden ? "unwatched" : "watched", paused ? "clock frozen, graphics and audio suspended" : hidden ? "8 Hz acquire/vsync limit, focus kept" : "normal clock and presentation");
+}
 static CGDirectDisplayID g_match_id; static CGDisplayModeRef g_match_orig;   // main thread: the screen this host switched and its own mode (NULL = none switched)
 static double mode_hz(CGDisplayModeRef m) { double hz = CGDisplayModeGetRefreshRate(m); return hz > 0 ? hz : 0; }   // 0 = not known (older built-in screens report none)
 static int hz_multiple(double hz, int fps) { double k = round(hz / fps); return k >= 1 && fabs(hz / fps - k) < 0.01; }   // 59.94 Hz counts as 60
@@ -446,7 +473,7 @@ void front_picture_shape(int w, int h) { if (w > 0 && h > 0) g_picture_aspect = 
     CAMetalLayer *l = (CAMetalLayer *)self.layer; if (![l isKindOfClass:CAMetalLayer.class] || !self.window) return;
     l.contentsScale = self.window.backingScaleFactor;
     NSSize px = [self convertSizeToBacking:self.bounds.size]; if (px.width < 1 || px.height < 1 || CGSizeEqualToSize(l.drawableSize, px)) return;
-    l.drawableSize = px; LOG("front end: drawable %.0fx%.0f", px.width, px.height);
+    l.drawableSize = px; nvn_eco_surface_changed(); LOG("front end: drawable %.0fx%.0f", px.width, px.height);
 }
 - (void)setFrameSize:(NSSize)s { [super setFrameSize:s]; [self fitDrawable]; }
 - (void)viewDidChangeBackingProperties { [super viewDidChangeBackingProperties]; [self fitDrawable]; }
@@ -1334,6 +1361,16 @@ void front_run(void (*guest)(void)) {
         g_layer = [CAMetalLayer layer];
         g_layer.device = MTLCreateSystemDefaultDevice();
         g_layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+        // Opt-in source colour contract. Auto means the SDR game's sRGB gamut,
+        // independent of the display's gamut; ColorSync handles the display.
+        const char *cs = getenv("DM_PRESENT_COLORSPACE");
+        if (cs && (!strcmp(cs, "srgb") || !strcmp(cs, "p3") || !strcmp(cs, "auto"))) {
+            CGColorSpaceRef space = CGColorSpaceCreateWithName(!strcmp(cs, "p3") ? kCGColorSpaceDisplayP3 : kCGColorSpaceSRGB);
+            g_layer.colorspace = space; CGColorSpaceRelease(space);
+            g_layer.wantsExtendedDynamicRangeContent = NO;
+            LOG("present colour: %s, BGRA8Unorm, SDR full range; %s", cs,
+                !strcmp(cs, "p3") ? "sRGB to Display P3 in present shader" : "sRGB source tagged for ColorSync");
+        } else if (cs) LOG("[RED] DM_PRESENT_COLORSPACE=%s: expected srgb, p3 or auto; legacy output kept", cs);
         g_layer.contentsScale = win.backingScaleFactor;
         // Apple's HUD over the game (frame rate, frame and GPU time, memory): front_hud_env turns it on before the first device. The layer's developerHUDProperties
         // stay unset: mode=default forces this layer's HUD on, so the Metal HUD menu's Hide HUD left it on screen
@@ -1349,7 +1386,7 @@ void front_run(void (*guest)(void)) {
         // DM_WINDOW_TOP=1 orders it in front without activation and keeps it above other apps' windows; the log names every change of the window's visibility either way
         if (getenv("DM_WINDOW_TOP") && atoi(getenv("DM_WINDOW_TOP"))) { win.level = NSFloatingWindowLevel; [win orderFrontRegardless]; LOG("front end: window kept in front (DM_WINDOW_TOP)"); }
         [[NSNotificationCenter defaultCenter] addObserverForName:NSWindowDidChangeOcclusionStateNotification object:win queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *n) {
-            (void)n; static int vis = -1; int v = (win.occlusionState & NSWindowOcclusionStateVisible) != 0; if (v == vis) return; vis = v;
+            (void)n; eco_window_update(); nvn_eco_surface_changed(); static int vis = -1; int v = (win.occlusionState & NSWindowOcclusionStateVisible) != 0; if (v == vis) return; vis = v;
             if (v) LOG("front end: window visible"); else LOG("front end: window covered (its display link fires about once a second: frame times measure nothing)"); }];
         // Main menu: AppKit runs ⌘ shortcuts only through menu items, so ⌘Q quits and ⌃⌘F toggles fullscreen from here (AppKit shows the item as Globe-F and keeps ⌃⌘F as a hidden twin)
         NSMenu *bar = [NSMenu new], *app = [NSMenu new], *wm = [[NSMenu alloc] initWithTitle:@"Window"];
@@ -1424,10 +1461,13 @@ void front_run(void (*guest)(void)) {
         // DM_FOCUS_KEEP=1 (scripts/regress.py): the game stays in focus while its window is up, whichever app is active. Tears of the Kingdom stops presenting out of focus, so
         // another app taking the key window during an unattended run read as a hang (no frame after the last focus change)
         static int keep = -1; if (keep < 0) keep = getenv("DM_FOCUS_KEEP") && atoi(getenv("DM_FOCUS_KEEP"));
-        [nc addObserverForName:NSWindowDidResignKeyNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; input_release(); if (!win.miniaturized && !g_text_box && !keep) dm_focus_set(2); }];
-        [nc addObserverForName:NSWindowDidBecomeKeyNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; input_resume(); dm_focus_set(1); }];
-        [nc addObserverForName:NSWindowDidMiniaturizeNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; input_release(); dm_focus_set(3); dm_audio_suspend(1); dm_gfx_suspend(1); }];
-        [nc addObserverForName:NSWindowDidDeminiaturizeNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; dm_gfx_suspend(0); dm_audio_suspend(0); dm_focus_set(2); }];
+        [nc addObserverForName:NSWindowDidResignKeyNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; input_release(); if (nvn_eco_hidden_mode()) { eco_window_update(); return; } if (!win.miniaturized && !g_text_box && !keep) dm_focus_set(2); }];
+        [nc addObserverForName:NSWindowDidBecomeKeyNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; input_resume(); if (nvn_eco_hidden_mode()) { eco_window_update(); return; } dm_focus_set(1); }];
+        [nc addObserverForName:NSWindowDidMiniaturizeNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; input_release(); if (nvn_eco_hidden_mode()) { eco_window_update(); return; } dm_focus_set(3); dm_audio_suspend(1); dm_gfx_suspend(1); }];
+        [nc addObserverForName:NSWindowDidDeminiaturizeNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; if (nvn_eco_hidden_mode()) { eco_window_update(); return; } dm_gfx_suspend(0); dm_audio_suspend(0); dm_focus_set(2); }];
+        for (NSNotificationName nm in @[NSApplicationDidBecomeActiveNotification, NSApplicationDidResignActiveNotification, NSApplicationDidHideNotification, NSApplicationDidUnhideNotification])
+            [nc addObserverForName:nm object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *n) { (void)n; eco_window_update(); nvn_eco_surface_changed(); }];
+        eco_window_update();
         display_awake(win.isKeyWindow);   // the window may have become key (makeKeyAndOrderFront above) before these observers were installed
         // Guest thread: 64 MiB stack (the Switch main thread stack is specified by npdm; the host gives plenty)
         static guest_arg ga; ga.fn = guest;
@@ -1507,4 +1547,39 @@ int front_text_input(const char *title, const char *sub, const char *guide, cons
     (void)max_chars;                              // Truncation is done uniformly in hle_swkbd.c in UTF-16 units
     snprintf(out, out_cap, "%s", text.UTF8String);
     return 1;
+}
+
+// The game stops over a GPU problem. A stopped game in full screen holds the whole screen (GitHub issue #1326: WindowServer froze for 40 s and its watchdog killed it), so the window leaves
+// full screen first and the alert comes once it has, or after 3 s if it has not. Then the app quits as ⌘Q does. Any thread
+static void front_stop_alert(NSString *title, NSString *text) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        __block int told = 0;
+        void (^tell)(void) = ^{
+            if (told++) return;
+            NSAlert *a = [NSAlert new];
+            a.alertStyle = NSAlertStyleCritical;
+            a.messageText = title;
+            a.informativeText = text;
+            [a addButtonWithTitle:@"Quit"];
+            // An app opened in the background would leave the alert behind other apps' windows, and DM_WINDOW_TOP's floating game window would cover it
+            [NSApp activateIgnoringOtherApps:YES];
+            [a layout]; NSWindow *game = g_win; if (game && a.window.level <= game.level) a.window.level = game.level + 1;
+            [a runModal];
+            [NSApp terminate:nil];   // as ⌘Q
+        };
+        NSWindow *win = g_win;
+        if (!(win.styleMask & NSWindowStyleMaskFullScreen)) { tell(); return; }
+        [NSNotificationCenter.defaultCenter addObserverForName:NSWindowDidExitFullScreenNotification object:win queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *n) { (void)n; tell(); }];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC), dispatch_get_main_queue(), tell);
+        [win toggleFullScreen:nil];
+    });
+}
+// GPU memory nearly full (front.h). The gate first, off the calling thread: dm_gfx_suspend waits for the submission in progress, which may be the caller, and no more GPU work may grow what is held
+void front_gpu_memory_stop(unsigned long long used_mb, unsigned long long limit_mb) {
+    if (!g_layer) { kill(getpid(), SIGTERM); return; }
+    LOG("front end: GPU memory is nearly full; telling the player and quitting");
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{ dm_audio_suspend(1); dm_gfx_suspend(1); });
+    front_stop_alert([@(DM_GAME_NAME) stringByAppendingString:@" stopped: GPU memory is nearly full"],   // @(): the name is UTF-8, which %s would not read as such
+                     [NSString stringWithFormat:@"The game reached %llu MB of the %llu MB macOS can keep in GPU memory. Going on could freeze this Mac, so the game stops here; progress since your last save is lost. The log has the details. "
+                                                 "Please report it on GitHub with python3 scripts/bug_report.py %@, which collects the log.", used_mb, limit_mb, @(DM_GAME_ID)]);
 }

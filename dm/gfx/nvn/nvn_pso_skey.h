@@ -8,9 +8,11 @@ typedef struct {
     const void *vs, *fs; uint32_t cfmt[8], dfmt, sfmt, samples, blend_en, chmask, a2c; blend_st blend[8];
     va_st attr[16]; vs_st stream[16];
     uint8_t lmap[8]; const void *fsfn;
-    uint32_t atest, logic;   // atest: 1 = drawn with the alpha test, the fragment from the shader's side library <key>_bx (nvn_mtl.m atest_key); last, so a prewarm row written before it reads as 0
+    uint32_t atest, logic;   // atest: bit 1 selects float16 limits; bit 0 = drawn with the alpha test, the fragment from the shader's side library <key>_bx (nvn_mtl.m atest_key); last, so a prewarm row written before it reads as 0
                              // logic: 1 = drawn with a logic operation, the fragment from the side library <key>_bx (lop_key); in what was padding (0 in older rows)
+                             //   bit 1 (2): drawn while a sampler of the pixel shader has a border-colour twin, the fragment from its border correcting library <key>_bb (border_key)
     va_st attr_hi[16];       // NVN2's attributes 16 to 31 (pso_key_attr); last, so a prewarm row written before them reads as 0
+
 } pso_key;
 static inline va_st pso_key_attr(const pso_key *k, int a) { return a < 16 ? k->attr[a] : k->attr_hi[a - 16]; }
 
@@ -62,5 +64,16 @@ static inline int pso_skey_parse(const char *hex, pso_skey *out) {
         p[i / 2] = (uint8_t)(a << 4 | b);
     }
     pso_key_norm(&out->k, out->merged);
+    return 0;
+}
+
+// M rows carry their optional object shader separately. They never use a tile-specialized fragment or a vertex layout.
+static inline int pso_mesh_skey_parse(const char *hex, pso_skey *out) {
+    if (pso_skey_parse(hex, out) || !out->vs[0] || out->vs_stage != 4 ||
+        (out->fs[0] && out->fs_stage != 1) || out->merged || out->fz ||
+        out->k.vs || out->k.fs || out->k.fsfn || !pso_ds_valid(out->k.dfmt, out->k.sfmt)) return -1;
+    memset(out->k.attr, 0, sizeof out->k.attr);
+    memset(out->k.attr_hi, 0, sizeof out->k.attr_hi);
+    memset(out->k.stream, 0, sizeof out->k.stream);
     return 0;
 }

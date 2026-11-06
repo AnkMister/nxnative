@@ -188,6 +188,9 @@ static void jit_capture(jit_env *e, uint64_t cmd, const void *in, size_t in_size
     int ok = fwrite("DMJ5", 1, 4, f) == 4 && fwrite(&c32, 4, 1, f) && fwrite(hd, 8, 4, f) == 4 && fwrite(ish, 1, 32, f) == 32 && fwrite(md, 1, 32, f) == 32 && fwrite(d32, 1, 32, f) == 32;
     uint64_t os = out_size; int32_t rv = ret;
     ok = ok && fwrite(&os, 8, 1, f) && fwrite(&rv, 4, 1, f) && fwrite(o0, 16, 1, f) && fwrite(o1, 16, 1, f) && fwrite(&nr, 4, 1, f) && fwrite(r, sizeof *r, nr, f) == nr;
+    dm_guest_read_prepare((void *)(e->rx + o0->offset), o0->size);
+    dm_guest_read_prepare((void *)(e->ro + o1->offset), o1->size);
+    dm_guest_read_prepare(out, out_size); dm_guest_read_prepare(in, in_size <= JIT_KEY_IN_MAX ? in_size : 0);
     if (o0->size) ok = ok && fwrite((void *)(e->rx + o0->offset), 1, o0->size, f) == o0->size;
     if (o1->size) ok = ok && fwrite((void *)(e->ro + o1->offset), 1, o1->size, f) == o1->size;
     if (out_size) ok = ok && fwrite(out, 1, out_size, f) == out_size;
@@ -299,7 +302,7 @@ static int jit_serve(jit_env *e, jit_range *c0_out, jit_range *c1_out, uint64_t 
         LOG("[RED] jit::GenerateCode command %llu: request %s (data %08x %08x) is not in the image (miss %lu): capture it on the Mac (DM_JIT_CAPTURE) and rebuild the image",
             (unsigned long long)cmd, key, *(const uint32_t *)d32, *(const uint32_t *)(d32 + 4), m);
         const char *md = getenv("DM_JIT_MISS_DUMP");   // the missed request's input, for comparing with the captures
-        if (md && in && in_size <= JIT_KEY_IN_MAX) { char q[1024]; snprintf(q, sizeof q, "%s/miss_%s.in", md, key); FILE *g = fopen(q, "wb"); if (g) { fwrite(in, 1, in_size, g); fclose(g); } }
+        if (md && in && in_size <= JIT_KEY_IN_MAX) { char q[1024]; snprintf(q, sizeof q, "%s/miss_%s.in", md, key); FILE *g = fopen(q, "wb"); if (g) { dm_guest_read_prepare(in, in_size); fwrite(in, 1, in_size, g); fclose(g); } }
         if (c0_out) *c0_out = (jit_range){c0_in->offset, 0};
         if (c1_out) *c1_out = (jit_range){0, 0};
         return -1;

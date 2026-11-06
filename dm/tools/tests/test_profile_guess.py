@@ -1,5 +1,6 @@
 """Provisional memory layouts must leave room for the game's initial heap."""
 import hashlib
+import os
 from pathlib import Path
 import sys
 import tempfile

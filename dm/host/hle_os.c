@@ -4,6 +4,7 @@
 #include "hle.h"
 #include <mach/mach_time.h>
 #include <stdatomic.h>
+#include "clock_state.h"
 
 // ---------- Side table ----------
 #define OM_SIZE (1u << 18)
@@ -47,6 +48,8 @@ uint64_t now_ns(void) {
 // the client's per-frame dt and the server tick catch-up snapshots are both determined by the present count, so frame N in a run is byte-for-byte comparable between two passes of the same replay (the foundation of byte-for-byte picture proof).
 // Before the first frame the wall clock is still used (the boot period has waits that poll by time, freezing would hang them); at the switch it continues from the guest clock value at that time, no jump. It does not advance while frozen.
 static _Atomic uint64_t g_gfrozen, g_glag, g_gdet, g_guest_frame; static _Atomic int g_gfz, g_gdet_on; static uint64_t g_gdet_step = 1;
+dm_clock_state_t dm_clock_state;
+static int g_clock_prepared, g_clock_stats;
 uint64_t dm_guest_frame(void) { return atomic_load(&g_guest_frame); }
 static int detclock_cfg(void) {
     static int c = -1; if (c < 0) { const char *e = getenv("DM_DETCLOCK"); g_gdet_step = e ? strtoull(e, 0, 0) : 0; c = g_gdet_step > 0; }
@@ -73,26 +76,71 @@ static void guest_clock_freeze_apply(int on) {
     if (on && !atomic_load(&g_gfz)) { atomic_store(&g_gfrozen, now_ns() - atomic_load(&g_glag)); atomic_store(&g_gfz, 1); }
     else if (!on && atomic_load(&g_gfz)) { atomic_store(&g_glag, now_ns() - atomic_load(&g_gfrozen)); atomic_store(&g_gfz, 0); }
 }
-// Freezing has several unrelated reasons (0 freeze tick for testing / loading screen, 1 App in background, 2 system keyboard up): freeze if any holds, release only when all are lifted --
+// Freezing has several unrelated reasons (0 freeze tick for testing / loading screen, 1 App in background, 2 system keyboard up, 3 eco hidden pause): freeze if any holds, release only when all are lifted --
 // otherwise "switch to background and back while the keyboard is up" would be released early by the unfreeze on returning to foreground
 static pthread_mutex_t g_gfz_mu = PTHREAD_MUTEX_INITIALIZER; static unsigned g_gfz_reasons;
 // A suspended application does not run: Horizon suspends the whole process out of focus, iOS suspends a background app. The host freezes the guest clock in the background but its
 // guest threads go on until they block, so a guest reading the clock twice there saw no time pass. Super Mario Galaxy 2's frame pacing (main+0x5926a8) took the interval between two
 // frames as its period, got 0, and the next frame's loop that steps by it (main+0x9abd0) never ended. Guest reads of the system counter (the cntpct gate, svc GetSystemTick) wait while
-// the app is in the background (reason 1); host work (dm_host_work: inside a submit or present, which the graphics suspend waits for) reads the frozen clock, as do the other reasons
+// the app is in the background (reason 1) or eco hidden pause (reason 3); host work (dm_host_work: inside a submit or present, which the graphics suspend waits for) reads the frozen clock, as do the other reasons
 static pthread_cond_t g_gfz_cv = PTHREAD_COND_INITIALIZER; static _Atomic int g_gfz_bg;
+static pthread_once_t g_clock_once = PTHREAD_ONCE_INIT;
+static pthread_key_t g_clock_count_key;
+typedef struct { uint64_t reads[3]; } clock_counts_t;
+static void clock_counts_report(void *p) {
+    clock_counts_t *c = p;
+    LOG("DM_CLOCK_STATS thread=%p cntpct=%llu cntvct=%llu cntfrq=%llu (full gates; stats force fallback)", (void *)pthread_self(),
+        (unsigned long long)c->reads[0], (unsigned long long)c->reads[1], (unsigned long long)c->reads[2]);
+    free(c);
+}
+static void clock_counts_exit(void) {
+    void *c = pthread_getspecific(g_clock_count_key);
+    if (c) { pthread_setspecific(g_clock_count_key, NULL); clock_counts_report(c); }
+}
+static void clock_prepare_once(void) {
+    pthread_mutex_lock(&g_gfz_mu);
+    const char *e = getenv("DM_CLOCK_STATS"); g_clock_stats = e && !strcmp(e, "1");
+    if (g_clock_stats) {
+        if (pthread_key_create(&g_clock_count_key, clock_counts_report)) die("clock stats key");
+        atexit(clock_counts_exit);
+    }
+    mach_timebase_info_data_t tb; mach_timebase_info(&tb);
+    atomic_fetch_add(&dm_clock_state.seq, 1);
+    atomic_store(&dm_clock_state.numer, tb.numer); atomic_store(&dm_clock_state.denom, tb.denom);
+    atomic_store(&dm_clock_state.ounce, dm_sdk_ounce()); atomic_store(&dm_clock_state.lag, atomic_load(&g_glag));
+    g_clock_prepared = 1;
+    atomic_store(&dm_clock_state.enabled, !g_clock_stats && !detclock_cfg() && !atomic_load(&g_gfz));
+    atomic_fetch_add(&dm_clock_state.seq, 1);
+    pthread_mutex_unlock(&g_gfz_mu);
+}
+void dm_clock_prepare(void) { pthread_once(&g_clock_once, clock_prepare_once); }
+void dm_clock_count(int kind) {
+    dm_clock_prepare();
+    if (!g_clock_stats) return;
+    clock_counts_t *c = pthread_getspecific(g_clock_count_key);
+    if (!c) {
+        c = calloc(1, sizeof *c); if (!c || pthread_setspecific(g_clock_count_key, c)) die("clock stats allocation");
+    }
+    uint64_t n = ++c->reads[kind];
+    if (n == 1 || !(n & 0xffff)) LOG("DM_CLOCK_STATS thread=%p %s=%llu", (void *)pthread_self(), kind == 2 ? "cntfrq" : kind ? "cntvct" : "cntpct", (unsigned long long)n);
+}
 void guest_clock_read_wait(void) {
     if (!atomic_load(&g_gfz_bg) || atomic_load(&dm_host_work)) return;
     pthread_mutex_lock(&g_gfz_mu);
-    while (g_gfz_reasons & 2u) pthread_cond_wait(&g_gfz_cv, &g_gfz_mu);
+    while (g_gfz_reasons & (2u | 8u)) pthread_cond_wait(&g_gfz_cv, &g_gfz_mu);
     pthread_mutex_unlock(&g_gfz_mu);
 }
 void guest_clock_freeze_for(int reason, int on) {
     pthread_mutex_lock(&g_gfz_mu);
+    atomic_fetch_add(&dm_clock_state.seq, 1);
+    atomic_store(&dm_clock_state.enabled, 0);
     if (on) g_gfz_reasons |= 1u << reason; else g_gfz_reasons &= ~(1u << reason);
     guest_clock_freeze_apply(g_gfz_reasons != 0);
-    atomic_store(&g_gfz_bg, (g_gfz_reasons & 2u) != 0);
-    if (!(g_gfz_reasons & 2u)) pthread_cond_broadcast(&g_gfz_cv);   // after the clock is running again: a released read sees it continue
+    atomic_store(&g_gfz_bg, (g_gfz_reasons & (2u | 8u)) != 0);
+    atomic_store(&dm_clock_state.lag, atomic_load(&g_glag));
+    atomic_store(&dm_clock_state.enabled, g_clock_prepared && !g_clock_stats && !detclock_cfg() && !atomic_load(&g_gfz));
+    atomic_fetch_add(&dm_clock_state.seq, 1);
+    if (!(g_gfz_reasons & (2u | 8u))) pthread_cond_broadcast(&g_gfz_cv);   // after the clock is running again: a released read sees it continue
     pthread_mutex_unlock(&g_gfz_mu);
 }
 void guest_clock_freeze(int on) { guest_clock_freeze_for(0, on); }

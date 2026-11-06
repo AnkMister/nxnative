@@ -42,7 +42,7 @@ Monster Hunter Rise (RE Engine, SDK 11.4.3) uses both tables at once: combined h
 
 Mario's shaders read 38 % of their textures through handles stored in the game's own uniform buffers (`fp_t_cb7_2A` = handle at word 0x2A of c[7] = uniform slot 4). These became binding kinds `tex_ubo` / `samp_ubo` (`NVN_RB_TEXU` / `NVN_RB_SAMPU`): at replay the host reads the 32-bit word from the bound uniform buffer (low 20 bits texture ID, high 12 bits sampler ID).
 
-Consequence: any optimization that infers "which textures a draw reads" from bound slots is wrong for such shaders. The TBDR optimizations (store / load elision, pass merging) are therefore off by default in this repository (`tbdr_on()`, `DM_NVN_TBDR=1` to enable).
+Consequence: any optimization that infers "which textures a draw reads" from bound slots is wrong for such shaders. The TBDR optimizations (store / load elision, pass merging) remain off by default (`tbdr_on()`, `DM_NVN_TBDR=1` to enable). The [store lookahead](../reference/rendering.md#store-lookahead-and-bindless-readers) now retains every candidate store for bindless or unknown readers. Gameplay and performance validation are still required.
 
 ## 5. Depth convention
 

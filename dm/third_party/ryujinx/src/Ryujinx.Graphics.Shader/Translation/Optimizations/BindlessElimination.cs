@@ -103,8 +103,9 @@ namespace Ryujinx.Graphics.Shader.Translation.Optimizations
         private static TableHandle TryTableHandle(BasicBlock block, ResourceManager resourceManager, IGpuAccessor gpuAccessor, TextureOperation texOp, LinkedListNode<INode> node, bool deferSeveral)
         {
             Operand handle = texOp.GetSource(0);
+            bool guarded = System.Environment.GetEnvironmentVariable("DMSH_OOT_VISUAL") == "1";
 
-            if (handle.AsgOp is not PhiNode and not Operation { Inst: Instruction.BitwiseOr } || IsBindlessHandleAllowed(handle))
+            if ((handle.AsgOp is not PhiNode && (!guarded || handle.AsgOp is not Operation { Inst: Instruction.BitwiseOr })) || IsBindlessHandleAllowed(handle))
             {
                 return TableHandle.None;   // GenerateBindlessAccess takes it, as before (a choice among c[2] words: the dynamic handle arrays of tex_dyn_slots)
             }
@@ -125,7 +126,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Optimizations
                         {
                             (Operand t, Operand sm) = IsSamplerWord(texture) && !IsSamplerWord(sampler) ? (sampler, texture) : (texture, sampler);   // either order, as TryConvertBindless
 
-                            if (t.Type == OperandType.ConstantBuffer && !IsSamplerWord(t) && (IsSameBankWord(sm, t) || (sm.Type == OperandType.Constant && (sm.Value & 0xfffff) == 0)))
+                            if ((guarded ? t.Type == OperandType.ConstantBuffer && !IsSamplerWord(t) : IsTableWord(t)) && ((guarded ? IsSameBankWord(sm, t) : sm.Type == OperandType.ConstantBuffer && sm.GetCbufSlot() == NvnTextureBufferIndex) || (sm.Type == OperandType.Constant && (sm.Value & 0xfffff) == 0)))
                             {
                                 AddCandidate(found, t, sm);
                             }
@@ -139,7 +140,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Optimizations
             }
 
             // A word alone that an ORed candidate also takes is that handle on its way (R = word; R |= other word), not a handle of its own
-            found = found.FindAll(candidate => candidate.Sampler != null || !found.Exists(other => other.Sampler != null && (other.Texture.Value == candidate.Texture.Value || other.Sampler.Value == candidate.Texture.Value && other.Sampler.Type == OperandType.ConstantBuffer)));
+            if (guarded) found = found.FindAll(candidate => candidate.Sampler != null || !found.Exists(other => other.Sampler != null && (other.Texture.Value == candidate.Texture.Value || other.Sampler.Value == candidate.Texture.Value && other.Sampler.Type == OperandType.ConstantBuffer)));
 
             if (found.Count > 1)
             {

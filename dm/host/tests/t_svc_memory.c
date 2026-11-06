@@ -58,9 +58,11 @@ module_t *module_of(const void *p) {
 #ifdef TEST_REAL_DIRTY
 #include "../../gfx/nvn/nvn_dirty.h"
 static void (*write_prepare)(void *, size_t);
+static void (*read_prepare)(const void *, size_t);
 static int (*fault_hook)(void *, int, void *);
 void dm_fault_hook_register(int (*fn)(void *, int, void *)) { fault_hook = fn; }
 void dm_guest_write_prep_register(void (*fn)(void *, size_t)) { write_prepare = fn; }
+void dm_guest_read_prep_register(void (*fn)(const void *, size_t)) { read_prepare = fn; }
 static void memory_fault(int sig, siginfo_t *info, void *ctx) {
     if (fault_hook && fault_hook(info->si_addr, 1, ctx)) return;
     _exit(128 + sig);
@@ -78,6 +80,14 @@ void dm_guest_write_prepare(void *addr, size_t size) {
         assert(!mprotect((void *)readonly_base, readonly_size, PROT_READ | PROT_WRITE));
         readonly_size = 0;
     }
+}
+
+void dm_guest_read_prepare(const void *addr, size_t size) {
+#ifdef TEST_REAL_DIRTY
+    if (read_prepare) read_prepare(addr, size);
+#else
+    (void)addr; (void)size;
+#endif
 }
 
 static int fail_protect, fail_mmap;
@@ -531,6 +541,29 @@ static void layout_order(void) {
     assert(info(I_AslrAddr) == (uint64_t)(uintptr_t)g_as && info(I_AslrSize) == g_reserve);
 }
 int main(int argc, char **argv) {
+    if (argc == 2 && !strcmp(argv[1], "--brent-alias-probe")) {
+        mem_init();
+        assert(getenv("DM_OOT_BRENT") && !strcmp(getenv("DM_OOT_BRENT"), "1"));
+        assert((uintptr_t)g_heap == (uintptr_t)g_as + 0x10000000);
+        assert(g_heap_cap == RESERVE - DM_GAME_MEM_ALIAS - DM_GAME_MEM_STACK - 0x10000000);
+        assert(g_stack == g_heap + g_heap_cap && g_alias == g_stack + g_stack_cap);
+        assert(g_alias + g_alias_cap == g_as + g_reserve);
+        size_t want = getenv("DM_ALIAS_SIZE") ? strtoull(getenv("DM_ALIAS_SIZE"), NULL, 0) : UINT64_C(0x1000000000);
+        assert(g_alias_cap == want);
+        alias = (uintptr_t)g_alias; stack = (uintptr_t)g_stack; heap = (uintptr_t)g_heap;
+        assert(!resize(0x800000));
+        assert(!pages(1, alias, (size_t)getpagesize()));
+        *(uint8_t *)alias = 0x37;
+        assert(!map(stack, alias, (size_t)getpagesize()));
+        assert(*(uint8_t *)stack == 0x37);
+        *(uint8_t *)stack = 0x64;
+        assert(!unmap(stack, alias, (size_t)getpagesize()));
+        assert(*(uint8_t *)alias == 0x64);
+        assert(!pages(0, alias, (size_t)getpagesize()));
+        puts("Brent alias layout, heap, physical mapping and stack copyback passed");
+        return 0;
+    }
+
     if (argc == 2 && !strcmp(argv[1], "--heap-probe")) {
         mem_init();
         assert(resize(g_heap_cap + 0x200000) == OOM);

@@ -1,0 +1,458 @@
+[
+  {
+    "id": "Gommon",
+    "version": "2.8.1.2",
+    "published": "2026-04-09T00:50:39.757+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/gommon/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/gommon/2.8.1.2/gommon.2.8.1.2.nupkg",
+    "sha256": "b49743299beed3613c5e3a2802f4454ce3028ec7bec3c04254ec2c210e4ad338"
+  },
+  {
+    "id": "Humanizer",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:38.897+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer/3.0.10/humanizer.3.0.10.nupkg",
+    "sha256": "a0d4972b92cb30d88af2203fd07fb341ea0371bac3b93a7ffb3c342c64c408d0"
+  },
+  {
+    "id": "Humanizer.Core",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:40.157+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core/3.0.10/humanizer.core.3.0.10.nupkg",
+    "sha256": "99f95210d8c3a1fd40bfd33d44b18441c97857891e55f1f7a88c72feec49e851"
+  },
+  {
+    "id": "Humanizer.Core.af",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:41.137+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.af/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.af/3.0.10/humanizer.core.af.3.0.10.nupkg",
+    "sha256": "c464e6afdcaa319d648f07df9e874213c2a6fed7e5cce5269b0e573dcabceb9c"
+  },
+  {
+    "id": "Humanizer.Core.ar",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:42.117+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.ar/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.ar/3.0.10/humanizer.core.ar.3.0.10.nupkg",
+    "sha256": "d47df0670a69832b7743dc17743be283fc124d881056d953e39778814e54a443"
+  },
+  {
+    "id": "Humanizer.Core.az",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:43.073+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.az/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.az/3.0.10/humanizer.core.az.3.0.10.nupkg",
+    "sha256": "24258432bb295e2134cdfbd4b591f11ee2f3a38eb59ad5d999cb771218281c71"
+  },
+  {
+    "id": "Humanizer.Core.bg",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:44.077+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.bg/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.bg/3.0.10/humanizer.core.bg.3.0.10.nupkg",
+    "sha256": "bd2ce956f4865ca766b15bfbe39ed6b031445b4374bd5338df47611d19eccfb3"
+  },
+  {
+    "id": "Humanizer.Core.bn",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:45.057+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.bn/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.bn/3.0.10/humanizer.core.bn.3.0.10.nupkg",
+    "sha256": "bc99225d27ce1d747d896d751a593abd171289e77eb5113131c825dffe9d443a"
+  },
+  {
+    "id": "Humanizer.Core.ca",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:46.107+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.ca/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.ca/3.0.10/humanizer.core.ca.3.0.10.nupkg",
+    "sha256": "49efc101027666212a197e8c8e5bbc0707c731d632386c049d3c868eae7edaf0"
+  },
+  {
+    "id": "Humanizer.Core.cs",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:47.063+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.cs/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.cs/3.0.10/humanizer.core.cs.3.0.10.nupkg",
+    "sha256": "8da5c481e5dd7b071cebe4dcd377432b6dd3726c488d3c76102769eebb20c8e7"
+  },
+  {
+    "id": "Humanizer.Core.da",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:48.023+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.da/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.da/3.0.10/humanizer.core.da.3.0.10.nupkg",
+    "sha256": "86d8f3548cc49fbbfceb3b7f66b5780f5902e57726e138d0a1b6e238206a3631"
+  },
+  {
+    "id": "Humanizer.Core.de",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:49.167+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.de/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.de/3.0.10/humanizer.core.de.3.0.10.nupkg",
+    "sha256": "b0e8d9065af5f2896c747d5d58ead54b3341868a6a5c1bc5ec30144b769049ea"
+  },
+  {
+    "id": "Humanizer.Core.el",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:50.17+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.el/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.el/3.0.10/humanizer.core.el.3.0.10.nupkg",
+    "sha256": "51f5428d1bec5abc28378440257571fb9224d2f961dd4a99d5af25346d0c426a"
+  },
+  {
+    "id": "Humanizer.Core.es",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:51.16+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.es/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.es/3.0.10/humanizer.core.es.3.0.10.nupkg",
+    "sha256": "a169adc0c5d9a2998b91f6cfe00f0a765879476d1fde35d1b14e1158df29494b"
+  },
+  {
+    "id": "Humanizer.Core.fa",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:52.16+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.fa/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.fa/3.0.10/humanizer.core.fa.3.0.10.nupkg",
+    "sha256": "838c510469afd9516107340689545d83d3a7a506c0118b7db04600d84e290a3a"
+  },
+  {
+    "id": "Humanizer.Core.fi",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:53.057+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.fi/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.fi/3.0.10/humanizer.core.fi.3.0.10.nupkg",
+    "sha256": "11db525ec2f4b4bedc461cb5bd6f993d0904043122875357c4e5398e562e2675"
+  },
+  {
+    "id": "Humanizer.Core.fil",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:54.167+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.fil/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.fil/3.0.10/humanizer.core.fil.3.0.10.nupkg",
+    "sha256": "c698acd643504019a1f38fdbd28c22ce72fd6cc76e6f3cdcb64894c69c16280a"
+  },
+  {
+    "id": "Humanizer.Core.fr",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:55.16+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.fr/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.fr/3.0.10/humanizer.core.fr.3.0.10.nupkg",
+    "sha256": "e3e257baf0a8455d6500afbadb5409dad356459d1dad453c3e1fa14039b8e3af"
+  },
+  {
+    "id": "Humanizer.Core.he",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:56.143+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.he/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.he/3.0.10/humanizer.core.he.3.0.10.nupkg",
+    "sha256": "b393a5b18f7e5298df6d15916735ec5763531e34ae85968b508d3541c882d0c7"
+  },
+  {
+    "id": "Humanizer.Core.hr",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:57.25+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.hr/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.hr/3.0.10/humanizer.core.hr.3.0.10.nupkg",
+    "sha256": "5094ebb222d3133d15a1df4a57d568244ddaabc5e48b03b049c6dfc64baf9ac2"
+  },
+  {
+    "id": "Humanizer.Core.hu",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:58.267+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.hu/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.hu/3.0.10/humanizer.core.hu.3.0.10.nupkg",
+    "sha256": "93b71db11c97d69271d8bb94b9ac4699059b2e4848584008543b7f8fbbd5946d"
+  },
+  {
+    "id": "Humanizer.Core.hy",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:33:59.193+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.hy/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.hy/3.0.10/humanizer.core.hy.3.0.10.nupkg",
+    "sha256": "f2b796bc711b8a021178f575830a38718cea7fd54784b6d78ab186bbbf3309ed"
+  },
+  {
+    "id": "Humanizer.Core.id",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:00.147+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.id/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.id/3.0.10/humanizer.core.id.3.0.10.nupkg",
+    "sha256": "5b5232e7a09a36132a61f95555ab9667d6cff25d23680b8d62edf3d10a2fcfc1"
+  },
+  {
+    "id": "Humanizer.Core.is",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:01.05+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.is/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.is/3.0.10/humanizer.core.is.3.0.10.nupkg",
+    "sha256": "519af4b007edcee52fa01b52f28269fe0d19e752726011a528ffc9a593a9527a"
+  },
+  {
+    "id": "Humanizer.Core.it",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:01.987+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.it/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.it/3.0.10/humanizer.core.it.3.0.10.nupkg",
+    "sha256": "08ee9f11a712693f5152e2925326c3314de590f15af811f13561bfaa2290a7a1"
+  },
+  {
+    "id": "Humanizer.Core.ja",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:02.94+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.ja/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.ja/3.0.10/humanizer.core.ja.3.0.10.nupkg",
+    "sha256": "7d9b995b6994e9b5b22827bb85cdc70928f3fb38cf00115c1448fa3800f37e56"
+  },
+  {
+    "id": "Humanizer.Core.ko",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:03.843+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.ko/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.ko/3.0.10/humanizer.core.ko.3.0.10.nupkg",
+    "sha256": "64d844bef4aecb45911c67ed221afadbea402a49b3b034f6e9290b8fd9b16315"
+  },
+  {
+    "id": "Humanizer.Core.ku",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:04.797+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.ku/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.ku/3.0.10/humanizer.core.ku.3.0.10.nupkg",
+    "sha256": "9b50198dad06d121098aeacb4c991f62f8b9a5242d99bbe9086ed27dd9ae53ce"
+  },
+  {
+    "id": "Humanizer.Core.lb",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:05.693+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.lb/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.lb/3.0.10/humanizer.core.lb.3.0.10.nupkg",
+    "sha256": "e8a61926b0d05231d96329f9fd652d7f21bcfea967228a2a6c7a10f64183c980"
+  },
+  {
+    "id": "Humanizer.Core.lt",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:06.6+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.lt/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.lt/3.0.10/humanizer.core.lt.3.0.10.nupkg",
+    "sha256": "0630e1dc48df12060514844b3ccbe90b4f2cf201ec1d854c56451fcc6d1c56a2"
+  },
+  {
+    "id": "Humanizer.Core.lv",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:07.557+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.lv/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.lv/3.0.10/humanizer.core.lv.3.0.10.nupkg",
+    "sha256": "a3f00c889baceef538ea9d58cdab11a5e798c757cfc3a8ac52977710b3945cd9"
+  },
+  {
+    "id": "Humanizer.Core.ms",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:08.507+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.ms/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.ms/3.0.10/humanizer.core.ms.3.0.10.nupkg",
+    "sha256": "0970a77d40c6d10d27b5807f79981cf2c39d1a548616bcacbe850a4eb42604bc"
+  },
+  {
+    "id": "Humanizer.Core.mt",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:09.433+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.mt/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.mt/3.0.10/humanizer.core.mt.3.0.10.nupkg",
+    "sha256": "d8bedcdb9383eea5a835676bda57bb7f3842f3b8b4f98d93cf0bfec87e1f1d90"
+  },
+  {
+    "id": "Humanizer.Core.nb",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:10.403+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.nb/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.nb/3.0.10/humanizer.core.nb.3.0.10.nupkg",
+    "sha256": "ca76825898aee72dc1e4b7a22d0aefb2742b98455abd8bdf78a28ca73599e9fc"
+  },
+  {
+    "id": "Humanizer.Core.nl",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:11.357+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.nl/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.nl/3.0.10/humanizer.core.nl.3.0.10.nupkg",
+    "sha256": "cbf65512c0f3cfd10c097b894999f4315a257fa4ea214e16932e9bc9d3768be5"
+  },
+  {
+    "id": "Humanizer.Core.pl",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:12.333+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.pl/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.pl/3.0.10/humanizer.core.pl.3.0.10.nupkg",
+    "sha256": "af70e29f73176a80858f8df5795f9600e65446fbba0f85f4b5de4705a3164c68"
+  },
+  {
+    "id": "Humanizer.Core.pt",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:14.18+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.pt/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.pt/3.0.10/humanizer.core.pt.3.0.10.nupkg",
+    "sha256": "ed0ae8cf4607f1779ebfaf69495c282011c0c0fc47d09d3dcf9e9a9d9ca8d731"
+  },
+  {
+    "id": "Humanizer.Core.pt-BR",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:13.233+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.pt-br/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.pt-br/3.0.10/humanizer.core.pt-br.3.0.10.nupkg",
+    "sha256": "3ebb954e9a9745f91594e9b6a69eeb3caf0bf3d4bdf6a1fe18e5d2d187feba90"
+  },
+  {
+    "id": "Humanizer.Core.ro",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:15.133+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.ro/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.ro/3.0.10/humanizer.core.ro.3.0.10.nupkg",
+    "sha256": "90fef36bb2580e3b5963a2a9e68263b0bb13123d0c00ce2a78ae3a66a85116d4"
+  },
+  {
+    "id": "Humanizer.Core.ru",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:16.127+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.ru/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.ru/3.0.10/humanizer.core.ru.3.0.10.nupkg",
+    "sha256": "2743cafa9bbaa3e62ba171347b6d0ef46e25108806043749208ebdd85c4b664d"
+  },
+  {
+    "id": "Humanizer.Core.sk",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:17.103+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.sk/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.sk/3.0.10/humanizer.core.sk.3.0.10.nupkg",
+    "sha256": "351700c85bbaae2b07838f10f5f52eb243da143e9499763612060d82c8a4a9da"
+  },
+  {
+    "id": "Humanizer.Core.sl",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:18.067+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.sl/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.sl/3.0.10/humanizer.core.sl.3.0.10.nupkg",
+    "sha256": "f8e44a531b90d0c5780e95634d08d3f6e29227f0f20eee9be371b7ae74a27a1c"
+  },
+  {
+    "id": "Humanizer.Core.sr",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:20.067+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.sr/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.sr/3.0.10/humanizer.core.sr.3.0.10.nupkg",
+    "sha256": "7fed2e5f687ca705a32efbb847440ed7ca6aec6a9541f58c6acacf29c0c4d1bb"
+  },
+  {
+    "id": "Humanizer.Core.sr-Latn",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:19.05+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.sr-latn/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.sr-latn/3.0.10/humanizer.core.sr-latn.3.0.10.nupkg",
+    "sha256": "edb9d063146298e8624320e7cdf622af855884e559b4e351f7724541b94f8197"
+  },
+  {
+    "id": "Humanizer.Core.sv",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:21.04+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.sv/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.sv/3.0.10/humanizer.core.sv.3.0.10.nupkg",
+    "sha256": "ca51f1bd6d4813225d0492e9cb23f2f550fbf750e63b7eddde3ea8c1b4d5490f"
+  },
+  {
+    "id": "Humanizer.Core.th",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:21.953+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.th/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.th/3.0.10/humanizer.core.th.3.0.10.nupkg",
+    "sha256": "c096cb843c81b12c5cf21965ecba38a7ed7fe9020520596ba6eb4c5f61ac24af"
+  },
+  {
+    "id": "Humanizer.Core.tr",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:22.943+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.tr/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.tr/3.0.10/humanizer.core.tr.3.0.10.nupkg",
+    "sha256": "77392e96c290f93bb27de90d741a9e9f78500ab1ca8c5fe6ffc47315426ff2ca"
+  },
+  {
+    "id": "Humanizer.Core.uk",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:23.917+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.uk/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.uk/3.0.10/humanizer.core.uk.3.0.10.nupkg",
+    "sha256": "81b45db84d7bcd4d55a5c1bf1d57a8be6357e2effbabec2c536265e79199ede7"
+  },
+  {
+    "id": "Humanizer.Core.uz-Cyrl-UZ",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:24.88+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.uz-cyrl-uz/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.uz-cyrl-uz/3.0.10/humanizer.core.uz-cyrl-uz.3.0.10.nupkg",
+    "sha256": "81a925b3f3fd3160e3ce5b62f95a4e1018810c8c43408edbb23d47e63232ca82"
+  },
+  {
+    "id": "Humanizer.Core.uz-Latn-UZ",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:25.9+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.uz-latn-uz/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.uz-latn-uz/3.0.10/humanizer.core.uz-latn-uz.3.0.10.nupkg",
+    "sha256": "1552cd5bb981d05aeba8d07613047f6e1932d526a3c6820c41fac3448df08ff1"
+  },
+  {
+    "id": "Humanizer.Core.vi",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:26.85+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.vi/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.vi/3.0.10/humanizer.core.vi.3.0.10.nupkg",
+    "sha256": "a83b2beb1dae52715ba6b63a4cf798d94000650f4e146ae391d794417c861ff5"
+  },
+  {
+    "id": "Humanizer.Core.zh-CN",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:27.917+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.zh-cn/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.zh-cn/3.0.10/humanizer.core.zh-cn.3.0.10.nupkg",
+    "sha256": "697ff1124b386f4f8602e157b46b22a6bf8f6e931d977331877d3b107173ba35"
+  },
+  {
+    "id": "Humanizer.Core.zh-Hans",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:28.877+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.zh-hans/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.zh-hans/3.0.10/humanizer.core.zh-hans.3.0.10.nupkg",
+    "sha256": "fac2bc8ad744c7bc3325b80a1d960b3b06e1faa3d8efd26eafe4db44e29ba770"
+  },
+  {
+    "id": "Humanizer.Core.zh-Hant",
+    "version": "3.0.10",
+    "published": "2026-03-07T05:34:29.843+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/humanizer.core.zh-hant/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/humanizer.core.zh-hant/3.0.10/humanizer.core.zh-hant.3.0.10.nupkg",
+    "sha256": "660d0bb61c7d2ed5198100b26e5e51dea2ad4a5b9176b41dad595091151ccca1"
+  },
+  {
+    "id": "Microsoft.IO.RecyclableMemoryStream",
+    "version": "3.0.1",
+    "published": "2024-06-11T21:07:57.037+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.io.recyclablememorystream/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/microsoft.io.recyclablememorystream/3.0.1/microsoft.io.recyclablememorystream.3.0.1.nupkg",
+    "sha256": "ba7160ff911c53f5ca25ba1be06b500b8dd87608b95637811acee17e18f8118a"
+  },
+  {
+    "id": "MsgPack.Cli",
+    "version": "1.0.1",
+    "published": "2019-02-03T10:29:08.813+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/msgpack.cli/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/msgpack.cli/1.0.1/msgpack.cli.1.0.1.nupkg",
+    "sha256": "19fd0477d5c71f8a05a49224ce183fc610d5a5e9ee9d2a25eb9a9af0865e62b6"
+  },
+  {
+    "id": "System.CodeDom",
+    "version": "4.4.0",
+    "published": "2017-08-11T18:14:47.123+00:00",
+    "url": "https://api.nuget.org/v3/registration5-gz-semver2/system.codedom/index.json",
+    "content": "https://api.nuget.org/v3-flatcontainer/system.codedom/4.4.0/system.codedom.4.4.0.nupkg",
+    "sha256": "2f5c72b2927ca4324d54f60a97e14c19fe19c26d2d96ab40c9008d5baa53ebfd"
+  }
+]
