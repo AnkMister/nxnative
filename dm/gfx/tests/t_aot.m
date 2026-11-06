@@ -15,11 +15,20 @@ uint64_t now_ns(void) { return bp_now(); }
 @end
 int main(int argc, char **argv) { @autoreleasepool {
     int tool = mtl_pso_aot_tool(); if (tool) return tool < 0 ? -tool : 0;
-    if (argc != 4) { fprintf(stderr, "usage: t_aot <libraries> <archive> <seen>\n"); return 2; }
-    setenv("DM_AOT", "1", 1); setenv("DM_AOT_STRICT", "1", 1); setenv("DM_PSO_BUNDLE", argv[2], 1);
+    int compute_only = argc == 5 && !strcmp(argv[4], "compute-archive");
+    if (argc != 4 && !compute_only) { fprintf(stderr, "usage: t_aot <libraries> <archive> <seen>\n"); return 2; }
+    setenv("DM_AOT", compute_only ? "0" : "1", 1); setenv("DM_AOT_STRICT", compute_only ? "0" : "1", 1); setenv("DM_PSO_BUNDLE", argv[2], 1);
     setenv("DM_PSO_ARCHIVE", "off", 1); setenv("DM_PSO_SEEN", argv[3], 1);
     setenv("DM_SHARPEN", "0.2", 1);
     g_dev = MTLCreateSystemDefaultDevice(); CHECK(g_dev); g_msl_dir = @(argv[1]); pso4_init(); CHECK(g_arch_bundle);
+    if (compute_only) {
+        NvShader *cs = [NvShader new]; strcpy(cs->key, "c_b"); cs->stage = 5;
+        id<MTLLibrary> lib = lib_from_file([g_msl_dir stringByAppendingPathComponent:@"c_b.metallib"], nil);
+        cs->fn = fn4_note(aot_function(lib, @"main0"), lib, @"main0", nil);
+        CHECK(cs->fn && cps_make(cs, nil));
+        CHECK(g_cps_archived == 1 && g_cps_compiled == 0);
+        return 0;
+    }
     // Exact keys must distinguish depth/stencil state; replay must restore it.
     MTLRenderPipelineDescriptor *ds = [MTLRenderPipelineDescriptor new];
     ds.vertexFunction = aot_function(lib_from_file([g_msl_dir stringByAppendingPathComponent:@"v_b.metallib"], nil), @"main0");

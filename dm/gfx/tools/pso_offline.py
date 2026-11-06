@@ -489,7 +489,8 @@ def main(argv=None):
     pairs = read_pairs(text)
     bases, rest, left = plan(lib_dir, chain, pairs, zero, aot=a.aot)
     kernels, cleft = plan_compute(lib_dir, chain, compute_keys(a.compute or []))
-    nrender = len(bases); bases = bases + kernels   # one list for the script, the digest and the batches: a kernel is a 2-tuple, a base a 4-tuple
+    nrender = len(bases)
+    if not a.aot: bases += kernels   # The expanded AOT inventory supplies these kernels below.
     work.mkdir(parents=True, exist_ok=True); out.mkdir(parents=True, exist_ok=True)
     if a.aot:
         global AOT_ENUMS, AOT_HOST, AOT_SHADER_MAP, AOT_ZERO

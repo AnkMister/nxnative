@@ -84,12 +84,17 @@ class Planning(unittest.TestCase):
             arch_src = root / 'arch.m'; arch_src.write_text('#import <Metal/Metal.h>\nint main(){@autoreleasepool{puts(MTLCreateSystemDefaultDevice().architecture.name.UTF8String);}}')
             subprocess.run(['xcrun', 'clang', '-fobjc-arc', '-framework', 'Metal', '-framework', 'Foundation', str(arch_src), '-o', str(root / 'arch')], check=True, capture_output=True)
             arch = subprocess.check_output([str(root / 'arch')], text=True).strip()
-            args = ['--platform', 'macos', '--gpu', arch, '--msl', str(lib), '--pairs', str(pairs), '--out', str(root / 'out'), '--work', str(root / 'work'), '--aot', '--shader-map', str(shader_map), '--seen', str(seen), '--batch-size', '8', '--host', os.environ['DM_TEST_AOT']]
+            args = ['--platform', 'macos', '--gpu', arch, '--msl', str(lib), '--pairs', str(pairs), '--out', str(root / 'out'), '--work', str(root / 'work'), '--aot', '--shader-map', str(shader_map), '--compute', str(shader_map), '--seen', str(seen), '--batch-size', '8', '--host', os.environ['DM_TEST_AOT']]
             self.assertEqual(po.main(args), 0)
+            configuration = json.loads((root / 'work/bases.mtl4-json').read_text())
+            compute = configuration['pipeline_descriptors'].get('compute_pipeline_descriptors', [])
+            self.assertEqual(len(compute), len({json.dumps(row, sort_keys=True) for row in compute}))
             preflight = json.loads((root / 'out/aot-preflight.json').read_text())
             self.assertEqual(preflight['layer_bases'], 1)
             self.assertEqual(preflight['classes']['mesh'], 2)
             learned = root / 'learned.jsonl'
+            compute_run = subprocess.run([os.environ['DM_TEST_AOT'], str(lib), str(root / 'out'), str(learned), 'compute-archive'], capture_output=True, text=True)
+            self.assertEqual(compute_run.returncode, 0, compute_run.stdout + compute_run.stderr)
             run = subprocess.run([os.environ['DM_TEST_AOT'], str(lib), str(root / 'out'), str(learned)], capture_output=True, text=True)
             self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
             self.assertIn('[RED] AOT phase=gameplay class=render', run.stderr)
