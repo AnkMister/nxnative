@@ -121,6 +121,8 @@ The [BAHS record-boundary finding](../../../docs/reference/shaders.md#a-bahs-sca
 
 - Open experiment: [visual source ports](../../../docs/reference/shaders.md#ocarina-visual-source-ports-experimental) are default-off on `oot-visual`. Ten extracted v131072 targets now translate and compile on the M4 Max, including the foliage, output-payload task, float-reduction, SMAA and deep-expression compute targets. Numeric GPU and focused host fixtures pass. The Open entries below describe the earlier runtime findings; visual/gameplay acceptance remains open.
 
+- Open: [pipeline creation after offline translation](../../../docs/reference/shaders.md#pipeline-creation-remains-after-offline-shader-translation) has opt-in archive coverage and descriptor learning. Synthetic fixtures pass; no gameplay zero-compile or image result is established.
+
 - Open experiment: [absolute direct-present cadence](../../../docs/reference/frame-rate.md#absolute-cadence-experiment-for-direct-presentation) is available with `DM_PRESENT_ABSOLUTE=1` on the Mac. It is off by default and has no gameplay latency result yet.
 
 - Mac CPU experiments are available for [uniform-copy consumer waits](../../../docs/reference/frame-rate.md#uniform-copy-consumers-spin-while-their-worker-is-delayed) and [compile pool limits](../../../docs/reference/frame-rate.md#compile-pools-compete-with-other-apps). Gameplay A/B validation is open.

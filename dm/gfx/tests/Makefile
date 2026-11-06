@@ -585,3 +585,10 @@ check_t_upload_trim: t_upload_trim
 	MTL_DEBUG_LAYER=1 DM_NVN_UPLOAD_TRIM=1 ./t_upload_trim
 
 
+
+
+t_aot: t_aot.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_aot.m $(MTL_T_SRC) $(FW)
+.PHONY: check_t_aot
+check_t_aot: t_aot
+	DM_TEST_AOT=$(CURDIR)/t_aot python3 -m unittest test_aot.py

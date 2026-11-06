@@ -1887,3 +1887,10 @@ The image measurements below are upstream reports, not a run of this branch.
 - **Host experiments:** `DM_NVN_VISUAL=1` enables texture write ranges, R32 atomic backing for RGBA8 views, native mesh pipeline prewarm and narrow Float16 constant-output limits. `DM_NVN_MESH_INDIRECT=1` separately enables a provisional {count, first} record conversion and logs the first eight completed records. NVN2 layout remains unverified.
 - **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md). Ten extracted v131072 targets translate and compile on the M4 Max; no game or full shader build was run. Visual acceptance remains open.
 - **Check:** `test_dmsh_ampere_alu.py`, `test_dmsh_ampere_mem.py`, `DMSH_TEST_GPU=1 test_dmsh_visual_numeric.py`, `test_split_ndsr_entries.py`, `test_shader_pch.py`; host tests `t_mesh_indirect`, `t_image_usage`, `t_cpu_tex`, `t_cpu_storage`, `t_pso_warm` and `t_limit16`. Numeric tests require `DMSH_TEST_XLATE` and `DMSH_OOT_VISUAL=1`.
+
+### Pipeline creation remains after offline shader translation
+
+- **Symptom:** first-use stutter, render-base specialization, compute pipeline creation or native mesh draws omitted while their pipeline builds.
+- **Cause:** offline metallibs and render bases do not cover every final pipeline descriptor, compute kernel or native task/mesh combination.
+- **Fix:** opt-in `DM_AOT=1` adds offline compute, layer and mesh-base coverage, helper kernels, portable `pso_seen.jsonl` learning and archive-only startup loading. Always-on counters separate startup from gameplay. `DM_AOT_STRICT=1` logs gameplay compiler API entries as `[RED]` and keeps the fallback playable. Unknown final state and function constants remain open. The [coverage report](../analysis/oot-aot.md) describes packing, preflight and acceptance checks.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#found-on-this-game), static shader audit. Synthetic archives pass; complete game coverage and visual acceptance are unverified.

@@ -7,7 +7,7 @@ stack/idle replacements follow; fixed memory and border implementations come
 after those original feature merges and remain default-off. Resolution hooks
 follow quality ancestry. Final visual/stable repairs precede Brent; the waste
 scanner joins the bench tooling. Every incoming branch has an archived log in
-[docs/oot-notes](docs/oot-notes/README.md).
+[docs/oot-notes](../../docs/oot-notes/README.md).
 
 The initially merged blocked memory/border revisions were reverted in the
 recovery history. The ordered integration used their reviewed replacements.
@@ -55,14 +55,14 @@ The official NuGet publication audit covers 57 exact versions, each older than
 seven days. Restore uses only a private cleared-source local feed; all four
 project.assets.json package sets match its allowlist exactly. Publish uses
 --no-restore, --self-contained false and at most four jobs. The final lock is
-regenerated from the locally built bundle. [Package dates and SHA256s](docs/oot-notes/nuget-audit.json)
-and [source/distribution SHA256s](docs/oot-notes/translator-fingerprints.json)
+regenerated from the locally built bundle. [Package dates and SHA256s](../../docs/oot-notes/nuget-audit.json)
+and [source/distribution SHA256s](../../docs/oot-notes/translator-fingerprints.json)
 are committed. The launcher's embedded digest alone is not full source proof.
 
 ## Build choices and remaining work
 
-[FLAGS](docs/oot-notes/FLAGS.md) lists defaults, risk, gain and origin.
-[PLAY-BUILD](docs/oot-notes/PLAY-BUILD.md) enables correctness and stability,
+[FLAGS](../../docs/oot-notes/FLAGS.md) lists defaults, risk, gain and origin.
+[PLAY-BUILD](../../docs/oot-notes/PLAY-BUILD.md) enables correctness and stability,
 uses srgb and keeps experiments off. **The next app build must re-rewrite main
 with the merged Ocarina profile.** A host-only build cannot install the three
 resolution observation hooks. Their runtime option remains off.
@@ -91,7 +91,7 @@ and other agents' artifacts are preserved.
 
 ## Final oot-hyper checkpoint
 
-The [verification record](docs/oot-notes/VERIFICATION.md) reports green full tools,
+The [verification record](../../docs/oot-notes/VERIFICATION.md) reports green full tools,
 Python/native graphics and the host build. Crop/quality/integer attachment tests
 pass together under Metal validation. Memory and audio/clock/FS fixtures pass.
 Tool lock matches; regenerating the default header leaves no change.
