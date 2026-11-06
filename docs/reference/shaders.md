@@ -81,6 +81,14 @@ Finding, keying and translating shaders (`dm/gfx/tools/shader_split.py`, `dmsh_b
 - **Fix:** it now goes by the zstd magic (`28 b5 2f fd`) whatever the name.
 - **Found on:** [Paper Mario: The Thousand-Year Door](../../dm/games/0100ECD018EBE000/README.md) (8,726 of the RomFS's 9,959 files, the shader archives among them). Of the other 21 games' RomFS on hand only Super Mario Galaxy's `GDDR3.zst` (a Vulkan game, no NVN split) has such a file.
 
+### The split hangs decompressing a large zstd file
+
+- **Symptom:** `build_ipa_from_nsp.py` sits at the shader split with no progress (`splitting: 88%, 164,256/186,587 files` for minutes, then no new line), the worker processes asleep and `zstd -d -c -q` children at 0 % CPU.
+- **Cause:** `unzs` (`shader_split.py`) fed a frame without a dictionary to the `zstd` command on stdin while capturing its stdout. Once the frame is larger than the pipe buffers the two block on each other: the worker's write waits for `zstd` to read, and `zstd`'s output write waits for the worker to drain stdout, which `subprocess.run` does only after the write.
+- **Fix:** `unzs` decompresses in-process with `compression.zstd` (Python 3.14; `backports.zstd` before), which the dictionary frames already used; no pipes, and a bounded RomFS image entry is read the same way. An invalid stream is a red line with the path.
+- **Check:** `dm/tools/tests/test_split_zstd.py`: files and bounded RomFS entries decode without a subprocess, including a frame past the pipe size.
+- **Found on:** [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md): the sound archives, at file 164,256 of the 186,587 (M3 Max, macOS 27.0.1, Python 3.14).
+
 ### HAL's `.cmp` containers: a size-prefixed frame
 
 - **Symptom:** the game asks for shaders the map does not have (`[RED] shader ... is not in the shader map`, hundreds of lines), and the split finds far fewer shaders than the game uses (121 against 27,288 on Kirby and the Forgotten Land).
@@ -1416,6 +1424,14 @@ Finding, keying and translating shaders (`dm/gfx/tools/shader_split.py`, `dmsh_b
 - **A full table loses geometry silently:** a pool past the table's end is not reached, so a load from it reads 0. Ocarina of Time holds about 4,170 ranges, and at the former 4,095 entries its foliage and moss were missing: black shapes where moss should cover them, and the sky through the ground (restored at 8,191 entries, and back again with the host capped at 4,095). The only sign was one red line (`raw global memory: N more memory pools than the … entries`), so treat that line as a picture fault.
 - **Open:** the prediction is checked, not proven: a miss that does reach a shadow is reported (`[RED]`) after the frame, not prevented. The records' pointers come from memory, so the pools they will reach are not known ahead of the draw.
 - **Found on:** [Donkey Kong Bananza](../../dm/games/040074A01BF12000/README.md): its terrain, and agl's compute shader `49bc2268925e25b6` (one load); rebuilding the chain changed only these two of Donkey Kong Bananza's shaders. Vertex shader `588e242a52f5f7aa` (five stores) has one too, the same shader in [The Legend of Zelda: Tears of the Kingdom](../../dm/games/0100F2C0115B6000/README.md) and [Super Mario Bros. Wonder](../../dm/games/010015100B514000/README.md), so likely one the SDK ships; neither drew it in its regression route.
+
+### Raw global memory lookups that reuse their last range
+
+- **Symptom:** a pass whose shaders read memory through loaded addresses takes several milliseconds on the GPU for little work. `[gpuprof]` names the pass, and its shaders' build notes say `Global memory operation "Load" traced to no storage buffer`. Ocarina of Time's foliage mesh shader (`73dc0b90c4082e43`, `Foliage.Product.110`, 135 such reads) took 10.9 ms of a 683x384 frame. 2,228 of the game's 42,853 shaders have the helper (vertex, compute, fragment and mesh), and some call it 971 times.
+- **Cause:** each 32-bit word goes through `GlobalToStorage.TryGenerateRawStorageOp`'s helper on its own: the hint of its 2 MiB chunk, and on a miss the unrolled 13-step search of the GMEM map. A shader reads a structure word after word from one range, so all but the first lookup choose the entry the first one chose.
+- **Fix:** `dmsh_wide.py` `raw_ranges`, the last step before `dmsh_build.py` compiles a shader. Each function that calls the helper keeps the range its last lookup chose (`dm_raw_range`: start, end, entry), and an address inside it takes that entry without the hint or the search. Everything after the choice (the end check, the delta, the read or write) is unchanged. The GMEM map's ranges are disjoint, so the search would choose the same entry, and the cache lives in one invocation, so the table cannot change under it. A helper of another shape leaves the shader as it is.
+- **Check:** `dm/gfx/tests/test_dmsh_raw_ranges.py`. Ocarina of Time on a MacBook Pro M5 Pro (chain `adec7d81d970`, the 2,228 libraries replaced by loose ones, the same scripted seven-minute route into Kokiri Forest, the pipeline archives warmed by a run before): GPU per frame p50 17.0 → 14.1 ms, frame time p50 / p95 17.3 / 18.4 → 16.5 / 18.1 ms, frames dropped on screen 9 → 0 per 300; one frame's encoders 17.5 → 15.0 ms from first start to last end. Screenshots at the spawn point match.
+- **Found on:** [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md).
 
 ### Bindless handles through a loop phi
 

@@ -74,6 +74,7 @@ From an empty save: at about 45 s `A` (title), `A` (New Game), then the movie. F
 
 ## Found on this game
 
+- [Raw global memory lookups that reuse their last range](../../../docs/reference/shaders.md#raw-global-memory-lookups-that-reuse-their-last-range): the foliage, vertex and compute shaders read structures word by word through loaded addresses, each word with its own lookup of the GMEM map.
 - [MetalFX spatial scaling requires an explicit fence under validation](../../../docs/reference/rendering.md#metalfx-spatial-scaling-requires-an-explicit-fence-under-validation): synthetic HDR/scaling integration checks.
 
 - [Shared texture upgrades preserve every registered view](../../../docs/reference/nvn-objects.md#shared-texture-upgrades-preserve-every-registered-view): fork regression coverage for the two review P1 cases and cached-table retirement.
