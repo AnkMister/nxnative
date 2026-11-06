@@ -402,3 +402,10 @@ were removed. Drivers export the approved TMPDIR; upstream plain BSD mktemp
 fixtures use system temporary roots despite that setting and remove them with
 their existing cleanup traps. An empty probe directory was removed with rmdir.
 No game, full shader build, settings write, push or remote branch change ran.
+
+## Harvest 3: upstream command-buffer diagnostics
+
+- Base is oot-play e8c3bc22, branch oot-r3. Sources fetched from origin. No third-party executable was run.
+- Ported f956ffb0's per-command-buffer shader list and late-resource retirement diagnostic. Preserved the existing cbn log, GPU-loss handling and linear deferred-release partition.
+- Shader collection is opt-in with DM_NVN_CBS_FAULT=1; the late-release check uses the existing DM_RES_CHECK=1.
+- Static port only. Builds and tests are blocked while pgrep -f MacOS/dmhost finds the user's game.
