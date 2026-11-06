@@ -595,3 +595,7 @@ t_aot: t_aot.m $(MTL_T_DEP)
 .PHONY: check_t_aot
 check_t_aot: t_aot
 	DM_TEST_AOT=$(CURDIR)/t_aot python3 -m unittest test_aot.py
+
+t_pool_retire: t_pool_retire.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_pool_retire.m $(MTL_T_SRC) $(FW)
+check_t_pool_retire: RUN_ENV = MTL_DEBUG_LAYER=1
