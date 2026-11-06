@@ -442,6 +442,13 @@ Frame pacing: the host's frame step, engine frame limiters, present intervals an
 - **Fix:** optional Mac `DM_ECO_COPY_WAIT=1` waits on a separate completion condition variable. The worker publishes copied bytes with release ordering before broadcasting under the wait mutex. Consumers recheck with acquire ordering, including after spurious wakes. Default off for gameplay A/B; blocking can increase latency for short copies. Synthetic tests cover real queued copies, concurrent consumers, completed waits and spurious wakes. Gameplay CPU and energy savings remain unmeasured.
 - **Found on:** source audit for [Ocarina of Time](../../dm/games/0400486024DEC000/README.md), with other apps running as the target workload. No gameplay run was made for this change.
 
+### Compile pools compete with other apps
+
+- **Symptom:** shader preparation or newly encountered pipelines can compete for CPU with other apps even when gameplay targets 30 fps.
+- **Cause:** prepare defaults to all active CPUs. Background prebuild and hybrid compilation have separate pools. Lower background QoS does not limit the number of concurrent tasks.
+- **Fix:** optional Mac `DM_ECO_COMPILE_THREADS=1..64` caps each pool without enlarging a smaller pool. It covers prepare, prebuild, hybrid queues and speculative admission. Unset or `0` preserves the defaults. Synchronous draw compiles and Metal's private services are outside the cap. Lower caps can extend preparation and increase first-use stutter. Pools drain when their work ends; no permanent busy compile loop was found. Tests cover prepare counts, actual utility-queue rotation, speculative admission and demand bypass. Gameplay savings remain unmeasured.
+- **Found on:** source audit for [Ocarina of Time](../../dm/games/0400486024DEC000/README.md). Existing `DM_QOS_MAP=1 DM_QOS_EDGES=-1,59` can separately place guest priorities 0 through 59 at USER_INITIATED and 60 through 63 at UTILITY, while audio and vsync helpers keep their explicit QoS.
+
 ### Time-constraint computation declared below the thread's peaks
 
 - **Symptom:** stalls of 30–60 ms about once a second, at 30 fps and at 60 (99th percentile 63–127 ms); the main thread waits 20–34 ms for the render thread once a second.

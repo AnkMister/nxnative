@@ -51,7 +51,7 @@ Savings below are hypotheses from source, not gameplay measurements.
 |---|---|---|---|---|
 | 1 | `dm/gfx/nvn/nvn_rec.h:ubc_wait` | Uniform-copy consumers spin with ARM yield until the worker finishes; no blocking slow path. | Stops a consumer burning a core when the copy worker is delayed by competing work. Little gain when every copy finishes immediately. | Use a completion condition variable behind `DM_ECO_COPY_WAIT`; preserve acquire/release publication. |
 | 2 | `dm/gfx/nvn/nvn_mtl.m:prepare_workers`, `pso_prebuild_bg`, `pp_bg_queue` | Prepare uses all active CPUs, background prebuild half the P cores, and hybrid builds another pool. | Reduces simultaneous compile work and contention, mainly at startup and new scenes. No steady-state gain after compilation ends. | Cap each pool behind `DM_ECO_COMPILE_THREADS`; it is not a process-wide Metal limit. |
-| 3 | `dm/host/hle_thread.c:prio_qos` | Default guest threads all request USER_INTERACTIVE. Existing `DM_QOS_MAP=1` still gives the main-priority band that class. | May reduce scheduling competition with other apps and CPU energy. No reduction in useful instructions is promised. | Optional USER_INITIATED ceiling, preserving the existing priority map and audio/vsync QoS. |
+| 3 | `dm/host/hle_thread.c:prio_qos` | Default guest threads all request USER_INTERACTIVE. Existing `DM_QOS_MAP=1` still gives the main-priority band that class. | May reduce scheduling competition with other apps and CPU energy. No reduction in useful instructions is promised. | Reuse `DM_QOS_MAP=1 DM_QOS_EDGES=-1,59` for a USER_INITIATED ceiling. Audio/vsync helpers keep explicit QoS. |
 | 4 | `nvn_rec.h:ubc_thread`, `rec_thread` | Copy worker briefly polls 2,000 atomic loads; encode worker already sleeps on an empty queue. | Small, bounded burst cost. | Leave the brief producer poll intact; change the unbounded consumer wait first. |
 | 5 | `hle_thread.c:block`, arbiter and condition waits; `nvn_mtl.m` fences/uploads/present | These already sleep on condition variables or Metal shared events. Repeated guest yields and short polls already back off. | No evidence for another general wait rewrite. | Preserve timeout and wake semantics. |
 | 6 | `hle_sdk16.c` vsync; `hle_audio.c` silent sink; display link | Vsync is 60 Hz, silent audio 5 ms; these drive guest-visible clocks or audio release. Display link already follows a sustained even interval at 30 Hz. | Coalescing could remove wakeups but risks pacing/audio errors. | Do not change without a gameplay trace. |
@@ -79,3 +79,36 @@ completion condition separate from the work condition. The producer retains its
 brief burst poll. Release/acquire ordering and the existing wait ledger remain.
 The default path still spins as before. Tests queue 128 real copy rounds with
 two additional consumers, and exercise spurious wakes and completed waits.
+
+### Compile pool ceiling
+
+Implemented `DM_ECO_COMPILE_THREADS=1..64` (Mac only; unset or zero is off).
+It caps prepare workers, prebuild workers (including the standalone tool),
+hybrid background queues and speculative admission. It never enlarges a pool.
+Synchronous draws and Metal's private compiler scheduling are outside the cap.
+Pools are independent, so `=2` does not mean two process-wide compile tasks.
+Existing prepare/prebuild overrides are also subject to the ceiling. QoS is
+unchanged; startup prepare remains USER_INITIATED, background work UTILITY.
+No attempt was made to lower QoS dynamically inside a compile already running
+when the first frame appears. That would not reliably lower Metal service QoS.
+
+### Reused controls and deviations
+
+Only the first two candidates require code changes. The existing
+`DM_QOS_MAP=1 DM_QOS_EDGES=-1,59` already maps valid guest priorities 0..59 to
+USER_INITIATED and 60..63 to UTILITY. It preserves the existing priority donation
+path and helper-specific audio/vsync QoS. No duplicate guest-QoS flag was added.
+The acquire/render thread also has a separate time-constraint policy by
+default. QoS alone does not remove that policy. Test existing `DM_RT=0` as a
+separate experiment if the render thread still competes with other apps.
+
+No new telemetry thread or timer was added. Existing process-wide power lines
+already cover the requested CPU, idle wakeups and energy, and `DM_THRCPU` covers
+per-thread attribution. This avoids adding wakeups just to measure them. The
+power line needs frame progress and counts process CPU energy, not whole-system
+power or Metal compiler service energy. The thread sampler omits threads that
+exit between samples; use the process power line for the total.
+
+Local checks so far: both copy-wait modes passed 128 rounds each; compile caps
+unset/0/1/2/4 and four invalid inputs passed. The docs suite passed 11 tests.
+Full integrated checks and build are recorded below after they finish.

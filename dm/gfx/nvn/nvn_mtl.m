@@ -7024,6 +7024,22 @@ static void pso_key_fill(pso_key *k, NvShader *vs, NvShader *fs, const uint32_t 
 // After satisfying the first pipeline miss in a submission, scan ahead once along the remaining commands (replaying state only, no drawing) and kick a bounded number of normal-pass pipelines to the background;
 // when the submit thread reaches that draw it only waits for 'the remaining time not yet compiled'. The compiled pipelines are identical to synchronously compiled ones (same descriptor). Pipeline keys of merged passes / specialized fragments depend on the planning result at replay time, are not predicted, and are compiled synchronously as before.
 #define PSO_PEND_MAX 384
+// A per-pool ceiling, not a limit on Metal's own compiler processes or on
+// synchronous pipelines needed by a draw. Never enlarge an existing pool.
+static int eco_compile_workers(int requested) {
+    static dispatch_once_t once; static int cap;
+    dispatch_once(&once, ^{
+#if !TARGET_OS_IPHONE
+        const char *e = getenv("DM_ECO_COMPILE_THREADS");
+        if (e && *e) {
+            char *end; long n = strtol(e, &end, 10);
+            if (!*end && n >= 1 && n <= 64) { cap = (int)n; MLOG("DM_ECO_COMPILE_THREADS=%d: per-pool compile worker ceiling", cap); }
+            else if (strcmp(e, "0")) MLOG("DM_ECO_COMPILE_THREADS ignored: expected 0 (off) or 1..64");
+        }
+#endif
+    });
+    return cap && requested > cap ? cap : requested;
+}
 enum { PSO_PEND_ACTIVE = 2, PSO_PREDICT_BUDGET = 2 };
 // order: admission order (the oldest finished, untaken entry is reclaimed first); demand: a build a draw asked for while it draws with its pulling stand-in (hybrid pipelines),
 // outside the speculative limit; run: 0 queued, 1 taken by its worker; d: the descriptor while queued (a draw that would wait for a queued build makes the pipeline itself:
@@ -7041,6 +7057,7 @@ static dispatch_queue_t pp_bg_queue(void) {
     static dispatch_queue_t q[8]; static int n; static _Atomic unsigned rr; static dispatch_once_t once;
     dispatch_once(&once, ^{ int pc = 0; size_t sz = sizeof pc; if (sysctlbyname("hw.perflevel0.physicalcpu", &pc, &sz, NULL, 0) || pc < 2) pc = 2;
         n = pc / 2 > 8 ? 8 : pc / 2;
+        n = eco_compile_workers(n);
         for (int i = 0; i < n; i++) q[i] = dispatch_queue_create("dm.nvn.pso-bg", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0)); });
     return q[atomic_fetch_add(&rr, 1) % (unsigned)n];
 }
@@ -7058,7 +7075,7 @@ static int pso_pend_slot(const pso_key *k, int spec, uint32_t *gen) {
         else if (!g_pp[i].done) active += !g_pp[i].demand;
         else if (reclaim < 0 || g_pp[i].order < g_pp[reclaim].order) reclaim = i;
     }
-    if (spec && active >= PSO_PEND_ACTIVE) return -1;
+    if (spec && active >= eco_compile_workers(PSO_PEND_ACTIVE)) return -1;
     if (slot < 0) slot = reclaim;
     if (slot < 0) return -1;
     g_pp[slot].k = *k; g_pp[slot].ps = nil; g_pp[slot].d = nil; g_pp[slot].done = g_pp[slot].run = 0; g_pp[slot].used = 1; g_pp[slot].demand = !spec;
@@ -7289,6 +7306,7 @@ static int pso_bundle_covers(NSArray<NSArray<NSString *> *> *pairs, NSString *wa
 }
 // threads: workers; wait: run on the calling thread until done (the tool), else in the background. Returns the number of pairs, -1 when there is nothing to do
 static int pso_prebuild(int threads, int wait, dispatch_qos_class_t qos) {
+    threads = eco_compile_workers(threads);
     shmap_load(); pso4_init();
     if (!g_comp4 || (!g_arch_bundle && !g_arch_cap) || atomic_exchange(&g_pre_running, 1)) return -1;
     // The pairs: shader_pairs.tsv (BNSH variations and the other readers' pairs) and pso_pairs.tsv (agl BAHS program variations, also read by vs_pad; DM_PSO_PAIRS: another path),
@@ -7640,7 +7658,7 @@ static int prepare_on(void) {
 static int prepare_workers(void) {
     const char *e = getenv("DM_PSO_PREPARE_THREADS"); int n = e ? atoi(e) : 0;
     if (n <= 0) { size_t sz = sizeof n; if (sysctlbyname("hw.activecpu", &n, &sz, NULL, 0) || n < 2) n = 2; }
-    return n;
+    return eco_compile_workers(n);
 }
 static void warm_prepare(NSArray<WarmTask *> *tasks, long lines) {
     int workers = prepare_workers(); long n = (long)tasks.count;

@@ -450,6 +450,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - the submit thread's CPU samples dominated by `mtl_addr` / `mtl_gpu_addr` (vertex buffers in `draw`, uniform buffers in `encode_args`). → [Address to memory pool lookups by binary search](../reference/frame-rate.md#address-to-memory-pool-lookups-by-binary-search)
 - gameplay has low CPU clocks, large render submission wall time compared with thread CPU time, and default QoS (`0x15`) on the main guest thread while workers report user-interactive (`0x21`). → [Main guest thread keeps inherited default QoS](../reference/frame-rate.md#main-guest-thread-keeps-inherited-default-qos)
 - a thread waiting for uniform-shadow copies can burn CPU while another app delays the copy worker. → [Uniform-copy consumers spin while their worker is delayed](../reference/frame-rate.md#uniform-copy-consumers-spin-while-their-worker-is-delayed)
+- shader preparation or newly encountered pipelines can compete for CPU with other apps even when gameplay targets 30 fps. → [Compile pools compete with other apps](../reference/frame-rate.md#compile-pools-compete-with-other-apps)
 - stalls of 30–60 ms about once a second, at 30 fps and at 60 (99th percentile 63–127 ms); the main thread waits 20–34 ms for the render thread once a second. → [Time-constraint computation declared below the thread's peaks](../reference/frame-rate.md#time-constraint-computation-declared-below-the-threads-peaks)
 
 ## NVN objects
