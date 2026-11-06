@@ -226,3 +226,7 @@ NDVE #1331 (b6367705, 76c20edb, 943b0bea) skipped: bilinear replacement discards
 AV1 d234d4f6 port: DM_AV1_PARALLEL=1 enables delayed decoding; default retains synchronous behavior. Serialize submission/reset using decode lock before buffer lock, avoiding the source patch's unlock-before-decode-lock window. Mac runtime verification remains open.
 
 AV1 3b588ca6 port: DM_CV_LATE=1 opts into skipping overdue pictures; no pixel resampling. Default retains all pictures. Temporal completeness is traded for synchronization only when opted in.
+
+AV1 7ee81e91 port: guest movie clock, pause/focus rebase and host-stall catch-up, still behind default-off DM_CV_LATE. Existing focus providers reused; only declarations added. No stable GPU path changed. Linux cannot validate Apple decode/Metal behavior.
+
+Verification: final Linux tools discovery ran 1098 tests, with 16 failures, 205 errors and 94 skips (missing Python packages/tools, Python 3.10 versus required 3.12 and Mac-only utilities; not a green suite). Focused docs/env checks passed all 12 tests. GCC strict syntax check passed hle_codec_video.c with a generated Ocarina header, and the AV1 public header passed. Extracted actual clock code and the existing clock assertions passed ASan/UBSan with absent/0/1 flag values. Full Apple decoder integration remains unverified. regress.py impact cannot import libproc.dylib on Linux. Cross-family review unavailable because Claude provider is unauthenticated; no substitute review claimed.
