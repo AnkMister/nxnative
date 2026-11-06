@@ -379,12 +379,17 @@ static void defer_obj_unref(id obj) { defer_obj_release_ex(obj, 1); }
 static void defer_drain(void) { @autoreleasepool {
     NSMutableArray<NvDeferredRelease *> *ready = [NSMutableArray array];
     pthread_mutex_lock(&g_deferred_mu);
-    for (NSInteger i = g_deferred.count - 1; i >= 0; i--) {
-        NvDeferredRelease *d = g_deferred[(NSUInteger)i];
-        if (d->fence <= g_done) { [ready addObject:d]; [g_deferred removeObjectAtIndex:(NSUInteger)i]; }
+    // Retire in one linear partition. Removing each ready entry separately
+    // repeatedly moved the pending tail: Ocarina's scene load queued hundreds
+    // of thousands of references, spending minutes in NSArray's memmove.
+    NSMutableArray<NvDeferredRelease *> *pending = [NSMutableArray array];
+    uint64_t done = g_done;
+    for (NvDeferredRelease *d in g_deferred) {
+        [(d->fence <= done ? ready : pending) addObject:d];
     }
+    g_deferred = pending;
     pthread_mutex_unlock(&g_deferred_mu);
-    for (NvDeferredRelease *d in ready) {
+    for (NvDeferredRelease *d in ready.reverseObjectEnumerator) {
         id obj = d->object;
         if (!d->keep_resident && [obj conformsToProtocol:@protocol(MTLResource)]) {
             pthread_mutex_lock(&g_res_mu);

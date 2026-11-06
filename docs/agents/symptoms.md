@@ -542,6 +542,8 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 
 - a Switch 2 load makes private textures and their tiled guest copies resident together. Bindless descriptor scans can also allocate fresh zero-filled textures for retired objects whose aliases have already been replaced, triggering more alias takeovers and table rebuilds. → [A raw address table pins CPU-only pools and revives retired textures](../reference/nvn-objects.md#a-raw-address-table-pins-cpu-only-pools-and-revives-retired-textures)
 
+- a large mixed queue of completed and pending GPU references stalls cleanup on the CPU. → [Deferred releases repeatedly shift pending entries](../reference/nvn-objects.md#deferred-releases-repeatedly-shift-pending-entries)
+
 ## Rendering
 
 - clang reports null dereferences in `nvnWindowInitialize` and `clear_tex`; clearing a null texture crashes with `DM_NVN_PASSDUMP=1`. → [Null textures in diagnostic logs](../reference/rendering.md#null-textures-in-diagnostic-logs)
