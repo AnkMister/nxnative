@@ -70,3 +70,10 @@ User requested full build speed: J=16 and make -j16. The offline planner now
 accepts opt-in DM_PSO_J and DM_METAL_PACK_THREADS (both default 1), enabling
 independent cached archive batches and the final merge to use 16 workers.
 No shader semantics or runtime settings change.
+
+User clarified that incompatible AOT-inferred pairs must be dropped, never padded.
+Reverted the mesh-output padding commit before rebuilding; chain is again
+992d6981956f. AOT offline compilation now bisects descriptor refusals, caches
+successes/refusals, filters the packed prewarm inventory, and records the exact
+refusals. Non-AOT and infrastructure failures remain fatal. All 42 archive tests
+pass. Run at J=16, 16 archive workers, 16 merge threads, make -j16.

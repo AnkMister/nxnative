@@ -1920,3 +1920,11 @@ The image measurements below are upstream reports, not a run of this branch.
 - **Cause:** offline metallibs and render bases do not cover every final pipeline descriptor, compute kernel or native task/mesh combination.
 - **Fix:** opt-in `DM_AOT=1` adds offline compute, layer and mesh-base coverage, helper kernels, portable `pso_seen.jsonl` learning and archive-only startup loading. Always-on counters separate startup from gameplay. `DM_AOT_STRICT=1` logs gameplay compiler API entries as `[RED]` and keeps the fallback playable. Unknown final state and function constants remain open. The [coverage report](../analysis/oot-aot.md) describes packing, preflight and acceptance checks.
 - **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#found-on-this-game), static shader audit. Synthetic archives pass; complete game coverage and visual acceptance are unverified.
+
+### One refused inferred AOT descriptor aborts the offline archive
+
+- **Symptom:** `metal-tt` reports fragment inputs not written by a mesh shader and the app is packed without any pipeline archive.
+- **Cause:** a source-label-inferred mesh/fragment combination is not proof of a compatible runtime pairing. One invalid descriptor made the entire bounded compiler batch fail.
+- **Fix:** `pso_offline.py --aot` bisects compiler-refused batches, logs singleton refusals and merges every successful piece. Successful and refused groups are cached by descriptor, libraries, GPU, OS and compiler. Refused descriptors are omitted from `aot.json` and recorded in the packed preflight/refusal reports. Disk/tool failures remain fatal; non-AOT builds retain fail-fast behavior. Shader outputs are unchanged.
+- **Check:** archive tests cover refusal isolation, filtered inventory on initial packing and cached reuse, invalidation after library changes, concurrent ordered batches, and infrastructure failure propagation.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md), three inferred foliage combinations rejected for generic locations 4, 10 and 11.

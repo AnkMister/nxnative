@@ -437,6 +437,42 @@ class Build(unittest.TestCase):
             self.main('--os-min', '27.0')
             self.assertEqual(observed, before)
 
+    def test_aot_bisects_refusals_filters_inventory_and_reuses_results(self):
+        bases = [('v_bp', f'vertex{i}', 'f_b', 'main0') for i in range(5)]
+        runner, observed = self.batched_runner()
+        refusing = [True]
+        def reject(cmd, **kw):
+            args = list(map(str, cmd))
+            if 'metal-tt' in args and '-o' in args:
+                config = json.loads(next(Path(x) for x in args if x.endswith('.mtl4-json')).read_text())
+                names = [f['name'] for f in config['function_descriptors']['library_function_descriptors']]
+                if refusing[0] and 'vertex1' in names:
+                    kw['stdout'].write('Fragment input mismatching mesh shader output\ncannot emit pipeline\n')
+                    return subprocess.CompletedProcess(args, 1)
+            return runner(cmd, **kw)
+        with mock.patch.object(self, 'fake_run', reject), mock.patch.object(po, 'plan', return_value=(bases, [], {})), mock.patch.object(po.pso_aot, 'enums', return_value={}), mock.patch.object(po.pso_aot, 'prepare_helpers', return_value=None), mock.patch.object(po.pso_aot, 'plan', return_value=([], {})):
+            self.main('--aot', '--batch-size', '2', '--os-min', '27.0')
+            self.assertEqual(len(json.loads((self.out / 'aot.json').read_text())), 4)
+            report = json.loads((self.out / 'aot-preflight.json').read_text())
+            self.assertEqual(report['gaps']['compiler-refused descriptors'], 1)
+            self.assertEqual(report['render_bases'], 4)
+            self.assertNotIn('vertex1', (self.out / 'aot.json').read_text())
+            before = list(observed)
+            self.main('--aot', '--batch-size', '2', '--os-min', '27.0')
+            self.assertEqual(observed, before)
+            self.assertEqual(len(json.loads((self.out / 'aot.json').read_text())), 4)
+            # A changed library invalidates cached refusals as well as successes.
+            (self.lib / 'v_bp.metallib').write_bytes(metallib([('changed', False)]))
+            refusing[0] = False
+            self.main('--aot', '--batch-size', '2', '--os-min', '27.0')
+            self.assertEqual(len(json.loads((self.out / 'aot.json').read_text())), 5)
+
+    def test_aot_does_not_swallow_infrastructure_failures(self):
+        self.work.mkdir()
+        with mock.patch.object(po, 'compile_batch', side_effect=SystemExit('disk full')):
+            with self.assertRaisesRegex(SystemExit, 'disk full'):
+                po.compile_aot_batch(self.lib, [('v_bp', 'main0', 'f_b', 'main0')], self.work, 'applegpu_g18p', 'ios', '27.0', self.compiler)
+
     def test_batch_failure_preserves_completed_work_and_publishes_nothing(self):
         bases = [('v_bp', f'vertex{i}', 'f_b', 'main0') for i in range(5)]
         runner, observed = self.batched_runner(fail_compile='vertex2')

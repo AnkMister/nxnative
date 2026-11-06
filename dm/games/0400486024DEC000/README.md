@@ -446,3 +446,7 @@ brightness in gameplay remain unverified.
 Found on this game: the [raw lookup grouping extension](../../../docs/reference/shaders.md#adjacent-raw-global-memory-reads)
 accepts the heavy mesh programs' read-only pool table under `DMSH_WIDE_GROUP=1`.
 Keep this off until matching host/shader builds pass image comparison.
+
+## Inferred AOT pipeline refusals (current)
+
+Found on this game: [one refused inferred descriptor aborts the offline archive](../../../docs/reference/shaders.md#one-refused-inferred-aot-descriptor-aborts-the-offline-archive). Source-label inference supplied three incompatible foliage mesh/fragment combinations. AOT packing isolates and logs refused combinations while retaining all accepted descriptors. No shader padding or runtime behavior change is used. Gameplay coverage remains an acceptance gate.
