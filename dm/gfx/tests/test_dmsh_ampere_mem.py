@@ -384,6 +384,13 @@ def raw_fixture(out):
     subprocess.run(['xcrun', '-sdk', 'macosx', 'metallib', str(air), '-o', str(Path(out) / 'raw.metallib')], check=True)
 
 
+class GlobalCas(Translated):
+    def test_foliage_cas_keeps_the_global_update(self):
+        # Issue #1347's 0x3a9 encoding, Ra/Rd=R36, expected R38, new R39.
+        code = inst(0x000ea400001ee127, 0x00000026242473a9) + inst(*SUATOM) + inst(*EXIT)
+        self.assertIn('atomic_compare_exchange_weak_explicit', self.translate(code))
+
+
 class RedF32(Translated):
     """RED.E.ADD.F32.FTZ.RN (0x98e, type 3 at 73..76), in Ocarina of Time's encoding (agl's sky_analyze 21d9f83e6027c565 at +0xa70, there on UR4 and R9): the IR has no float atomic, so
     the add retries a compare-and-swap of the word. The translator used to log `Invalid reduction type: F32FtzRn` and drop the instruction"""

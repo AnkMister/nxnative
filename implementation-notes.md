@@ -496,3 +496,15 @@ Expected improvement is missing guarded texture effects; Yoshi water is the
 upstream motivating case, not an Ocarina picture demonstrated here.
 Risks include handle provenance assumptions at unmatched guards and shader
 shape coverage. No additional source defect found during this port.
+
+## Remaining foliage opcode 0x3a9: source port
+
+Issue #1347 also names global compare-and-swap, which #1300 does not implement.
+Ported only AAtomgCas and its registration from existing source commit
+`6f973380` (also present in `42203e33`), behind `DMSH_OOT_VISUAL=1`.
+CuAssembler sm_86 records identify 3a9 as ATOMG.E.CAS, with extended-address
+bit 72, expected B, replacement C, and old-word result D. Added a refusal for
+non-PT predicate results instead of silently dropping that output. Only the
+32-bit non-uniform form is accepted. A fixture uses the exact issue encoding.
+This closes a further foliage translation gap. Console parity and ordering
+beyond the translator's existing relaxed atomic model remain unverified.
