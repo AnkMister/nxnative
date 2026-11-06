@@ -74,6 +74,10 @@ From an empty save: at about 45 s `A` (title), `A` (New Game), then the movie. F
 
 ## Found on this game
 
+- [MetalFX spatial scaling requires an explicit fence under validation](../../../docs/reference/rendering.md#metalfx-spatial-scaling-requires-an-explicit-fence-under-validation): synthetic HDR/scaling integration checks.
+
+- [Shared texture upgrades preserve every registered view](../../../docs/reference/nvn-objects.md#shared-texture-upgrades-preserve-every-registered-view): fork regression coverage for the two review P1 cases and cached-table retirement.
+
 - [HMMA chain reuse (opt-in, synthetic verification)](../../../docs/reference/shaders.md#hmma-chains-keep-their-matrices-in-the-simd-group)
 
 - [An upscaler's colour read from its code](../../../docs/reference/rendering.md#an-upscalers-colour-read-from-its-code): `agl_ndsr_vr.pck` variants with no curve or power can use the opt-in `DM_UPSCALER=metalfx` replacement. Current local validation covers synthetic GPU fixtures; gameplay image acceptance remains open.

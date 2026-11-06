@@ -2,7 +2,8 @@
 
 The community fork starts from the maintainer's tested Ocarina implementation.
 `b1d7c707` and `6121fd75` replace the earlier PR1444-only comparison baseline;
-`75c1a8cf` also moves movie decoding onto its own worker. Their gameplay results
+`75c1a8cf` also moves movie decoding onto its own worker. The final fetched main
+is `d928699b`, including `0cefa868` numeric readable-tile function caching. Their gameplay results
 remain upstream evidence, not acceptance of this combined fork.
 
 | Earlier fork or PR work | Selected implementation |

@@ -1,3 +1,32 @@
+# Integrated Ocarina community build
+
+The final branch starts from official main through d928699b. It takes the
+maintainer's Ocarina fixes, profile tables and overlapping shader behavior.
+Only missing serial ownership, texture/view repairs, upload caches, guarded
+mesh behavior, optional pool/retirement work, GPU safety and HDR are retained.
+The earlier four-lane integration remains on oot-play-1444-pre-main.
+
+A locally source-built translator includes optional HMMA reuse, disabled by
+default. Restore used only the audited local feed of 57 cooled NuGet versions.
+The universal launcher is built from launcher.c, and SPIRV-Cross is locally
+built from the pinned source. No PR-shipped translator DLL was executed.
+
+Both review-5 P1 cases have GPU regressions and an independent Astra source
+re-check. Full integration exposed stale loader/presentation fixtures, a
+coarse fallback-clock assertion and a public-fence requirement in MetalFX
+validation. The exact fixes and evidence are in the reference/game notes and
+the external integration report.
+
+The after-exit pipeline union has 12,176 TSV rows plus four JSON states. The
+external build recipe adds one observed readable-tile request through a derived
+profile, preserving every upstream source table. It enables strict offline AOT
+while runtime AOT remains off. The reference environment enables worker and
+mesh prediction modes and keeps lossy BC targets off for the first comparison.
+No game, install, push or PR is part of this integration. Generated roots and
+evidence are retained for the full app build.
+
+## Earlier lane notes
+
 # PR #1456 shader port
 
 Started p1456 from origin/main 75c1a8cf, including official Ocarina support.

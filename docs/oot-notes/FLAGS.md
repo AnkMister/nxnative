@@ -8,6 +8,9 @@ enable experiments. Shader tables and overlapping chain inputs use upstream.
 | --- | --- | --- |
 | `DM_AOT` / `DM_AOT_STRICT` | `0` / `0` | Keep runtime exact AOT off. Offline packing enables AOT and records refusals. Counters remain diagnostic, not a runtime compile ban. |
 | `DM_PSO_LEARN` | `1` | Record portable final/base states and typed constants, including packed libraries. |
+| `DM_PSO_WORKERS` | `1` | Keep cold render compilation on workers and preserve pending pulling results. A first use can still wait. |
+| `DMSH_HMMA_CHAIN` | unset (`0`) | Optional #1456 matrix reuse. Default translator helper remains unchanged. |
+| `DM_UPSCALER` / `DM_SCREEN` | `game` / unset | #1459 MetalFX replacement and #1461 named display selection remain optional. |
 | `DM_NVN_SERIAL_HELD` | `1` | #1439 counted holds include view ancestors and every serial writer. |
 | `DM_NVN_P1444_STUTTER` | `1` | Guarded upload/cache additions around upstream packaged sharing. |
 | `DM_NVN_P1444_TEX` | `1` | Remaining texture/view and retired-descriptor fixes. |

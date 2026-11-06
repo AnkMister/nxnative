@@ -1,7 +1,7 @@
 # Ocarina community play build
 
 `oot-play-1444` follows the latest upstream Ocarina implementation, including
-`b1d7c707`, `6121fd75` and the movie decoder worker in `75c1a8cf`.
+`b1d7c707`, `6121fd75` and the movie decoder worker in `75c1a8cf`, through `d928699b`. It also includes opt-in #1456, #1459 and #1461.
 The profile tables and overlapping shader fixes come from upstream. The
 community additions retain serial-held ownership, guarded upload caches,
 optional BC targets, pool placement/retirement, GPU safety, pipeline learning
@@ -38,14 +38,16 @@ J=16 MAKEFLAGS=-j16 python scripts/build_ipa_from_nsp.py "$NSP" \
 ```
 
 The script defines `NSP`, `RUN_ROOT`, tool paths and the complete build
-environment. It refuses to start while dmhost is running. It has not been run
-by the integration task.
+environment. It refuses to start while dmhost is running. The integration task starts it only after the integrated checks pass.
 
 The prebuild consumes the deduplicated native census from session2-0120,
 session1 and the live save directory, copied after the game exited. The saved
 union has 12,176 rows: 9,572 shader loads, 2,198 render states, 341 compute
 pipelines and 65 mesh states. Four JSON descriptors are also included. Snapshot
 hashes and source paths are recorded beside the script in `pipeline-inputs`.
+An external derived profile adds the one observed readable-tile request
+(`1e38b4a840f89d93`) without changing upstream source tables. Its shader input
+stamp is `01f3dfa63e7c`; the default chain remains `64e85bd187b5`.
 Offline AOT is enabled for packing; runtime AOT remains disabled. Accepted
 native rows also seed startup preparation. Refused states are audited and are
 not proof of complete archive coverage.
@@ -61,7 +63,7 @@ posts, black regions, terrain texture detail and frame pacing.
 
 Runtime uses `DM_AOT=0`, `DM_AOT_STRICT=0`, `DM_PSO_LEARN=1`,
 `DM_NVN_SERIAL_HELD=1`, `DM_NVN_P1444_STUTTER=1`, `DM_SAFE_GPU=1`
-and `DM_GPU_LOST_STOP=1`. Native mesh prediction preserves every draw. A cold
+and `DM_GPU_LOST_STOP=1` and `DM_PSO_WORKERS=1`. Native mesh prediction preserves every draw. A cold
 pipeline can still wait when its exact worker result is not ready.
 
 Pool placement, destructive guest texture release, alias retirement, copy-state

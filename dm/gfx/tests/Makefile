@@ -483,7 +483,13 @@ check_t_logic: t_logic
 	@set -e; work=$$(mktemp -d); trap 'rm -rf "$$work"' EXIT; python3 test_dmsh_logic.py --fixture "$$work"; MTL_DEBUG_LAYER=1 ./t_logic "$$work"
 
 # Texture storage and descriptor lifetime regressions.
-t_alias_takeover t_pool_heap t_alias_retire t_bcrt: %: %.m $(MTL_T_DEP)
+t_alias_takeover: t_alias_takeover.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ $< $(MTL_T_SRC) $(FW)
+t_pool_heap: t_pool_heap.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ $< $(MTL_T_SRC) $(FW)
+t_alias_retire: t_alias_retire.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ $< $(MTL_T_SRC) $(FW)
+t_bcrt: t_bcrt.m $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -o $@ $< $(MTL_T_SRC) $(FW)
 check_t_upgrade_alias: t_upgrade_alias
 	DM_NVN_P1444_TEX=0 ./t_upgrade_alias

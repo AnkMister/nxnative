@@ -4,8 +4,8 @@ This community branch, `oot-play-1444`, follows the maintainer's latest Ocarina
 support and retains the fork's GPU safety, serial ownership, upload caching,
 pipeline learning and optional HDR. Runtime AOT and experimental BC targets
 default off. The [play build guide](docs/oot-notes/PLAY-BUILD.md) gives the exact
-command, environment and A/B procedure; [upstream replacements](docs/oot-notes/UPSTREAM-BASE.md)
-records the ports that are now redundant. Integrated game acceptance is separate
+command, environment and A/B procedure; [upstream replacement guide](docs/oot-notes/UPSTREAM-BASE.md)
+records which ports are now redundant. Integrated game acceptance is separate
 from upstream's 60 fps result.
 
 Play your own Nintendo Switch games natively on iPhone and iPad. Bring your game (its NSP files) and your `prod.keys`; one script turns them into an IPA that you sideload.

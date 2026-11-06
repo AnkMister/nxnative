@@ -555,6 +555,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - `[RED] NVN unimplemented function called` for each. → [`nvnTextureBuilderGetViewOffset`, `nvnTextureViewCompare`, `nvnBlendStateSetAdvancedNormalizedDst`](../reference/nvn-objects.md#nvntexturebuildergetviewoffset-nvntextureviewcompare-nvnblendstatesetadvancednormalizeddst)
 - a pool walk makes gigabytes of textures from far fewer images: Ocarina of Time's 32,768 IDs name 3,607 storages, and one texture per ID came to 2 GB. → [Texture IDs of one storage share one packaged texture](../reference/nvn-objects.md#texture-ids-of-one-storage-share-one-packaged-texture)
 - thousands of first uploads a frame in a scene whose textures do not change: Ocarina of Time, about 15,000 a frame. → [Finalizing a copy of a texture object](../reference/nvn-objects.md#finalizing-a-copy-of-a-texture-object)
+- one shared sRGB serial becomes a linear view after a usage upgrade, or one alias family still samples a replaced packaged texture without a CPU write. A retired descriptor can also reappear from a cached pool table. → [Shared texture upgrades preserve every registered view](../reference/nvn-objects.md#shared-texture-upgrades-preserve-every-registered-view)
 
 ## Rendering
 
@@ -727,6 +728,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - read-only depth/stencil attachments are written back after every pass, and the periodic unwritten-store savings counter remains zero with the default configuration. → [Unwritten attachment stores without lookahead](../reference/rendering.md#unwritten-attachment-stores-without-lookahead)
 - portrait gameplay overlaps the touch controls, touch coordinates land outside the game picture, or a TV's picture renders at 4K again after a layout pass. → [iOS layouts: portrait, a half-folded Duo, iPad windows](../reference/rendering.md#ios-layouts-portrait-a-half-folded-duo-ipad-windows)
 - with *Picture shape* at 1.43:1 (`DM_SCREEN_ASPECT`) the game renders 1920x1344, but on an iPhone Duo in Fit (the default) the picture comes out smaller than the 16:9 one, with black bars on all four sides; it fills the screen only in Fill. On the Mac a click lands off the point under the pointer (it was mapped on a 16:9 rectangle of the window). → [The picture laid out in the shape the game presents](../reference/rendering.md#the-picture-laid-out-in-the-shape-the-game-presents)
+- macOS 26.6 Metal API validation aborts a Metal4 spatial scaler with `_outputTextureBarrierStages not set`, including the optional HDR presentation scaling path. → [MetalFX spatial scaling requires an explicit fence under validation](../reference/rendering.md#metalfx-spatial-scaling-requires-an-explicit-fence-under-validation)
 
 ## Shaders
 
