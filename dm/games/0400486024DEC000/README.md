@@ -497,3 +497,6 @@ layer. This changes only host code and its embedded present shader. Existing
 game shader libraries stay valid. HDR-specific pipeline archive coverage and
 actual scene, menu, fullscreen and monitor-switching acceptance remain open.
 No game was run for this port.
+## Inferred AOT pipeline refusals (current)
+
+Found on this game: [one refused inferred descriptor aborts the offline archive](../../../docs/reference/shaders.md#one-refused-inferred-aot-descriptor-aborts-the-offline-archive). Source-label inference supplied three incompatible foliage mesh/fragment combinations. AOT packing isolates and logs refused combinations while retaining all accepted descriptors. No shader padding or runtime behavior change is used. Gameplay coverage remains an acceptance gate.

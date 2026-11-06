@@ -337,3 +337,10 @@ with safe GPU, AOT and strict reporting. Fresh builds use noindex. Every other
 new performance or visual experiment stays off. No game, full shader build,
 Application Support update, baseline write, push or PR ran. Final verification
 and storage results follow in the handoff. Current fixture checks are in progress.
+
+User clarified that incompatible AOT-inferred pairs must be dropped, never padded.
+Reverted the mesh-output padding commit before rebuilding; chain is again
+992d6981956f. AOT offline compilation now bisects descriptor refusals, caches
+successes/refusals, filters the packed prewarm inventory, and records the exact
+refusals. Non-AOT and infrastructure failures remain fatal. All 42 archive tests
+pass. Run at J=16, 16 archive workers, 16 merge threads, make -j16.

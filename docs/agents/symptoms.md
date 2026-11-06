@@ -961,6 +961,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - missing foliage/effects, jitter, washed-out outdoor lighting, or a missing SMAA pass. → [Ocarina visual source ports (experimental)](../reference/shaders.md#ocarina-visual-source-ports-experimental)
 - first-use stutter, render-base specialization, compute pipeline creation or native mesh draws omitted while their pipeline builds. → [Pipeline creation remains after offline shader translation](../reference/shaders.md#pipeline-creation-remains-after-offline-shader-translation)
 - a raw global memory read of a memory pool made after the shader's arguments were encoded gets 0, though the pool exists when the GPU runs it; a task shader that reads both ends of a range this way loops `(0 - 1) >> 5` times and hangs the GPU. The memory report's `raw pool table words at commit` line counts the words that were out of date. → [Raw pool table words that predate the pools](../reference/shaders.md#raw-pool-table-words-that-predate-the-pools)
+- `metal-tt` reports fragment inputs not written by a mesh shader and the app is packed without any pipeline archive. → [One refused inferred AOT descriptor aborts the offline archive](../reference/shaders.md#one-refused-inferred-aot-descriptor-aborts-the-offline-archive)
 
 ## Game state
 
