@@ -3,6 +3,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <sched.h>
+#include <setjmp.h>
 static int hid_clock_gettime(clockid_t clock, struct timespec *ts);
 static int hid_usleep(useconds_t usec);
 #define clock_gettime hid_clock_gettime
@@ -41,6 +42,8 @@ void hle_signal_system_event(void *g) { g_signalled = g; g_signals++; }
 int hle_signal_bound_system_event(void *g) { g_signalled = g; g_signals++; return 1; }
 void dm_gfx_texlist(int target) { (void)target; }
 void dm_gfx_restop(void) {}
+static int ctl_focus[3], ctl_focus_n;
+void dm_focus_set(int st) { if (ctl_focus_n < 3) ctl_focus[ctl_focus_n++] = st; }   // DM_CTL "focus"
 void dm_gfx_texraw(uint64_t serial, const char *path) { (void)serial; (void)path; }
 void dm_ctl_peek(uint64_t a, int n) { (void)a; (void)n; }
 void crash_dump_now(const char *why) { (void)why; }
@@ -251,6 +254,20 @@ static void t_script_hold(void) {
     CHECK(buttons_of(0, STYLE_FULLKEY) == (DM_BTN_A | DM_BTN_B | DM_BTN_X), "a scripted hold survives controller updates after the press latch is consumed");
     CHECK(lx_of(0) == -0x7000, "the scripted stick wins over controller drift");
     CHECK(atomic_load(&g_shake_on), "controller updates do not stop a scripted shake");
+}
+static jmp_buf ctl_done;
+static void ctl_stop(void) { longjmp(ctl_done, 1); }
+static void t_ctl_focus(void) {
+    char path[1024]; const char *dir = getenv("TMPDIR");
+    CHECK(dir && *dir, "TMPDIR is set for the control-file test"); if (!dir || !*dir) return;
+    snprintf(path, sizeof path, "%s/t_hid_focus_%d", dir, getpid());
+    FILE *f = fopen(path, "w"); CHECK(f != NULL, "focus control file is written"); if (!f) return;
+    fputs("focus 2\nfocus 3\nfocus 1\n", f); fclose(f);
+    unsetenv("DM_PREV_PROGRAM"); ctl_focus_n = 0;
+    script_hold = ctl_stop;
+    if (!setjmp(ctl_done)) ctl_main(path);   // stop at the first polling wait, after the file has closed
+    script_hold = NULL; unlink(path);
+    CHECK(ctl_focus_n == 3 && ctl_focus[0] == 2 && ctl_focus[1] == 3 && ctl_focus[2] == 1, "control commands forward unfocused, minimized and focused states");
 }
 static void t_script(void) {
     g_mode = 1; dm_pad_players(1);
@@ -495,6 +512,7 @@ int main(void) {
     CHECK(setenv("DM_RUMBLE_LOG", "1", 1) == 0, "enable rumble diagnostics");
     t_slots();
     t_npads();
+    t_ctl_focus();
     t_script();
     t_vibration();
     t_rumble_log();
