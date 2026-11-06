@@ -231,3 +231,8 @@ The final concurrency extension additionally blocks a residency consumer at
 nvn_dirty_require while the backup pread is held, proves it cannot proceed,
 then lets it proceed only after restoration. A concurrent release worker races
 64 real file writes and cannot reclaim the kernel-visible pool. Both pass.
+
+File read destinations also use the permanent dedupe exclusion before their
+existing write-preparation hook. This prevents re-release during kernel
+copy-out. Their existing write-tracking EFAULT re-preparation remains in place.
+The fs regression and host build pass after this boundary addition.
