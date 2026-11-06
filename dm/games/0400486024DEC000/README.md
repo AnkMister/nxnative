@@ -126,6 +126,7 @@ The [BAHS record-boundary finding](../../../docs/reference/shaders.md#a-bahs-sca
 - Current source ports, gameplay acceptance open: [retired pool descriptors](../../../docs/reference/nvn-objects.md#finalized-textures-made-again-by-pool-tables) keep live shared storage under the existing opt-in policy. [Pool and texture diagnostics](../../../docs/reference/memory.md#what-fills-a-switch-2-games-gpu-working-set-ocarina-of-time-on-an-ipad) run on explicit `DM_CTL` commands.
 - Current shader metadata: the corrected NDSR split adds `d17eefaff4f0bc23`, `1fdc85178b60f6ce` and `92918e9b7e2f89a4`. Re-split prepared inputs before rebuilding shaders because subsequent numeric indices change. The corrected splitter remains under `DMSH_OOT_VISUAL=1`.
 - Current optional [HMMA tensor path](../../../docs/reference/shaders.md#ampere-hmma-through-metal-4-tensor-operations-on-apple10-gpus) requires `DMSH_HMMA_TENSOR=1` at build and `DM_NVN_HMMA_TENSOR=1` at runtime. M4 Max is Apple9 and retains the existing matrix path even when these flags are set.
+- The optional [HDR present path](../../../docs/reference/rendering.md#hdr-output) has [static output evidence](#hdr-output); display acceptance is open.
 
 - Open experiment: [visual source ports](../../../docs/reference/shaders.md#ocarina-visual-source-ports-experimental) are default-off on `oot-visual`. Ten extracted v131072 targets now translate and compile on the M4 Max, including the foliage, output-payload task, float-reduction, SMAA and deep-expression compute targets. Numeric GPU and focused host fixtures pass. The Open entries below describe the earlier runtime findings; visual/gameplay acceptance remains open.
 
@@ -467,3 +468,32 @@ Found on this game (current, experimental): [pool buffers retained while no
 submission follows](../../../docs/reference/memory.md#pool-buffers-retained-while-no-submission-follows).
 `DM_NVN_IDLE_RETIRE=1` enables the PR #1392 port; Mac focus-loss and resume
 validation remains open. It preserves the existing GPU safety policy.
+## HDR output
+
+Current static finding for v131072. Main build ID is
+`e0f3ccfaf50065ae4ea01eb5aeb13b1a45da3348000000000000000000000000`.
+SDK build ID is `1643a838814f9c10c696f930ed681e7fa3fb9af8000000000000000000000000`.
+Main calls `QueryDisplayHdrStatus` at `0x346c6e4` and paper white at
+`0x346c704`. The returned status and luminance are stored in the display state.
+The SDK exports both functions and `DefaultDisplay::QueryHdrStatus`.
+
+Both Main and UI `gsys/ModelSceneConfigParam` bgyml files set `CreateHdr=true`.
+The RomFS agl resource archive contains `agl_technique_pfx.sharcb` with
+`hdr_color_mapping_compute_color_lut`, `hdr_color_mapping_apply_color_lut`,
+`hdr_color_mapping_compose`, `ToneMapping`, `cPaperWhite` and `cInvPaperWhite`.
+Five output shaders contain all five ST 2084 PQ constants and both inverse
+exponents. For example, BAHS entry `0x1aa958` is pixel key `8c9ab97b1114e618`
+in the existing map. That shader contains all nine BT.709-to-BT.2020 matrix
+coefficients before the PQ output constants. The common archive also contains
+PQ deployment variants.
+These establish an HDR output path, but do not establish which variant is
+selected during gameplay or prove its output primaries on this host.
+
+The opt-in Mac host support is [HDR output](../../../docs/reference/rendering.md#hdr-output).
+`DM_HDR=1` keeps SDR sources consistent with the sRGB source contract and allows
+HDR on a screen with EDR headroom. The default is off. The float layer remains
+available with `DM_HDR_LAYER=float`; the fetched upstream PR defaults to a PQ
+layer. This changes only host code and its embedded present shader. Existing
+game shader libraries stay valid. HDR-specific pipeline archive coverage and
+actual scene, menu, fullscreen and monitor-switching acceptance remain open.
+No game was run for this port.

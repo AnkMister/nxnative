@@ -638,6 +638,21 @@ The replay on Metal (`dm/gfx/nvn/nvn_mtl.m`) and the Vulkan and OpenGL layers. E
 - **Fix:** `hle_nvn.c` accepts the three calls and records nothing. Shading every pixel is the most any rate asks for, so the picture is the same or sharper, and the only cost is GPU time where the game meant to save it. This drops a feature rather than emulating it, and the choice is a platform limit.
 - **Found on:** [Mario Kart World](../../dm/games/0400C3F00006E000/README.md), every frame; [Splatoon Raiders](../../dm/games/0400380020056000/README.md), the palette.
 
+## HDR output
+
+### The status query and the present for an HDR window
+
+- **Symptom:** a Switch 2 game with an HDR output path stays in SDR.
+- **Cause:** the host answered SDR to `vi::QueryDisplayHdrStatus` and did not decode PQ windows.
+- **Fix:** the Mac port of [PR #1176](https://github.com/seedds/nxnative/pull/1176), fetched at `a360806f`, adds opt-in `DM_HDR=1`. The status answers format 1 while the screen supports EDR, and SDR otherwise. The status query must have answered HDR before an RGB10A2 source is treated as PQ. `DM_HDR=2` forces the answer for diagnosis. HDR remains off by default.
+  - The Mac layer defaults to RGB10A2 in BT.2100 PQ. `DM_HDR_LAYER=float` selects RGBA16Float in extended linear BT.2020 with HDR10 metadata. Upstream switched to PQ after reporting intermittent blocks on an M5 with the float layer. This port has no display acceptance yet.
+  - SDR sources are decoded with the sRGB curve and converted from BT.709 to BT.2020. SDR white maps to the same paper white as PQ content, 203 nits by default. The float layer uses 1.0 at that white. `DM_HDR_PAPER_WHITE` and `DM_HDR_PEAK` override calibration values. Core Animation maps highlights through `CAEDRMetadata`.
+  - HDR layer formats take precedence over `DM_PRESENT_COLORSPACE`. SDR continues to use its existing sRGB, P3 or legacy contract. Crop, quality and HDR mode use separate constants. Quality filtering and sharpening remain available. The perceptual MetalFX scaler retains SDR encoding until the final conversion and bypasses PQ sources because it is configured for SDR input.
+  - Both present encoders and offscreen captures share the conversion. SDR captures map HDR highlights to SDR white and convert to BT.709, then to P3 when requested. Raw 10-bit dumps preserve code values in a sidecar. `DM_PRESENT_ABSOLUTE` remains unchanged. The crop continues to use the base branch's aspect handling; `2202d610` is absent from that base.
+- **Check:** `t_present_hdr` covers PQ decoding, SDR white and primaries, HDR status on both screen types, SDR defaults, and quality plus P3 on Metal 3 and Metal 4. `t_present_color` compares SDR output to ColorSync. Present, quality and host builds remain separate from game acceptance.
+- **Open:** actual Ocarina HDR window selection, gamut metadata, UI brightness, fullscreen and monitor switching need a game run. The screen is checked repeatedly, but the game must query again to switch its output. No iOS frontend changes are included in this Mac port.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#hdr-output), static v131072 inspection. Upstream runtime evidence belongs to [PR #1176](https://github.com/seedds/nxnative/pull/1176).
+
 ## Blend, depth and stencil
 
 ### Ten attachment records for eight colors and depth-stencil
