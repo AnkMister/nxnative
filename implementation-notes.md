@@ -632,3 +632,15 @@ verification commit. Isolated NuGet feed/cache, publish output, baseline bundle
 and the C# build intermediates were removed after verification. Audit dates,
 scripts, logs and the requested small shader fixtures remain in the audit folder.
 Rebuilding requires rerunning its audit_nuget.py to recreate the cooled feed.
+
+
+## Brent source harvest
+
+This branch starts at oot-visual 622f5191. Only source patches are read from
+brent-oot-combined a54b2092. Its translator binaries, lock and header are excluded.
+The parent owns independent review and gameplay acceptance. No nested agents,
+game run, shader corpus build, push or PR is authorized here.
+
+- #1376 / 2d6f86f8 puts LDSM shared reads between subgroup barriers. It uses
+  DMSH_OOT_VISUAL so disabled output keeps the existing translation. The upstream
+  emitted-MSL ordering test is retained. Translator execution waits for our one rebuild.
