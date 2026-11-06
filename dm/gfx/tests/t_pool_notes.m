@@ -165,9 +165,8 @@ int main(void) { @autoreleasepool {
     CHECK(g_stat_pool_builds == builds && g_stat_pool_schg > schg && entry(b14, 6) != dummy_of(b14), "the next submission takes ID 6 again without building the table");
     hog = nil;
 
-    // A live sRGB / linear twin: ID 8's serial resolves to a view of the shared texture that ID 7, finalized since, made (srgb_twins in tex_mtl_), so no live serial holds that texture
-    // and a takeover may evict it while ID 8 is live. tex_mtl_ finds the view stale once its parent left the sharing table and drops it (serial_del, a note naming ID 8's serial):
-    // the patch takes ID 8 again, without a table built whole or the slow path for every ID, and gives it what a table built whole does
+    // A live sRGB view keeps its parent allocation alive even after the original
+    // descriptor is finalized. A new format must not evict that live parent.
     uint8_t *me = pages(); pool_t epool = {0}; pool_builder_t pe = {.mem = me, .size = LEN, .flags = NVN_MEMORY_POOL_FLAGS_CPU_NO_ACCESS | NVN_MEMORY_POOL_FLAGS_GPU_CACHED};
     CHECK(h_nvnMemoryPoolInitialize((NVNmemoryPool *)&epool, (const NVNmemoryPoolBuilder *)&pe), "pool E initialized");
     NVNtexture t7 = {0}, t8 = {0}, t9 = {0};
@@ -190,11 +189,11 @@ int main(void) { @autoreleasepool {
     builds = g_stat_pool_builds; taken = g_alias_taken; ep = g_treg_ep;
     id<MTLBuffer> b16 = table();
     pthread_mutex_lock(&g_smu); id<MTLTexture> now8 = hm_get_id(&g_by_serial, &s8); int base_shared = CFSetContainsValue(g_alias_set, (__bridge const void *)base8); pthread_mutex_unlock(&g_smu);
-    CHECK(g_alias_taken > taken && !base_shared, "texture 9 took the storage over and evicted the twin's base");
-    CHECK(now8 && now8 != v8 && g_treg_ep == ep, "ID 8's stale view was dropped and its texture made again, and no ID went down the slow path");
-    CHECK(g_stat_pool_builds == builds && entry(b16, 8) != entry(b15, 8) && entry(b16, 8) != dummy_of(b16) && entry(b16, 9) != dummy_of(b16),
-          "no table is built: the patch gives ID 8 its new texture and ID 9 its own");
-    same_as_whole(b16, "the patched table holds what a table built whole does (a live twin's base taken over)");
+    CHECK(g_alias_taken == taken && base_shared, "a live twin keeps its base from a storage takeover");
+    CHECK(now8 == v8 && g_treg_ep == ep, "the live twin keeps its view without invalidating texture IDs");
+    CHECK(g_stat_pool_builds == builds && entry(b16, 8) == entry(b15, 8) && entry(b16, 8) != dummy_of(b16) && entry(b16, 9) != dummy_of(b16),
+          "the patch preserves ID 8 and gives ID 9 its own texture without a full rebuild");
+    same_as_whole(b16, "the patched table holds what a table built whole does (a live twin's base retained)");
 
     mtl_reg_tex(1, NULL, NULL); mtl_reg_tex(2, NULL, NULL); mtl_reg_tex(5, NULL, NULL); mtl_reg_tex(6, NULL, NULL); mtl_reg_tex(8, NULL, NULL); mtl_reg_tex(9, NULL, NULL);
     mtl_tex_release(&t2); h_nvnTextureFinalize(&t1); h_nvnTextureFinalize(&t5); h_nvnTextureFinalize(&t8); h_nvnTextureFinalize(&t9);

@@ -2198,7 +2198,7 @@ void mtl_alias_drop_pool(const void *pool) {
         if (g_alias_set) CFSetRemoveValue(g_alias_set, (__bridge const void *)o);
         defer_obj_release(o);
     }
-    if (n) { g_ser_gen++; g_alias_evicted += n; }
+    if (n) { ser_note(0); g_alias_evicted += n; }
     for (uint32_t i = 0; i < g_alias_gone.cap;) {
         alias_key k; if (!g_alias_gone.vals[i]) { i++; continue; }
         memcpy(&k, g_alias_gone.keys + (size_t)i * g_alias_gone.klen, sizeof k);
@@ -2312,7 +2312,7 @@ static void alias_take_over(const alias_key *nk) {
         ks[n++] = k;
     }
     alias_let_go(ks, n);
-    if (n) { if (!p1444_tex_on()) g_ser_gen++; g_alias_taken += n; }
+    if (n) { if (!p1444_tex_on()) ser_note(0); g_alias_taken += n; }
 }
 static uint64_t alias_budget(uint64_t ws, uint64_t requested, uint64_t safe, uint64_t guard) {
     if (requested) ws = MIN(ws, requested); if (safe) ws = MIN(ws, safe); return guard ? MIN(ws, guard) : ws;
@@ -2420,6 +2420,18 @@ static void tex_put(uint64_t k, id o) {   // serials from 2^62 up are external t
     }
     hm_put_id(m, &k, o); ser_note(k);
     if (m == &g_by_serial) held_add((__bridge void *)o, 1);
+    pthread_mutex_unlock(&g_smu);
+}
+// A re-upload changes the texture inside one shared holder. Every serial that
+// names it must refresh, including finalized descriptors still kept by g_ghost.
+static void tex_holder_changed(id holder) {
+    pthread_mutex_lock(&g_smu);
+    nvn_hmap *tables[] = {&g_by_serial, &g_ghost};
+    for (unsigned j = 0; j < 2; j++) for (uint32_t i = 0; i < tables[j]->cap; i++) {
+        if ((__bridge id)tables[j]->vals[i] != holder) continue;
+        uint64_t serial; memcpy(&serial, tables[j]->keys + (size_t)i * tables[j]->klen, sizeof serial);
+        ser_note(serial);
+    }
     pthread_mutex_unlock(&g_smu);
 }
 // Host record of a packaged texture: the current MTLTexture, the upload stamp, and the global write generation at the last check
@@ -4130,7 +4142,7 @@ static void *tex_mtl_(const tex_t *ct) {
                 if (pk->spare && pk->spare != nt) defer_obj_release(pk->spare);   // still in use, or of another shape: retired as before
                 if (pk->sparse) sparse_view(pk, t);
                 zb_report(t, pk->sparse ? (unsigned)pk->vbase : 0, "re-upload");
-                pk->spare = old; pk->spare_fence = g_fence + 1; g_ser_gen++; pk->stamp = st; pk->vgen = pk->vseen = vg; pk->span = nvn_dirty_span(t->mem, t->L.size); pk->seen = st; g_pkg_reuploads++; if (dirtycheck() && !pk->sparse) pk->hash = full_hash(t->mem, t->L.size); pkg_edges_take(pk, t); }
+                pk->spare = old; pk->spare_fence = g_fence + 1; tex_holder_changed(pk); pk->stamp = st; pk->vgen = pk->vseen = vg; pk->span = nvn_dirty_span(t->mem, t->L.size); pk->seen = st; g_pkg_reuploads++; if (dirtycheck() && !pk->sparse) pk->hash = full_hash(t->mem, t->L.size); pkg_edges_take(pk, t); }
             return (__bridge void *)(pk->view ? pk->view : pk->tex);
         }
         pk = [NvPkg new];
@@ -5919,7 +5931,7 @@ static unsigned alias_evict_idle(void) {
         if (!seen || g_fence + 1 - seen >= alias_idle_limit()) memcpy(&ks[n++], k, sizeof *ks); }
     CFRelease(held);
     alias_let_go(ks, n);
-    if (n) { if (!p1444_tex_on()) g_ser_gen++; g_alias_idle += n; }
+    if (n) { if (!p1444_tex_on()) ser_note(0); g_alias_idle += n; }
     pthread_mutex_unlock(&g_smu);
     free(ks);
     os_unfair_lock_unlock(&g_rmu);
