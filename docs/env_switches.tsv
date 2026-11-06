@@ -148,6 +148,7 @@ DM_NVN_DUAL_WANT	path	`=<file>`: appends the key of each pixel shader a pipeline
 DM_NVN_ENC_LABEL	diagnostic	`=1` labels every render encoder `p<pass in frame> <width>x<height> <first 8 digits of the first draw's fragment key> d<draws>` for Instruments traces
 DM_NVN_ENC_THREAD	player	`1` runs the replay's Metal encoding on a thread of its own while the submit thread goes on translating; on by default on iOS (`0` turns it off), off on macOS
 DM_NVN_FAST_WAKE	switch	`0` makes the game's `SyncWait`s wake on the commit feedback handler instead of the GPU's own signal of the fence (on by default)
+DM_NVN_FB_DSELF	switch	`1` stops treating pool draws that write depth as depth readers; off by default; `ab` alternates with `DM_AB`
 DM_NVN_FB_SNAP	switch	Draws that sample a colour attachment of their own render pass: unset, those that write it (or follow a write in the pass) read a snapshot, reused until the game's next barrier; `0` none; `all` a fresh snapshot for every draw that samples one (slow, diagnostic, no tile reads)
 DM_NVN_FB_TILE	switch	`0` makes such draws that sample the attachment at their own pixel (a projective sample at the vertex shader's screen varying) read a snapshot too, instead of the tile
 DM_NVN_FEEDBACK_MEMO	switch	`1` enables the numeric readable-tile function memo ahead of the original string-key lookup; default off (Mac efficiency experiment)
@@ -166,9 +167,11 @@ DM_NVN_GEO_LEAN	switch	`0` draws passthrough geometry shaders through their full
 DM_NVN_GEO_MESH	switch	`0` draws passthrough geometry pairs that have a mesh library (`geo_mesh.tsv`) through the compute path; by default they are mesh draws in the render pass (`geo_mesh_draw`)
 DM_NVN_GEO_MESH_RUN	switch	`0` dispatches every mesh geometry draw on its own; by default consecutive mesh draws of one pair whose result does not depend on their order are drawn as one dispatch (`geo_mesh_take`)
 DM_NVN_GMEM_ALL	diagnostic	`=1` lists every memory pool in raw global memory's pool table, and so in the residency set, as before; by default a pool the game took no buffer address in (`nvnMemoryPoolGetBufferAddress`, `nvnBufferInitialize`, `nvnTextureGetTextureAddress`) is left out
+DM_NVN_GMEM_COMMIT	switch	`1` refreshes raw pool table arguments and paired write logs at each whole or segment commit; off by default.
 DM_NVN_GPUPROF	diagnostic	`=<f>`, `<f1>-<f2>` or `every:<n>`: logs the GPU start and duration of every encoder of those frames (`[gpuprof]` lines from Metal 4 counter heap timestamps)
 DM_NVN_GPU_TS	switch	`segment` or `submission`: what timestamp reports record (GPU start / end of the segment holding each report, or one time for the whole submission), instead of the profile's `gpu_timestamps`
 DM_NVN_HILITE	diagnostic	`=<fragment shader key>,…`: those draws use a solid colour instead (magenta, green, cyan, yellow, blue, white in order), to tell wrong geometry from wrong shading
+DM_NVN_HMMA_TENSOR	switch	`1` selects a built HMMA tensor library on Apple10 only; off by default and falls back to the base matrix library.
 DM_NVN_INDLOG	diagnostic	`=<n>`: the first n indirect draws (and those of pass-dumped frames) log their arguments at encode and as the GPU left them once the submission completed, with the first indices
 DM_NVN_IXCLOG	diagnostic	`=<n>` logs the first n indirect draw and dispatch conversions (record to arguments) once the GPU has run them
 DM_NVN_KEYDUMP	diagnostic	`=<fs key>[:n[:every]]`: for up to n draws of that fragment shader (default 6), logs the pass dump binding lines plus vertex formats, vertex streams and uniform values; meant for devices

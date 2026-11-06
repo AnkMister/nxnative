@@ -498,3 +498,19 @@ DM_ALIAS_SIZE remains an explicit override. The duplicate gated Brent copy is
 removed on this variant. The optional source-harvest controls still gate other
 Brent experiments. The upstream provisional heap-accounting repair is also kept
 without a second gated copy.
+
+
+### What fills a Switch 2 game's GPU working set (Ocarina of Time on an iPad)
+
+- **Symptom:** on an iPad (iPad17,3, M5, 12 GB; Metal's `recommendedMaxWorkingSetSize` 8,192 MB) The Legend of Zelda: Ocarina of Time runs at about 22 ms a frame up to the first area load after a save, then logs `GPU out of memory: the residency set holds 9124 objects, 8259 MB` (textures 2,007 MB, shared buffers 5,852 MB, private buffers 400 MB) with `kIOGPUCommandBufferCallbackErrorOutOfMemory`; frames take 120-300 ms of GPU and come out pink or broken. In handheld mode it gets further and fails at 8,219 MB, 27 MB over. The guest memory was in files (`DM_GUEST_FILE=1`, footprint 3.4-3.7 GB), so this is the GPU working set, not the footprint. [PR #1369](https://github.com/seedds/nxnative/pull/1369) reports the same wall at the first 3D load on an iPhone.
+- **Cause:** measured on an M4 Pro Mac in handheld mode (`DM_OPMODE=0`), seven minutes from a save, with the two diagnostics below; the working set is 12.1-12.5 GB, of which:
+  - **memory pools, 5.9 GB.** The raw global memory table makes every pool resident (`gmem_map`), and the table is needed: in the 8,319 shaders a play used, 783 do raw loads (197,033 of them), 12 stores, 8 atomics. `poolstat`: 4,523 resident pool buffers, 5,370 MB, of which 2,625 MB is texture storage. The largest pool, 2,432 MB, is 71 % texture storage; pools of 288, 232, 64 and 64 MB are 100 %. Those bytes are resident twice, as pool and as the texture's own Metal copy.
+  - **textures made from guest memory, 2.36 GB** (5,527). `texstat`: every one was resolved in the last second (the bindless pools resolve them each frame), so evicting by last use would free nothing.
+  - **render targets, 2.4 GB** (860). Transient targets are placed at shifting offsets of one region and the texture objects stay alive, each with its own Metal texture: 103 textures of 720x405 RGBA16F (253 MB) whose storage starts span 9.4 MB, 36 + 36 of 1440x810 depth and RG11B10 (340 MB) over 46.6 MB, 70 of 720x405 depth (93 MB) over 32.5 MB. Their counts grow over a session.
+  - about 1.5 GB of other textures (finalized descriptors' textures, snapshots).
+- **Fix:** none. Tried and not kept:
+  - leaving pools that are at least 98 % texture storage, and the 16 MB strides of large pools that hold only texture storage, out of the raw table: one run hung the GPU before its first frame (a raw read of left-out memory reads 0) and left the process unkillable in exit; another made the shared buffers 10 GB, as a large pool without its full entry is wired through the overlapping chunks its lookups make;
+  - a large pool through its chunks only: no saving, for the same reason;
+  - reclaiming a shared texture another texture took over once no alias lookup found it for 16 submissions: 34,875 reclaims in six minutes and 7.7 GB of textures, as a texture object's later resolutions do not go through the alias lookup, so active targets looked idle.
+- **Found on:** [The Legend of Zelda: Ocarina of Time](https://github.com/seedds/nxnative/pull/1299) v131072 (main 056e41fe with #1299 and #1300, guest memory in files), an M4 Pro Mac and an iPad17,3 on iOS 27.
+- **Check:** `DM_CTL` lines `poolstat` and `texstat` (`hle_hid.c`) log the pool and texture breakdowns above at any point of a Mac run; `restop` gives the residency set by kind.
