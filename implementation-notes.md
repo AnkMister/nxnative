@@ -602,3 +602,10 @@ The offline planner now accepts both JSON and native TSV censuses. A matching so
 Independent Claude Opus 5.5 native and offline reviews found whole-import and whole-archive loss on one refused row. The static repair isolates native refusals with accepted-only manifests and routes native compiler refusal through existing batch bisection. It also checks the host chain and function constant declarations, learns bases reached through run/shared caches, rate-limits incomplete-census logs and avoids duplicate learning-only helper creation. The runtime layer-output retry remains a possible old-TSV replay gap if library metadata does not identify the output; direct final-state learning captures the actual retry descriptor.
 
 The live 208 ms and 165 ms pipeline lines identify native task/mesh compilation. Added default-off DM_NVN_MESH_PREDICT: shared bounded worker admission and mesh-aware command prediction. The user explicitly chose to preserve every draw; a cold demand waits for its exact result, and queue exhaustion retains the original correctness fallback. No temporary draw omission was added. Native fixtures cover worker result/error propagation but remain unrun. The slot-7 white-out lead is not fixed: SASS for 9b310b3349825e9a explicitly encodes 2DArray and the generated sample is conditional. Added dimensions to mismatch diagnostics; no unsupported 3D fact was inserted.
+### Deferred compiler result
+
+The deferred focused build later returned exit 2. Its log identified the NEW BC
+helper's missing `aot_function` prototype and RED_ONCE keys 154 through 156
+exceeding the 154-entry table. The follow-up adds the forward declaration beside
+`aot_compute` and expands the table to 157 entries. No compiler or test was
+started to verify the repair; the user's pause remains in effect.
