@@ -8,9 +8,9 @@
     "dm/gfx/tools/dmsh_xlate_bin/Humanizer.dll": "2769ed8265b691a5482c72506ed274dc52446fa1641997a8c12c66f5b9263d39",
     "dm/gfx/tools/dmsh_xlate_bin/Microsoft.IO.RecyclableMemoryStream.dll": "631a5fc41df9498d032c0655ebd0e1209430ccffbec55667d89c2566b338ccc0",
     "dm/gfx/tools/dmsh_xlate_bin/MsgPack.dll": "c7fe37ad67035bffbb634a497847a94496b96de755d42bbce1a3518cac0dd889",
-    "dm/gfx/tools/dmsh_xlate_bin/Ryujinx.Common.dll": "3899f8ed9f1047682ab19f1969b54c4bcd7832780f4afb14f97de40d438e7c5a",
-    "dm/gfx/tools/dmsh_xlate_bin/Ryujinx.Graphics.Shader.dll": "7b1e0f1d836ceb840f86898d2fc937d0ceb800283942ee8f3e87137fa81e2841",
-    "dm/gfx/tools/dmsh_xlate_bin/Spv.Generator.dll": "739561c450097025585d6b83c1b33b1eebb01d9125302d817584771e996fac32",
+    "dm/gfx/tools/dmsh_xlate_bin/Ryujinx.Common.dll": "a5ebed63dea8c441393a2dd818227a4e49e6dd2cb939f72f523fc40010ad7dcc",
+    "dm/gfx/tools/dmsh_xlate_bin/Ryujinx.Graphics.Shader.dll": "a13744185c4f4e18386feb634864e1a03d0e2a65cd2d10a3bcd0be70129ffaef",
+    "dm/gfx/tools/dmsh_xlate_bin/Spv.Generator.dll": "917adba8f96fd70981ff22f5d860e473b9ebd85138b8a6a078fbc8c4135092c0",
     "dm/gfx/tools/dmsh_xlate_bin/System.CodeDom.dll": "5aec78c69334fc1cd1c926f4a9c857260dd2e03ff1739e96def1d68296b86b8b",
     "dm/gfx/tools/dmsh_xlate_bin/af/Humanizer.resources.dll": "115ee554aa53782a3c502d84e355eb7a9e6250bd56c90d8f7c98163ec67e422b",
     "dm/gfx/tools/dmsh_xlate_bin/ar/Humanizer.resources.dll": "6ae817931f6d8c64f49f7eca97b45dee5f43956de6173a499893498dcfd2d38e",
@@ -23,7 +23,7 @@
     "dm/gfx/tools/dmsh_xlate_bin/de/Humanizer.resources.dll": "cabfd8bd9fe8841f29b4b29a8cb3fab825d6678d596bb798c7f24d5eec9e6301",
     "dm/gfx/tools/dmsh_xlate_bin/dmsh_xlate": "000ac0baf0e4aa352a19365bd2196bc58e1330114278bb2badeb2de6fa2019bd",
     "dm/gfx/tools/dmsh_xlate_bin/dmsh_xlate.deps.json": "1c70cee37771ec372510e2246f94798aebd7087ad446eb78432271e8dc6dbac8",
-    "dm/gfx/tools/dmsh_xlate_bin/dmsh_xlate.dll": "0bf9565672b1c8b132fb4ccedc5ab82cce59c7f32ac5011f21f68b913701050c",
+    "dm/gfx/tools/dmsh_xlate_bin/dmsh_xlate.dll": "8e25320e8c3109e4b34b5b0a95566336d44cc8565fa8343d973f5fab3968e5a3",
     "dm/gfx/tools/dmsh_xlate_bin/dmsh_xlate.runtimeconfig.json": "9950d4583cfc9a106857c0d5b8a75b53e8774852b57b80bc3823a74d44a4d87f",
     "dm/gfx/tools/dmsh_xlate_bin/el/Humanizer.resources.dll": "652e758c1ceb61d471cf8ee4ca09568400323124e5403748a829715836ed2069",
     "dm/gfx/tools/dmsh_xlate_bin/es/Humanizer.resources.dll": "d7ad03cd07e01e497b1ad43da027d79ff4281a92ddd3529c74f1c67922952a73",
@@ -438,9 +438,9 @@
     "dm/third_party/ryujinx/src/Spv.Generator/TypeDeclarationKey.cs": "5a28f3cc4b03404f6fb8aa1c8e882ceabcaba113bb7e053557e0972902712a0d",
     "dm/third_party/ryujinx/src/Spv.Generator/spirv.cs": "edbe69718c6fd6fa9754fead258bef34d9ea6e93d8a3c2d8db8fdd4436bd831d"
   },
-  "default_chain": "0d0146e341bb",
-  "visual_play_chain": "735446b8c867",
+  "default_chain": "e16dbb187984",
+  "visual_play_chain": "4323760be52f",
   "option_combinations": 64,
   "source_baseline_commit": "64a163ba22ed0b37bcee0ab138d0e1014a05cae1",
-  "source_changes": "Review 3 restores upstream VOTEU and guarded-handle fixes; files below hash the final sources and distribution."
+  "source_changes": "oot-play integrates review 3, Brent tensor sources and readable-tile build repair; source publish uses the audited local NuGet feed."
 }

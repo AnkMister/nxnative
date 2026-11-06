@@ -35,7 +35,9 @@ int main(void) { @autoreleasepool {
     CHECK(first != extended, "the initial chunk was lengthened");
     CHECK([g_res_objects containsObject:first], "prior chunk stays resident until consolidation retires it");
     *(uint32_t *)(a + 128) = 0x1234abcd;
-    mtl_sub_begin(); CHECK(gmem_map_gpu() != 0, "raw-address map created");
+    mtl_pool_buffer_addr(a, na); mtl_pool_buffer_addr(b, nb);
+    mtl_sub_begin(); id<MTLBuffer> raw = gmem_map();
+    CHECK(raw && raw.gpuAddress != 0, "raw-address map created for marked pools");
     CHECK(g_npool == initial + 3 && g_nbig == 2, "only whole mappings and ordinary pool remain");
     id<MTLBuffer> whole = lookup(a + 128, 4096);
     CHECK(whole.length == na && lookup(a + 300 * MB, 64) == whole, "all first-pool addresses share the whole mapping");

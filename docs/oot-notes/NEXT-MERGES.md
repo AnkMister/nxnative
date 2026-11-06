@@ -1,28 +1,31 @@
-# Next Ocarina merges
+# Ocarina play integration
 
-All finished requested branches are integrated, including their review-1 and
-review-2 replacements, oot-res, and the Brent harvest. Each *-fix replaces its
-parent implementation; the original branches remain historical evidence.
-The [review-1 report](review-fixes.md) and [review-2 report](review-astra-2-fixes.md)
-are archived. Their confirmed defects are repaired in the integrated source.
+`oot-play` contains the requested source groups in order.
 
-The requested 18 PR file lists are preserved in [PR-FILES.md](PR-FILES.md).
-Brent's [Integrator merge notes](brent-compare.md#integrator-merge-notes) remain
-relevant to future rebases. oot-hyper-main uses origin/main eab0aaac resolved
-at creation, including upstream alias layout and renderer PCM blocks. Its
-packed library loader and repaired source gates are retained.
+| Input | Included result |
+| --- | --- |
+| `oot-1439`, `575f834e` | The reviewed `oot-hyper-main` stack, review 3 fixes and serial-held lookup from #1439. |
+| `origin/main`, `c83c48f2` | Includes present crop `2202d610` and cube-array texture fitting. |
+| `oot-play-fixes`, `7eed3b00` | Regenerated profile inputs and optional offline archive parallelism. |
+| `oot-brent2`, `0a0dfeca` | Depth feedback, raw commit words, live shared textures, tensor HMMA, diagnostics and NDSR keys. |
+| `ankmister/oot-brent2-cloud`, `cd2d7b89` | Unique #1434, #1332, #1417 and #1428 ports, plus corrected disabled-hook accounting. |
+| `ankmister/oot-brent2-movie`, `b6d5f6c4` | Optional parallel AV1 decoding and movie clock, with cloud reset/finalize serialization follow-up. |
+| `ankmister/oot-brent2-misc1`, `634ca627` | Optional GPU write intervals and build temporary exclusion from Spotlight. |
+| `ankmister/oot-brent2-misc2`, `d3ad07e2` | Present fixture correction, complete temporary-path exclusion, shader-folder exclusion and idle retirement. |
+| `oot-hdr`, `a2d391d3` | Optional HDR from PR #1176. |
 
-No requested finished branch is pending. oot-aot and oot-foliage are integrated
-after their reviewed stable/Brent ancestors. Existing committed history is kept.
-Future changes to AOT must preserve packed-library loading, all final render
-state (including depth/stencil), colorspace, quality helpers and mesh safety.
-Future grouping changes must preserve marked pool bounds and stage fingerprints.
+Cloud source commits were cherry-picked because their base has rewritten SHAs.
+Duplicate AV1, wide-write, noindex and crop changes were included once.
+The local Brent branch supplies poolstat and texstat once. Pool-table integration
+preserves its live-shared-texture protection and existing texture-class checks.
+The square present fixture now declares its square layer.
 
-The scanner is bench tooling, not a shader optimization. Its static scores do not
-prove executed cost or permit skipping effects. Keep performance experiments off
-for the initial correctness play build.
+Generated translator conflicts were deferred until all source edits were complete.
+The final source publish regenerates the distribution, lock and chain header.
+The full shader build, gameplay, display colour comparison and zero-play-compile
+acceptance remain separate work. The protected existing play package is untouched.
 
-Archive incoming notes before merging. Resolve source and preserve all safety
-and audio repairs; regenerate indexes, registry, lock and header. Repeat tools,
-graphics and host checks. Full shader rebuilding and gameplay remain separate
-parent acceptance, including the hard AOT rule. **Lazy shaders stay off.**
+Keep mesh indirect, HDR, resolution override and performance experiments off.
+The [play recipe](PLAY-BUILD.md) is the source for recommended settings.
+Future AOT changes must preserve final render state, packed-library loading and
+visible geometry. No lazy shader path is selected.

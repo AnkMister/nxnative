@@ -13,6 +13,7 @@ int main(int argc, char **argv) { @autoreleasepool {
     if (argc != 4) { fprintf(stderr, "usage: t_aot <libraries> <archive> <seen>\n"); return 2; }
     setenv("DM_AOT", "1", 1); setenv("DM_AOT_STRICT", "1", 1); setenv("DM_PSO_BUNDLE", argv[2], 1);
     setenv("DM_PSO_ARCHIVE", "off", 1); setenv("DM_PSO_SEEN", argv[3], 1);
+    setenv("DM_SHARPEN", "0.2", 1);
     g_dev = MTLCreateSystemDefaultDevice(); CHECK(g_dev); g_msl_dir = @(argv[1]); pso4_init(); CHECK(g_arch_bundle);
     // Exact keys must distinguish depth/stencil state; replay must restore it.
     MTLRenderPipelineDescriptor *ds = [MTLRenderPipelineDescriptor new];
@@ -30,6 +31,13 @@ int main(int argc, char **argv) { @autoreleasepool {
     NSArray *rows = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil]; CHECK(rows.count >= 3);
     dm_aot_gameplay();
     for (NSDictionary *row in rows) { CHECK(aot_lookup(row, 0, nil)); aot_record(row); }
+    CHECK(dm_aot_compiler_count(1) == 0);
+    // The real helper descriptors, including HDR and sharpening, hit the
+    // inventory loaded at startup without entering a compiler during gameplay.
+    const MTLPixelFormat present_formats[] = {MTLPixelFormatRGBA8Unorm, MTLPixelFormatBGRA8Unorm, MTLPixelFormatRGB10A2Unorm, MTLPixelFormatRGBA16Float};
+    for (unsigned i = 0; i < sizeof present_formats / sizeof *present_formats; i++) {
+        present_pipeline(present_formats[i]); CHECK(g_blit_pso && g_sharp_pso);
+    }
     CHECK(dm_aot_compiler_count(1) == 0);
     // Actual host library bytes must match the standalone helper compiler's bytes.
     NSError *e = nil; id<MTLLibrary> helper = host_lib("ixc", &e); CHECK(helper);

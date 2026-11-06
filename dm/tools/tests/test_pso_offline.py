@@ -97,6 +97,49 @@ class Plan(unittest.TestCase):
             funcs, layer = f if isinstance(f, tuple) else (f, False)
             (self.d / f'{key}{suf}.metallib').write_bytes(metallib(funcs, layer))
 
+    def test_inferred_mesh_pairs_require_matching_fragment_inputs(self):
+        self.shader('m', {'stage': 'ms', 'mesh_stage': {'task': False, 'threads': 32}}, {'_b': [('main0', False)]})
+        self.shader('f', {'stage': 'ps'}, {'_b': [('main0', False)]})
+        mesh = '''struct V {float4 p [[position]]; float4 c [[user(locn4)]];};
+struct P {float4 c [[user(locn10)]];};
+using dm_mesh_t = metal::mesh<V, P, 3, 1, metal::topology::triangle>;
+[[mesh]] void main0(dm_mesh_t out) {}'''
+        fragment = '''struct F {float4 c [[user(locn4)]]; float4 p [[user(locn10), flat]];};
+fragment float4 main0(F in [[stage_in]]) {return in.c;}'''
+        (self.d / 'm_b.metal').write_text(mesh)
+        path = self.d / 'f_b.metal'; path.write_text(fragment)
+        shader_map = self.d / 'shader_map.tsv'
+        shader_map.write_text('pkg\t0\tmesh\tm\tpair\npkg\t0\tpixel\tf\tpair\n')
+
+        def plan():
+            return po.pso_aot.plan(self.d, CHAIN, [], po.functions, None, shader_map)
+
+        rows, _ = plan()
+        self.assertEqual([r['mesh'] for r in rows], [['m_b', 'main0']])
+        for incompatible in (fragment.replace('locn10', 'locn11'),
+                             fragment.replace('float4 c', 'half4 c')):
+            path.write_text(incompatible)
+            rows, gaps = plan()
+            self.assertEqual(rows, [])
+            self.assertEqual(gaps['mesh/fragment interface unproven'], 1)
+        path.unlink()
+        self.assertEqual(plan()[0], [])
+
+    def test_present_inventory_has_exact_sdr_and_hdr_descriptors(self):
+        host = self.d.parent / 'host'; host.mkdir()
+        (host / 'present.metal').write_text('vertex V vs() {}')
+        entries = ['vs', 'fs', 'sharp', 'fs_p3', 'sharp_p3', 'fs_linear', 'sharp_linear']
+        (host / 'present.metallib').write_bytes(metallib([(e, False) for e in entries]))
+        rows, _ = po.pso_aot.plan(self.d, CHAIN, [], po.functions, host)
+        self.assertEqual({(r['colors'][0][0], r['fragment'][1]) for r in rows},
+                         {(p, e) for p in (70, 80) for e in ('fs', 'sharp', 'fs_p3', 'sharp_p3')} |
+                         {(90, 'fs'), (90, 'sharp'), (115, 'fs_linear'), (115, 'sharp_linear')})
+        for row in rows:
+            self.assertEqual(row['vertex'], ['host:present', 'vs'])
+            self.assertEqual(row['colors'][0][1:], [15, False, 1, 0, 0, 1, 0, 0])
+            self.assertEqual(row['attrs'], [])
+            self.assertEqual(row['layouts'], [])
+
     def test_aot_packed_libraries_keep_descriptors_and_cache_inputs(self):
         self.shader('c', {'stage': 'cs'}, {'_b': [('main0', False)]})
         host = self.d.parent / 'host'; host.mkdir()

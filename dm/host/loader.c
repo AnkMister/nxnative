@@ -253,11 +253,14 @@ static void *force_lookup(const char *name) {
 }
 // Generic host: the list serves several games, so entries a game does not reference are only noted; with DM_FORCE_STRICT=1 it still fails loudly (for checking a mistyped list)
 static void force_check(void) {
-    unsigned unused = 0; int strict = getenv("DM_FORCE_STRICT") != NULL;
-    for (unsigned i = 0; i < g_nforce; i++)
-        if (force_enabled(g_force[i].name) && !g_force_hits[i]) { if (strict || g_flag.imports) LOG("forced takeover entry with no reference at all: %s", g_force[i].name); unused++; }
+    unsigned hit = 0, unused = 0; int strict = getenv("DM_FORCE_STRICT") != NULL;
+    for (unsigned i = 0; i < g_nforce; i++) {
+        if (!force_enabled(g_force[i].name)) continue;
+        if (g_force_hits[i]) hit++;
+        else { if (strict || g_flag.imports) LOG("forced takeover entry with no reference at all: %s", g_force[i].name); unused++; }
+    }
     if (unused && strict) die("forced takeover list is wrong");
-    LOG("force: %u entries hit, %u not referenced by this game", g_nforce - unused, unused);
+    LOG("force: %u entries hit, %u not referenced by this game", hit, unused);
 }
 
 // Read the rewriter table header (segment boundaries, slot numbers); any row beyond the header means an old-format build output (code modified at load time), which is rejected

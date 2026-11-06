@@ -307,3 +307,33 @@ Only the embedded host present shader was rebuilt. Existing game libraries stay
 valid, but HDR-specific AOT archive coverage and display acceptance remain open.
 The parent task owns independent review. External evidence and hdr.md are kept
 in the shared task workspace. All heavy commands ran at nice 19.
+
+## oot-play review integration
+
+Integrated the requested local branches and unique cloud source ports. Upstream
+c83c48f2 supplies the crop and cube-array correctness fixes. The cloud contributes
+only its four retained features. Misc2 supplies complete capture/noindex paths
+and asynchronous idle retirement. Movie ports remain opt-in; their lifetime lock
+was adapted to this lineage's always-serialized decoder API. No mip omission or
+NDVE bilinear replacement is included.
+
+Review 4b fixes remove the accidental tensor gate from readable-tile compilation,
+restore HID diagnostic stubs and adapt the retirement fixture to marked pools and
+gmem_map. A cache-miss regression covers tensor absent, zero and one. Review 4a's
+HDR fix derives the MetalFX format from the raw view; a direct-encoder test checks
+both HDR targets and the scaler compiler counter. Exact present descriptors enter
+the AOT inventory and startup prewarm. Inferred mesh pairs require proven matching
+MSL outputs and fragment inputs. Mesh layout and strict AOT remain open gates.
+
+The translator was published once from the integrated source after auditing 57
+NuGet publication dates. Restore used only that feed; all four assets manifests
+match the allowlist. Publish omits PDBs and maps source paths to /_/nxnative.
+SPIRV-Cross was built locally from its pinned source, with at most two jobs.
+Generated DLL conflicts, lock and header are rebuilt, never selected from a side.
+Default and play chain labels and source fingerprints were refreshed.
+
+The user selected SDK22, raw-commit, GPU-lost and serial-held in the play recipe,
+with safe GPU, AOT and strict reporting. Fresh builds use noindex. Every other
+new performance or visual experiment stays off. No game, full shader build,
+Application Support update, baseline write, push or PR ran. Final verification
+and storage results follow in the handoff. Current fixture checks are in progress.

@@ -469,7 +469,7 @@ def fetch_finish(key, src, refl):
             if not bf_cache_restore(key, digest, fmeta, fmsl):
                 BF_STATS['miss'] += 1
                 open(fmsl, 'w').write(fv)
-                fair = fmsl[:-6] + '.air'; flib = os.path.join(out, key + '_bf.metallib') if 'mac' in TARGETS and os.environ.get('DMSH_HMMA_TENSOR') == '1' else None
+                fair = fmsl[:-6] + '.air'; flib = os.path.join(out, key + '_bf.metallib') if 'mac' in TARGETS else None
                 try:
                     if flib:
                         tmp_flib = flib + '.tmp-' + str(os.getpid())

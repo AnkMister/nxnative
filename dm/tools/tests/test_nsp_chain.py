@@ -18,6 +18,7 @@ from unittest import mock
 REPO = Path(__file__).resolve().parents[3]
 SCRIPT = REPO / 'scripts/build_ipa_from_nsp.py'
 spec = importlib.util.spec_from_file_location('build_ipa_from_nsp', SCRIPT)
+assert spec is not None and spec.loader is not None
 nsp = importlib.util.module_from_spec(spec); spec.loader.exec_module(nsp)
 bench_spec = importlib.util.spec_from_file_location('bench', REPO / 'scripts/bench.py')
 if bench_spec is None or bench_spec.loader is None: raise ImportError('scripts/bench.py')
@@ -36,6 +37,7 @@ class Temporaries(unittest.TestCase):
     def test_temporary_folder_is_opt_in(self):
         for value, expected in [('0', 'tmp'), ('1', 'tmp.noindex')]:
             with self.subTest(value=value), mock.patch.dict(os.environ, DM_BUILD_NOINDEX=value):
+                assert spec is not None and spec.loader is not None
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
                 self.assertEqual(module.TMP, expected)

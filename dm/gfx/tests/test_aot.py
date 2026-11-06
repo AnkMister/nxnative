@@ -51,7 +51,7 @@ class Planning(unittest.TestCase):
                 't': '[[object]] void main0(metal::mesh_grid_properties g) {g.set_threadgroups_per_grid(uint3(1));}',
             }
             for key, src in shaders.items():
-                metal = lib / (key + '.metal'); metal.write_text('#include <metal_stdlib>\nusing namespace metal;\n' + src)
+                metal = lib / (key + '_b.metal'); metal.write_text('#include <metal_stdlib>\nusing namespace metal;\n' + src)
                 subprocess.run(['xcrun', 'metal', '-std=metal3.0', str(metal), '-o', str(lib / (key + '_b.metallib'))], check=True, capture_output=True)
                 (lib / (key + '_b.json')).write_text(json.dumps(dict(chain=chain, stage={'c': 'cs', 'm': 'ms', 't': 'ts'}.get(key, key), entry='main0', **({'mesh_stage': {'threads': 1, 'payload': 16, 'task': True}} if key in ('m', 't') else {}))))
             seen = root / 'seen.jsonl'; seen.write_text('\n'.join(json.dumps(render(chain, k)) for k in ('render', 'mesh')) + '\n')

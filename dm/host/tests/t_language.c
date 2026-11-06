@@ -20,6 +20,7 @@ uint64_t hle_system_event_binding(void *ev) { (void)ev; return 1; }
 int hle_signal_system_event_binding(uint64_t binding) { (void)binding; return 1; }
 uint32_t hle_hid_connected_npad(void) { return 0; }
 void dm_host_helper_qos(qos_class_t q) { (void)q; }
+void nvn_eco_wait(uint64_t *next) { (void)next; }
 
 static int checks, fails;
 #define CHECK(c, msg) do { checks++; if (!(c)) { fails++; fprintf(stderr, "FAIL: %s\n", msg); } } while (0)

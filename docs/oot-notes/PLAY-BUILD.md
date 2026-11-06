@@ -1,24 +1,18 @@
-# Recommended Ocarina play build
+# Ocarina community play build
 
-**Selected basis: oot-hyper-main**, validated source 5f066f7d, on upstream
-origin/main eab0aaac resolved at branch creation. oot-hyper also passes all
-integrated checks. See [verification](VERIFICATION.md) for both result sets.
-Use main's matching play chain `992d6981956f`; the oot-hyper alternative uses
-`735446b8c867`. These apply to the exact flags below and final source-built tools.
+Use branch `oot-play`. It combines `oot-1439`, upstream `c83c48f2`,
+`oot-play-fixes`, local and cloud Brent round two ports, and optional HDR.
+The [integration list](NEXT-MERGES.md) records the selected inputs.
 
-The reviewed visual and stable replacements are integrated. The Float16/integer
-selector, watchdog snapshot and auxiliary residency races are repaired.
-`DM_SAFE_GPU=1` is restored in the recommended play environment.
+Visual correctness comes first. Gameplay and zero compiler entries during play
+remain unproven. Unit and native fixtures do not establish either result.
+`DM_AOT_STRICT=1` reports misses and still compiles to preserve visible geometry.
+Lazy shaders stay off. Build the entire map and pipeline archives.
 
-**Offline pipeline coverage is still an acceptance gate.** oot-aot is integrated
-with expanded archives, startup prewarm, exact descriptor learning and counters.
-No variant is a finished play package until the no-runtime-compilation rule is
-verified. Branch selection follows the integrated checks recorded below.
-
-This recipe enables correctness and stability. Performance experiments stay off.
-It describes the parent's later build; this integration did not run a game, full
-shader build or shader-map extraction. Do not modify the protected baseline
-checkout or `${OOT_READONLY_GAME_ROOT}/`.
+The default chain is `e16dbb187984`. With `DMSH_OOT_VISUAL=1`, the play
+chain is `4323760be52f`, different from the existing package at `992d6981956f`.
+Adopting `oot-play` requires a full shader and archive rebuild, then a matching
+host. A host rebuild alone will reject the old library stamp.
 
 ## Split, rewrite and shader-build environment
 
@@ -34,6 +28,8 @@ Set these consistently for shader splitting, module rewriting and shader buildin
 export GAME=0400486024DEC000 DM_GAME=0400486024DEC000
 export DMSH_OOT_VISUAL=1
 export DM_AOT=1 DM_AOT_STRICT=1
+export DM_BUILD_NOINDEX=1
+export DMSH_HMMA_TENSOR=0
 export DM_PSO_PREPARE_THREADS=4
 export DMSH_WIDE_GROUP=0 DMSH_RAW_LOAD_QUADS=0 DMSH_CBUF_REUSE=0 DMSH_STORAGE_RUNS=0
 export DMSH_STAGECACHE=0 DMSH_STAGECACHE_WARM=0
@@ -55,13 +51,13 @@ remains off at rewrite time.
 
 Re-split the independent shader inputs with `DMSH_OOT_VISUAL=1`. The entry-wise
 NDSR reader recovers SMAA-weights key `d17eefaff4f0bc23`; confirm it enters the
-new shader map. Existing profile maps were not rewritten by this integration.
+new shader map. The three recovered NDSR keys are already in the committed profile.
 Regenerate `dmsh_chain.h` using `python dm/gfx/tools/dmsh_chain.py --header`
 under this environment, build that profile's matching Mac shader libraries, then
 build the host with `make -C dm/host -j4 GAME=0400486024DEC000 dmhost`.
 
 The committed header describes source defaults, where visual translation is off.
-The recommended enabled build has its own chain hash. Never combine that header
+The enabled play build has its own chain hash. Never combine that header
 or host with libraries built using another option set. The common translator
 binary includes gated visual paths; its lock is shared by both configurations.
 
@@ -81,6 +77,19 @@ DM_OOT_BRENT=0
 DM_NVN_POOL_SKIP_RETIRED=0
 DM_NVN_VISUAL=1
 DM_NVN_MESH_INDIRECT=0
+DM_NVN_SERIAL_HELD=1
+DM_NVN_GMEM_COMMIT=1
+DM_SDK22_SERVICES=1
+DM_GPU_LOST_STOP=1
+DM_NVN_IDLE_RETIRE=0
+DM_NVN_RETIRE_CHUNKS=0
+DM_NVN_POOL_TABLE_REUSE=0
+DM_NVN_GW_INTERVALS=0
+DM_AV1_PARALLEL=0
+DM_CV_LATE=0
+DM_NVN_HMMA_TENSOR=0
+DM_NVN_FB_DSELF=0
+DM_HDR=0
 DM_PRESENT_COLORSPACE=srgb
 DM_QUALITY=off
 DM_ANISO=0
@@ -148,3 +157,45 @@ Any gameplay compiler event fails the user's rule. Repack learned descriptors
 and repeat acceptance; static preflight always reports incomplete coverage.
 Function constants, unobserved final states and diagnostic source remain gaps.
 No game or full offline build ran here, so no finished play package is claimed.
+
+## Optional HDR and resolution
+
+HDR stays off by default. To try it, set `DM_HDR=1` before launch on a Mac
+with an HDR display. The host reports HDR only while that display supports it.
+`DM_HDR_PAPER_WHITE` defaults to 203 nits and `DM_HDR_PEAK` to 1000 nits.
+The game must produce HDR output. Display colours, monitor changes and archive
+coverage still need gameplay validation. HDR alone changes the host, not the game
+shader chain. See [HDR evidence](../../dm/games/0400486024DEC000/README.md#hdr-output).
+
+Keep `DM_OOT_RENDER_RES=off`. The optional `observe` mode records the game's
+resolution calls. Numeric modes require the matching rewritten main module and
+separate image validation. See [resolution controls](oot-res.md).
+
+Keep the remaining Brent experiments off. Parallel AV1 decoding and the movie
+clock need cutscene checks. `DM_CV_LATE=1` may skip overdue movie pictures.
+Tensor HMMA requires a different shader build and Apple10 hardware. The M4 Max
+uses the existing matrix path. No NDVE bilinear replacement is included.
+
+## Reviewed play defaults
+
+Review 4a accepts `DM_NVN_SERIAL_HELD=1` for the play configuration because
+its counts preserve texture-view ancestor protection. Keep its debug check off.
+The repository's unset default remains off for comparison runs.
+
+The user's final play decision enables `DM_SDK22_SERVICES=1`,
+`DM_NVN_GMEM_COMMIT=1` and `DM_GPU_LOST_STOP=1`, with `DM_SAFE_GPU=1`.
+Use `DM_BUILD_NOINDEX=1` for the next fresh build. No gameplay acceptance is
+claimed for the chosen settings. The source defaults remain off for comparisons.
+
+Keep `DM_NVN_FB_DSELF=0`, `DM_NVN_IDLE_RETIRE=0`, `DM_NVN_RETIRE_CHUNKS=0`,
+`DM_NVN_POOL_TABLE_REUSE=0` and `DM_NVN_GW_INTERVALS=0` for later comparisons.
+Keep both movie experiments, retired-pool skipping and both tensor flags off.
+The three recovered NDSR entries are included through the corrected full split.
+Mip omission and the NDVE bilinear replacement are excluded.
+
+The AOT inventory includes exact SDR/P3 and HDR present descriptors, including
+RGBA16Float's linear and sharpened functions and RGB10A2's PQ targets.
+Startup prewarm consumes that same inventory. MetalFX scaler creation is counted
+as compiler work, including a refused creation. Keep present MetalFX off for play.
+Archive misses, resize transitions and unobserved game states still need route
+acceptance. Neither the inventory nor strict logging proves zero play compiles.

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # scripts/bench.py: the measured window of the host's per-frame rows (DM_NVN_TSV) and the percentiles taken from it, and the profiles' bench.tsv routes
-import os
 import argparse, contextlib, importlib.util, io, json, os, sys, tempfile, unittest
 from pathlib import Path
 from unittest import mock

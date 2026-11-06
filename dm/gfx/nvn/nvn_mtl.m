@@ -14365,6 +14365,7 @@ static id<MTLTexture> fx_encode(fx_state *fx, id<MTL4CommandBuffer> cb, id<MTLTe
         MTLFXSpatialScalerDescriptor *d = [MTLFXSpatialScalerDescriptor new];
         d.colorTextureFormat = raw.pixelFormat; d.outputTextureFormat = out_pf; d.inputWidth = cw; d.inputHeight = ch; d.outputWidth = ow; d.outputHeight = oh;
         d.colorProcessingMode = MTLFXSpatialScalerColorProcessingModePerceptual;
+        if (g_fx_comp) dm_aot_event("metalfx-present", [NSString stringWithFormat:@"%lux%lu/%lu -> %lux%lu/%lu", (unsigned long)cw, (unsigned long)ch, (unsigned long)raw.pixelFormat, (unsigned long)ow, (unsigned long)oh, (unsigned long)out_pf], "spatial scaler creation", 1);
         id<MTL4FXSpatialScaler> sc = g_fx_comp ? [d newSpatialScalerWithDevice:g_dev compiler:g_fx_comp] : nil;
         if (!fx_output_stages(sc, MTLStageFragment)) sc = nil;
         fx->made_at = g_present_n; fx->made++;
@@ -14555,8 +14556,9 @@ static int present_encode_m4(id<MTL4CommandBuffer> cb, id<MTLTexture> src, id<MT
     MTLViewport vp = present_fit(src, dw, dh);
     int full = vp.originX == 0 && vp.originY == 0 && vp.width == dw && vp.height == dh;
     int pq_source = src.pixelFormat == MTLPixelFormatRGB10A2Unorm && vi_hdr_answered();
-    MTLPixelFormat scale_format = dst.pixelFormat == MTLPixelFormatRGBA16Float || dst.pixelFormat == MTLPixelFormatRGB10A2Unorm ? src.pixelFormat : dst.pixelFormat;
-    id<MTLTexture> tex = present_raw_src(src), up = fx && !pq_source ? fx_encode(fx, cb, tex, r, vp, scale_format, fx == &g_fx_present) : nil;
+    id<MTLTexture> tex = present_raw_src(src);
+    MTLPixelFormat scale_format = dst.pixelFormat == MTLPixelFormatRGBA16Float || dst.pixelFormat == MTLPixelFormatRGB10A2Unorm ? tex.pixelFormat : dst.pixelFormat;
+    id<MTLTexture> up = fx && !pq_source ? fx_encode(fx, cb, tex, r, vp, scale_format, fx == &g_fx_present) : nil;
     if (up) { tex = up; r[0] = r[1] = 0; r[2] = up.width; r[3] = up.height; }   // the scaled picture, the viewport's size: drawn 1:1
     MTL4RenderPassDescriptor *rp = [MTL4RenderPassDescriptor new];
     rp.colorAttachments[0].texture = dst;

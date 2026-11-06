@@ -1,3 +1,27 @@
+## AnkMister fork: Ocarina of Time on Mac
+
+`oot-play` combines the Ocarina fixes, current upstream changes, Brent's ports
+and optional HDR for Apple Silicon Macs. Follow [the play build guide](docs/oot-notes/PLAY-BUILD.md)
+to build the matching shaders, pipeline archives and host.
+
+Use `DMSH_OOT_VISUAL=1` when building. Keep `DM_AOT=1`, `DM_AOT_STRICT=1`
+and `DM_SAFE_GPU=1`. Enable the reviewed play settings in the guide. Keep `DM_NVN_MESH_INDIRECT=0`, `DM_HDR=0` and
+`DM_OOT_RENDER_RES=off`. See [all fork flags](docs/oot-notes/FLAGS.md).
+
+Known limits:
+
+- Gameplay has not been validated on this combined branch.
+- The mesh-indirect record layout is unproven. Some geometry may be missing while the option is off.
+- Zero shader or pipeline compiles during play is unproven. Strict mode reports misses and still compiles them.
+
+Credit goes to [seedds and the upstream contributors](https://github.com/seedds/nxnative),
+the authors of the [ported PRs](docs/oot-notes/PR-FILES.md),
+[BrentRosen](https://github.com/BrentRosen) for the Ocarina work, and
+[beecrepaldi-afk](https://github.com/beecrepaldi-afk) for the HDR contribution in
+[PR #1176](https://github.com/seedds/nxnative/pull/1176).
+
+---
+
 # nxnative
 
 Play your own Nintendo Switch games natively on iPhone and iPad. Bring your game (its NSP files) and your `prod.keys`; one script turns them into an IPA that you sideload.

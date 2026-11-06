@@ -90,6 +90,56 @@ def validate(row, chain):
     return row
 
 
+def present_rows():
+    """Exact states made by present_pipeline, including SDR screenshots and HDR."""
+    for pixel_format, entries in ((70, ('fs', 'sharp', 'fs_p3', 'sharp_p3')),
+                                  (80, ('fs', 'sharp', 'fs_p3', 'sharp_p3')),
+                                  (90, ('fs', 'sharp')),
+                                  (115, ('fs_linear', 'sharp_linear'))):
+        for entry in entries:
+            yield dict({'class': 'render'}, vertex=['host:present', 'vs'],
+                       fragment=['host:present', entry], samples=1, a2c=False,
+                       raster=True, depth=0, stencil=0, topology=0, amp=1,
+                       attrs=[], layouts=[], colors=[[pixel_format, 15, False, 1, 0, 0, 1, 0, 0]] +
+                       [[0, 15, False, 1, 0, 0, 1, 0, 0] for _ in range(7)])
+
+
+def mesh_interface_matches(mesh, mesh_entry, fragment, fragment_entry):
+    """Only infer pairs whose generated MSL proves every fragment input exists."""
+    structs = re.compile(r'struct\s+(\w+)\s*\{(.*?)\};', re.S)
+    fields = re.compile(r'(\w+)\s+\w+\s*\[\[([^\]]+)\]\]\s*;')
+
+    def locations(source, names):
+        bodies = dict(structs.findall(source)); result = {}
+        for name in names:
+            if name == 'void': continue
+            if name not in bodies: return None
+            parsed = fields.findall(bodies[name])
+            for kind, attrs in parsed:
+                loc = re.search(r'user\((locn\d+)\)', attrs)
+                if loc:
+                    if loc.group(1) in result: return None
+                    result[loc.group(1)] = kind
+            # Unknown declarations must not appear to be an empty interface.
+            if len(re.findall(r'user\(locn', bodies[name])) != sum('user(locn' in a for _, a in parsed):
+                return None
+        return result
+
+    ms = re.search(r'\bvoid\s+' + re.escape(mesh_entry) + r'\s*\((.*?)\)\s*\{', mesh, re.S)
+    fs = re.search(r'\bfragment\s+\w+\s+' + re.escape(fragment_entry) + r'\s*\((.*?)\)\s*\{', fragment, re.S)
+    if not ms or not fs: return False
+    declaration = ms.group(1)
+    for alias, value in re.findall(r'using\s+(\w+)\s*=\s*((?:metal::)?mesh\s*<[^;]+);', mesh):
+        if re.search(r'\b' + re.escape(alias) + r'\b', declaration): declaration = value
+    types = re.search(r'(?:metal::)?mesh\s*<\s*(\w+)\s*,\s*(\w+)\s*,', declaration)
+    if not types: return False
+    outputs = locations(mesh, types.groups())
+    inp = re.search(r'(\w+)\s+\w+\s*\[\[stage_in\]\]', fs.group(1))
+    if not inp and 'user(' in fs.group(1): return False
+    inputs = locations(fragment, [inp.group(1)] if inp else [])
+    return outputs is not None and inputs is not None and all(outputs.get(loc) == kind for loc, kind in inputs.items())
+
+
 def plan(root, chain, seen, functions, host_dir, shader_map=None, zero=False):
     """Every successful compute; explicit program-source mesh combinations; learned exact states.
     Do not guess a cross-product of unrelated task/mesh/fragment functions."""
@@ -113,6 +163,12 @@ def plan(root, chain, seen, functions, host_dir, shader_map=None, zero=False):
             src = path.with_suffix('.metal')
             for name in re.findall(r'kernel\s+void\s+(\w+)\s*\(', src.read_text()):
                 add({'class': 'compute', 'compute': ['host:' + path.stem, name]})
+            if path.stem == 'present':
+                entries = functions(path)
+                for row in present_rows():
+                    if any(entries.get(row[k][1], True) for k in ('vertex', 'fragment')):
+                        raise ValueError('present library is missing an AOT entry or requires constants')
+                    add(row)
     # shader_map records the first source of each key. Only a source with one
     # unambiguous mesh, fragment, and (if required) task is evidence of a combination.
     groups = collections.defaultdict(lambda: collections.defaultdict(set))
@@ -131,6 +187,14 @@ def plan(root, chain, seen, functions, host_dir, shader_map=None, zero=False):
         if info.get('task', True) and not tj: continue
         refs = {'mesh': [mk + '_b', mj.get('entry_z') if zero and mj.get('entry_z') else mj.get('entry', 'main0')], 'fragment': [fk + '_b', fj.get('entry', 'main0')]}
         if task and tj: refs['object'] = [task + '_b', tj.get('entry', 'main0')]
+        try:
+            compatible = mesh_interface_matches((root / (mk + '_b.metal')).read_text(), refs['mesh'][1],
+                                                (root / (fk + '_b.metal')).read_text(), refs['fragment'][1])
+        except OSError:
+            compatible = False
+        if not compatible:
+            gaps['mesh/fragment interface unproven'] += 1
+            continue
         try:
             if any(functions(root / (lib + '.metallib')).get(entry, True) for lib, entry in refs.values()): continue
         except (OSError, ValueError): continue

@@ -84,6 +84,37 @@ static int run(id<MTLTexture> src, MTLPixelFormat fmt, double out[N][3]) {
 }
 static int near(double a, double b, double rel, double abs_) { return fabs(a - b) <= fmax(abs_, rel * fabs(b)); }
 
+// Match the onscreen caller: pass the original sRGB texture to the common
+// encoder, rather than normalizing it in present_offscreen_m4 first.
+static void srgb_metalfx_hdr(void) {
+    MTLTextureDescriptor *d = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm_sRGB width:32 height:18 mipmapped:NO];
+    d.storageMode = MTLStorageModeShared; d.usage = MTLTextureUsageShaderRead | MTLTextureUsagePixelFormatView;
+    id<MTLTexture> src = [g_dev newTextureWithDescriptor:d];
+    uint8_t bytes[32 * 18 * 4]; memset(bytes, 128, sizeof bytes);
+    [src replaceRegion:MTLRegionMake2D(0, 0, 32, 18) mipmapLevel:0 withBytes:bytes bytesPerRow:32 * 4];
+    const MTLPixelFormat formats[] = {MTLPixelFormatRGBA16Float, MTLPixelFormatRGB10A2Unorm};
+    for (unsigned i = 0; i < sizeof formats / sizeof *formats; i++) {
+        d = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:formats[i] width:64 height:36 mipmapped:NO];
+        d.storageMode = MTLStorageModeShared; d.usage = MTLTextureUsageRenderTarget;
+        id<MTLTexture> dst = [g_dev newTextureWithDescriptor:d];
+        id<MTLBuffer> uv = [g_dev newBufferWithLength:sizeof(float) * 16 options:MTLResourceStorageModeShared];
+        id<MTL4CommandAllocator> al = [g_dev newCommandAllocator]; id<MTL4CommandBuffer> cb = [g_dev newCommandBuffer];
+        fx_state fx = {0}; res_add(src); res_add(dst); res_add(uv); res_commit();
+        present_pipeline(formats[i]); uint64_t before = dm_aot_compiler_count(0);
+        [cb beginCommandBufferWithAllocator:al];
+        int kind = present_encode_m4(cb, src, dst, NULL, uv, &fx);
+        [cb endCommandBuffer];
+        CHECK("sRGB SDR source retains MetalFX scaling into each HDR format", kind == PRESENT_METALFX);
+        CHECK("MetalFX scaler creation is counted", dm_aot_compiler_count(0) == before + 1);
+        dispatch_semaphore_t sem = dispatch_semaphore_create(0); __block int ok = 0;
+        MTL4CommitOptions *options = [MTL4CommitOptions new];
+        [options addFeedbackHandler:^(id<MTL4CommitFeedback> f) { (void)al; (void)cb; (void)fx.sc; ok = !f.error; dispatch_semaphore_signal(sem); }];
+        safe_gpu_commit4(&cb, 1, options);
+        CHECK("sRGB MetalFX HDR submission completes", !dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC)) && ok);
+        mtl_drain(); res_remove(src); res_remove(dst); res_remove(uv); res_remove(fx.in); res_remove(fx.out);
+    }
+}
+
 int main(int argc, char **argv) { @autoreleasepool {
     int sdr = argc > 1 && !strcmp(argv[1], "--sdr"), combined = argc > 1 && !strcmp(argv[1], "--combined");
     metal4 = argc > 1 && !strcmp(argv[1], "--metal4");
@@ -108,6 +139,7 @@ int main(int argc, char **argv) { @autoreleasepool {
     if (combined) {
         uint8_t on; uint32_t fmt; uint16_t peak;
         status(&on, &fmt, &peak, NULL);
+        srgb_metalfx_hdr();
         for (metal4 = 0; metal4 < 2; metal4++) {
             uint8_t c[N][3]; unsigned pq[N][3];
             for (int level = 0; level < 2; level++) {

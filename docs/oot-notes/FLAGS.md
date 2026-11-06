@@ -1,4 +1,31 @@
-# Ocarina integrated controls
+# Ocarina play controls
+
+`oot-play` is the community build branch. The [play recipe](PLAY-BUILD.md)
+sets `DM_AOT=1`, `DM_AOT_STRICT=1` and `DM_SAFE_GPU=1`. Keep
+`DM_NVN_MESH_INDIRECT=0`, `DM_HDR=0` and `DM_OOT_RENDER_RES=off`.
+Gameplay image parity and zero compiler entries during play remain unproven.
+Source defaults and recommended recipe settings are separate.
+
+## Brent round two and HDR
+
+| Control | Source default | Play setting and limit |
+| --- | --- | --- |
+| `DM_NVN_SERIAL_HELD` | Off | Counted lookup retains texture-view ancestors. ON in the play recipe after review 4a; debug checking stays off. |
+| `DM_NVN_GMEM_COMMIT` | Off | Refreshes raw pool table words before commit. ON by user decision; raw-map growth, segment and geometry acceptance remains open. |
+| `DM_NVN_FB_DSELF` | Off | Ignores a pool shader's depth-write bit when classifying feedback. OFF pending water, depth, decal and stencil image checks. |
+| `DM_HDR` | Off | Keep off. `1` opts in on an HDR display. Display colours and archive coverage need validation. |
+| `DM_HDR_PAPER_WHITE`, `DM_HDR_PEAK` | 203, 1000 nits | Optional HDR calibration. Both are inactive in the SDR recipe. |
+| `DMSH_HMMA_TENSOR`, `DM_NVN_HMMA_TENSOR` | Off | Keep off. Build and runtime must both opt in. Apple10 only; M4 Max uses the matrix path. |
+| `DM_SDK22_SERVICES` | Off | ON by user decision; gameplay checks for the five SDK hooks remain open. |
+| `DM_GPU_LOST_STOP` | Off | ON by user decision; alert and window acceptance remain open. Safe GPU stays on. |
+| `DM_NVN_RETIRE_CHUNKS`, `DM_NVN_POOL_TABLE_REUSE` | Off | Keep off pending buffer lifetime and image checks. |
+| `DM_NVN_GW_INTERVALS`, `DM_NVN_IDLE_RETIRE` | Off | Keep off pending write tracking, focus and resume checks. |
+| `DM_AV1_PARALLEL`, `DM_CV_LATE` | Off | Keep off. The clock can omit overdue movie pictures. No NDVE bilinear replacement is included. |
+| `DM_BUILD_NOINDEX` | Off | ON for the next fresh build; excludes temporary and shader folders from Spotlight. |
+| `DM_PSO_J`, `DM_METAL_PACK_THREADS` | 1 | Optional offline build concurrency. Changing them does not change shader semantics. |
+
+The play recipe enables no quality reduction. All source experiments remain
+available for separate comparisons. The existing inventory follows.
 
 The tables cover controls added, changed or used for experiments by `oot-stack`,
 `oot-cpu`, `oot-mem`, `oot-1203`, `oot-idle`, `oot-upscale`, `oot-bench` and
@@ -168,7 +195,7 @@ unknown implementations. Crop, colour and all quality cases run with validation.
 | `DM_TEST_GPU_HANG` | Off | Fault injection stops safe-mode process; never set for play | Synthetic callback/diagnostic test only, no real GPU hang required | oot-stable, #1382 |
 | `DM_FAST_CLOCK=1` (module rewrite) | Off; exact `1` enables | Counter frequency/epoch, pause, capture and fallback semantics need gameplay acceptance | Branch microbenchmark 22.6 to 8.8 ns per read, 45 SDK sites; not integrated gameplay gain | oot-clock |
 | `SEEN_SHADERS`, `--seen-shaders` | Off; require `False` / `--no-seen-shaders` for play | Partial maps omit geometry/effects; not acceptable for the user | No runtime shader compilation: full offline shader corpus required; lazy shaders stay off | Existing packer, user play-build rule |
-| `DM_PRESENT_EDR` | Unavailable; proposed only | No proven guest HDR contract | Future-only note, not an exposed flag | oot-vqa |
+| `DM_HDR=1` | Off, including play | HDR display and colours need gameplay validation | Optional guest HDR output | oot-hdr, #1176 |
 | `DM_CLOCK_STATS=1` | Off | Diagnostic overhead; forces full clock gate and disables fast entry | Counts physical, virtual and frequency reads per thread; no speedup | oot-clock |
 | `DM_REWRITE_J` | Existing rewrite worker policy | Build resource use only | Set `4` at most for a re-rewrite; no visual gain | oot-clock, existing build input |
 
