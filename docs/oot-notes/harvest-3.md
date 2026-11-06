@@ -1,9 +1,9 @@
 # Harvest 3 for the Ocarina lead
 
 Branch `oot-r3` starts at `oot-play` `e8c3bc222b06413347d533fca7e060a69943c57a`.
-Implementation head before this report is `3febd0b7`. All commits use AnkMister's requested identity. No push, GitHub comment, PR, dependency install or third-party executable run occurred.
+Initial implementation head before this report was `3febd0b7`. Follow-up implementation head is `a80677b6`. All commits use AnkMister's requested identity. No push, GitHub comment, PR, dependency install or third-party executable run occurred.
 
-The implementation is a static port. It is not build-verified or gameplay-verified. The user's game remained active as PID 92070 at every gate check, including the handoff check. No build or test ran. Nothing in the running app, its game folder, its environment or the protected baseline checkout was changed.
+The initial delivery was static while the user's game ran as PID 92070. The follow-up was compiled and tested after the user explicitly allowed background builds during play. Full host, shader and gameplay acceptance remain pending. Nothing in the running app, its game folder, its environment or the protected baseline checkout was changed.
 
 ## Item decisions
 
@@ -22,10 +22,13 @@ The implementation is a static port. It is not build-verified or gameplay-verifi
 | `a2d39a26`, merged #1354 | Reconciled in `2edb339c` | Replaces `6a010417`'s gated identity and old-stamp compatibility path. | Use upstream's device-independent identity and strict stamp comparison. Source hashing already invalidates old packer stamps, so the compatibility path was ineffective. | Tool-only, outside shader-chain |
 | `16e3e24f`, merged #1333 | Ported in `3febd0b7` | No competing p1444 package reader. | Adopt merged shader-package robustness and Oodle table decoding from source, with its fixtures. No decoder executable was run. | Extraction tool-only, outside shader-chain |
 | `c83c48f2` and `2202d610` | Already in oot-play ancestry | Layer-view correction and present shape/crop correction, with later local fixtures and fixes. | No duplicate application. Preserve local fixes. | Host-only |
+| #1455, `bc604379` | Ported in `a80677b6`; focused tests pass | Reconciles #1391 eviction, DM_SAFE_GPU, #1404/#1394 residency, #1439 held ancestors, #1453 heaps and #1447 release. | Default-off `DM_NVN_ALIAS_RETIRE=1`. Live-only ages and retired-key suppression prevent stale descriptor walks recreating idle textures. Respect the lower existing safety budget; preserve deferred residency. Skip heap-backed textures and disable retirement with destructive guest release. No gameplay freeze or memory-saving claim is established here. | Host-only |
+| Upstream `69cb9b6e`, merged #1401 | Ported in `121764ed`; t_nvn passes | Event builder already knew its pool/offset; event objects did not retain them. | Cheap general correctness fix, enabled. Store the builder pool/offset and answer both event queries. Capture command layout is unchanged. | Host-only |
+| #1454 test stubs | Skipped as requested | Already supplied by p1444-stutter. | No duplicate stub port. | Host-only |
 
 ## Upstream and lane pins
 
-`git fetch origin` completed. `git log eab0aaac..origin/main` returned the following eight commits, newest first. The fetched main is `a2d39a26306c499183b755f0de32ef8a4246f104`.
+Initial `git fetch origin` completed. `git log eab0aaac..origin/main` returned the following eight commits, newest first. That fetched main was `a2d39a26306c499183b755f0de32ef8a4246f104`.
 
 ```text
 a2d39a26  merged #1354 RomFS identity
@@ -50,11 +53,11 @@ The static merge automatically combined the recorder changes with p1444's guards
 
 ## Verification gates
 
-Completed only static source comparison, `git diff --check`, conflict resolution and the static merge check. Added or updated upstream fixtures include pool-heap GPU reads, dirty-page discard, command/capture layouts, fault attribution, geometry compaction, handle-table reflection, audio-lock decoding, RomFS identity and package readers. None was executed.
+The initial delivery completed static source comparison, `git diff --check`, conflict resolution and the static merge check. Added or updated upstream fixtures include pool-heap GPU reads, dirty-page discard, command/capture layouts, fault attribution, geometry compaction, handle-table reflection, audio-lock decoding, RomFS identity and package readers. Only the follow-up t_nvn and t_capture runs listed below have since exercised parts of that earlier fixture set; the other earlier fixtures remain unrun.
 
 The implementation adds 44 changed files, 1,337 insertions and 186 deletions before this report. No tracked translator binary changed. `dmsh_chain.py --header` was run as source generation, not as a shader build. The resulting source header is `22c4a0d4825c`; the old translator lock is intentionally unchanged and does not certify the modified source. Tool-lock source checking must fail until the translator is rebuilt. Do not pair this branch's host with oot-play's old shader libraries.
 
-After the game exits, the verification owner should check `pgrep -f MacOS/dmhost` immediately before every build or test and stop if it matches. Use `nice -n 19` for builds and at most `-j4` or the equivalent concurrency cap. Use the existing uv Python and set `TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch`. Install nothing.
+The original verification gate required the game to exit. The user has now authorized builds and tests during play with `taskpolicy -b nice -n 19` and at most `-j4` or the equivalent concurrency cap. Apply that newer rule to remaining verification. Use the existing uv Python and set `TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch`. Install nothing.
 
 Build the translator and any required SPIRV-Cross executable from inspected source into this task's storage. Do not execute the repo's prebuilt translator or SPIRV-Cross. Refresh the lock using only source-built tools, regenerate the chain header, and build matching Mac shader libraries through the lead's authorized build path. No iOS work is needed. A full shader build, game launch or regress.py run remains outside this implementation agent's authorization.
 
@@ -64,4 +67,33 @@ Gameplay acceptance belongs to the lead. Check pond terrain, clothing masks and 
 
 ## Storage and boundaries
 
-No generated dependency or build roots were created or removed. Kept source patches and static merge evidence in `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/harvest-3-src/` for review. Kept this report at the requested external path and a matching committed copy in `docs/oot-notes/harvest-3.md`. No running process was stopped. No files were stored under /tmp, /private/tmp or a session scratchpad. Local commits only, per agent-context.md.
+No generated dependency or build roots were created or removed in the initial static delivery. Follow-up generated roots and retention are listed below. Kept source patches and static merge evidence in `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/harvest-3-src/` for review. Kept this report at the requested external path and a matching committed copy in `docs/oot-notes/harvest-3.md`. No running process was stopped. No files were stored under /tmp, /private/tmp or a session scratchpad. Local commits only, per agent-context.md.
+
+## Follow-up reconciliation and verification
+
+Fetched main now points at `69cb9b6effee89eef18f7f7e96ac63075633f86d`; #1455 was read at `bc6043793078af660b536079b591fce4ebd0de91`. Both additions are host-only. The shader-chain source header and translator lock remain as in the initial delivery. No prebuilt translator or other third-party executable was run.
+
+#1455 uses an effective retirement budget equal to the minimum of Metal's working set, a smaller DM_NVN_WS_MB override, the existing guard stop and the safe GPU cap. The 85 percent trigger and 75 percent target apply to that budget. With the usual 70 percent DM_SAFE_GPU cap they correspond to 59.5 and 52.5 percent of the native working set. Commit preflight, the wall, wired-memory cap, stop timer and fault handling are unchanged. Retirement is best-effort and cannot rescue a submission already stopped by the guard.
+
+The existing #1391 guard calls the same retirement helper when opted in. The legacy eviction behavior remains when off. A live serial's texture ancestors are protected through #1439's held-count map, with a linear census fallback. Both ghost tables preserve residency through ordinary deferred release. #1404/#1394 raw-pool exposure, address filtering and residency are unchanged. Shared-view sweeping now observes idle retirements, and finalized descriptors over retired keys stay suppressed until a live texture is successfully rebuilt.
+
+Heap-backed candidates are skipped because the pool still owns their allocation. DM_TEX_RELEASE=1/2 disables this new retirement because it could otherwise recreate a texture from discarded guest bytes. DM_TEX_RELEASE=probe is compatible. Neither #1455 nor release is enabled by default. Visual parity after Saria, Hyrule entry, materials and transitions still needs the lead's gameplay check.
+
+Source fixtures were built with `taskpolicy -b nice -n 19 make -C dm/gfx/tests -j4 GAME=0400486024DEC000 t_alias_retire t_nvn t_capture`. Tests used the same background/low-priority prefix and the prescribed external TMPDIR. No install was needed.
+
+| Run | Checks | Failures | Coverage |
+|---|---:|---:|---|
+| t_nvn | 243 | 0 | Includes both new event queries and earlier copy-stride cases. |
+| t_capture | 83 | 0 | Command/capture compatibility. |
+| t_alias_retire, direct encoding, held-count walk/check | 11 | 0 | A live view protects its parent; stale lookups do not prevent retirement or recreate a retired key. |
+| t_alias_retire, deferred encoding, fast held map/check | 11 | 0 | Same behavior with held counts and encoder worker. |
+| t_alias_retire off | 8 | 0 | Explicit flag-off behavior. |
+| t_alias_retire default | 8 | 0 | Default-off behavior. |
+| t_alias_retire release | 8 | 0 | Destructive guest release disables retirement. |
+| Total | 372 | 0 | Focused fixtures only. |
+
+The alias fixture also checks that a budget cannot exceed the safe cap or existing guard, that a smaller override is respected, and that an unknown working set prevents retirement. Builds completed with warnings; no compilation errors. No full dmhost build, game run, full shader build or regress.py run was performed. Logs and the machine-readable result are in the external harvest-3-src directory as followup-*.log and followup-tests.json.
+
+The updated static merge comparison adds conflicts where p1444's packaged-alias declarations and pool-finalization cleanup meet the new live-age/tombstone tables. Keep both declarations and both cleanup loops; keep p1444's atomic eviction counter update once. Preserve the earlier owner-aware heap-upgrade resolution. The Makefile conflict must retain both BC render-target and alias-retirement targets. Append both sets of implementation notes. The integration lead must rerun tests after resolving these conflicts.
+
+Generated roots retained for the lead's acceptance are dm/host/gen/0400486024DEC000, dm/host/gen/msl-macosx, and dm/gfx/tests/t_alias_retire, t_nvn, t_capture plus each matching .dSYM directory. They hold source-built fixtures and symbols; no generated storage was removed during this follow-up. Total fixture binaries are about 4.2 MiB and host/gen about 1 MiB, excluding symbols. No running game process or installed app was touched.
