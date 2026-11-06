@@ -451,3 +451,9 @@ No game, full shader build, settings write, push or remote branch change ran.
 - Ported 16e3e24f's merged #1333 shader-package robustness and Oodle table decode changes with upstream fixtures. No external decoder binary was run.
 - c83c48f2 (layer views) and 2202d610 (present crop/shape) are already ancestors of oot-play. Their later local fixes were preserved.
 - PR 1446 a9120fae duplicates all eight null getter guards in p1444-tex 604dca80. That lane also guards GetBufferAddress, builders and initialization. Keep that lane; this branch adds no competing null-guard implementation. The underlying guest allocation failure remains open.
+
+## Harvest 3 handoff
+
+- Static merge with oot-play-1444 9bb60b88 has two code conflicts, both choosing owner-aware heap upgrades, plus appended notes. Resolution guidance and the complete item/overlap table are in docs/oot-notes/harvest-3.md and the requested external harvest-3.md.
+- No builds or tests ran. dmhost PID 92070 remained active. The shader source header was regenerated; translator binaries, lock refresh, matching libraries, host build and runtime validation remain pending.
+- No generated build/dependency roots were created or removed. Retained small patch/merge artifacts under the external harvest-3-src directory for review. No push.
