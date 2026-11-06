@@ -213,10 +213,10 @@ class Libraries(unittest.TestCase):
                 seen[Path(output).name] = Path(path).read_text()
             compiler.compile.side_effect = compile_main
             side = Mock(); side.unit.return_value = ('shared unit', {'alpha': ['at'], 'logic': []}) if shared else (None, {})
-            scope = dict(os=os, re=re, subprocess=subprocess, border_plain=border_plain,
+            scope = dict(os=os, re=re, subprocess=subprocess, border_plain=border_plain, STAGES=None,
                          out=directory, IOSOUT=None, TARGETS={'mac'}, w=directory,
                          MTL=compiler, dmsh_side=side, SIDE_STATS=collections.Counter(), BORDER_STATS=collections.Counter())
-            fns = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in ('ps_libraries', 'ps_correcting_libraries')]
+            fns = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in ('ps_libraries', 'ps_correcting_libraries', 'stage_pass')]
             exec(compile(ast.Module(body=fns, type_ignores=[]), str(TOOLS / 'dmsh_build.py'), 'exec'), scope)
             from unittest.mock import patch
             with patch.dict(os.environ, {'DM_NVN_BORDER_SPLIT': '1' if split else '0'}):
@@ -243,10 +243,10 @@ class Libraries(unittest.TestCase):
             expected.compile_split('mac', str(u), str(root / 'original_b'), str(root / 'original_bx'),
                                    lambda lib: dmsh_side.cut(lib, set(info['alpha'] + info['logic'])))
             compiler = dmsh_mtlcache.Cache(str(root / 'cache-current'), {'mac': ('macosx', 'test', compile_mac)}, directory)
-            scope = dict(os=os, re=re, subprocess=subprocess, border_plain=border_plain, out=directory,
+            scope = dict(os=os, re=re, subprocess=subprocess, border_plain=border_plain, STAGES=None, out=directory,
                          IOSOUT=None, TARGETS={'mac'}, w=directory, MTL=compiler, dmsh_side=dmsh_side,
                          SIDE_STATS=collections.Counter(), BORDER_STATS=collections.Counter())
-            fns = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in ('ps_libraries', 'ps_correcting_libraries')]
+            fns = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in ('ps_libraries', 'ps_correcting_libraries', 'stage_pass')]
             exec(compile(ast.Module(body=fns, type_ignores=[]), 'default-libraries', 'exec'), scope)
             with patch.dict(os.environ, {'DM_NVN_BORDER_SPLIT': '0'}):
                 scope['ps_libraries']('k', str(msl), source)

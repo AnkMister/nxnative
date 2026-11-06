@@ -5515,7 +5515,7 @@ static unsigned alias_evict_idle(void) {
     return n;
 }
 // What the upload slots keep for their next batch (at most 192 MB): the next batch makes it again. Only the submit thread uploads, and a slot's block is free once its batch came back
-static unsigned up_trim(void) {
+static unsigned guard_trim_uploads(void) {
     unsigned n = 0; if (!on_sub_thread() || g_up_cb) return 0;
     for (int s = 0; s < 3; s++) if (!atomic_load(&g_up_alloc_busy[s])) {
         if (g_up_slot_blk[s]) { defer_obj_release(g_up_slot_blk[s]); g_up_slot_blk[s] = nil; n++; }
@@ -5538,7 +5538,7 @@ static void guard_evict(int force) { @autoreleasepool {
     static uint64_t last; uint64_t f = atomic_load(&g_cur_frame) + 1;
     if (!force && last && f - last < GUARD_EVERY) return;
     last = f;
-    unsigned entries = alias_evict_idle(), spares = pkg_trim(), staging = up_trim();
+    unsigned entries = alias_evict_idle(), spares = pkg_trim(), staging = guard_trim_uploads();
     defer_drain(); res_commit();
     static uint64_t lines; if (entries + spares + staging && lines++ < 16)
         MLOG("GPU memory guard: %llu MB allocated (it lets go from %llu MB): %u idle sharing entries, %u spare textures, %u staging blocks let go", (unsigned long long)(g_dev.currentAllocatedSize >> 20), (unsigned long long)(g_guard.evict >> 20), entries, spares, staging);

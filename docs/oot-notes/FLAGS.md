@@ -8,32 +8,33 @@ Expected gains are hypotheses or upstream reports, not measured gameplay results
 on this integrated branch. Check pictures before accepting any efficiency gain.
 The complete repository inventory remains [env_switches.tsv](../env_switches.tsv).
 
-## Review exclusions
+## Accepted replacements and remaining gates
 
-The independent review blocks `oot-mem` and `oot-1203`. Their original merge commits were
-reverted with `git revert -m 1` on the recovery branch; the final ordered history
-omits both merges entirely. The historical rows below describe unavailable
-controls, not runnable experiments. `DM_ECO_HIDDEN=pause` is **do not use: audio/clock
-mismatch, fix pending**. `oot-mem-fix`, `oot-1203-fix` and `oot-idle-fix` remain pending.
-The original growing-pool correction and readable-tile memo from oot-stack remain
-unconditional prerequisites. Flag-off is therefore not an unchanged oot-base.
+Review-1 replacements are integrated: oot-stack-fix, oot-idle-fix, oot-mem-fix
+and oot-1203-fix replace their parents. Memory dedupe, upload trim and border
+splitting remain default-off. Hidden pause now preserves queued audio and remains
+opt-in; actual hide/resume and dialogue acceptance is still open. Review 2 blocks
+shipping the visual set and default-on safety watchdog until their fix branches.
+The growing-pool correctness change remains unconditional; the numeric readable-
+tile memo is now opt-in, preserving the original string-key lookup when off.
 
 ## Feature switches
 
 | Env var or build flag | Default | Visual risk | Expected gain | Source branch |
 | --- | --- | --- | --- | --- |
+| `DM_NVN_FEEDBACK_MEMO=1` | Off | Function lookup/cache changes need image checks; seeded off-path regression passes | Numeric readable-tile function memo; no integrated game gain measured | oot-stack-fix, #1161 |
 | `DMSH_RAW_LOAD_QUADS=1` (shader build) | Off; only exact `1` enables | Raw address lookup or interval errors can corrupt pixels; compare scalar/quad outputs and latency | Shares four adjacent raw reads' lookup; upstream reports about 2 ms GPU with increased present latency | oot-stack, #1405 |
 | `DM_PRESENT_ABSOLUTE=1` | Off | Cadence, scanout latency and game speed need on-screen checks | May prevent cumulative relative-present delay; unmeasured | oot-stack |
 | `DM_ECO_COPY_WAIT=1` | Off; Mac only | Low image risk; scheduling, deadlock and late-frame risk | Stops consumer spinning when uniform-copy worker is delayed | oot-cpu |
 | `DM_ECO_COMPILE_THREADS=1..64` | Unset/0 disables; invalid values disable | Longer preparation or first-use hitches; does not change shaders | Less competing compile work per pool; no warm steady-state saving promised | oot-cpu |
-| `DM_NVN_TEX_DEDUPE=1` | Unavailable; Mac only | Experimental page faults and restore I/O; texture reads and loading require visual checks | Releases cold guest copies; upstream reports about 1.9 GB, not reproduced here | oot-mem, #1386 |
-| `DM_NVN_TEX_DEDUPE_AGE_MS` | Unavailable; historical 2000 ms; inert without dedupe | Short ages increase release/restore churn | Trades retained bytes against I/O | oot-mem |
-| `DM_NVN_TEX_DEDUPE_MB` | Unavailable; historical 32 MiB per submission; inert without dedupe | Large budgets can stall submission | Bounds synchronous backup/release work | oot-mem |
-| `DM_NVN_TEX_DEDUPE_DIR` | Unavailable; historical `TMPDIR`; dedupe refuses absent/unwritable storage | Blocked: failed BUSY restores could return before bytes were safe for GPU residency | Unlinked disk backup enables release; does not shrink Metal textures | oot-mem |
-| `DM_NVN_UPLOAD_TRIM=1` | Unavailable; Mac only | Later uploads reallocate and can hitch | Zero to 192 MiB of retained staging after 120 unused submissions | oot-mem |
-| `DM_NVN_BORDER_SPLIT=1` | Unavailable; only exact `1` enables | Sampler changes must select/invalidate the correct `_b`/`_bb` PSO; check custom borders | Removes correction code from eligible ordinary pixel shaders | oot-1203 |
+| `DM_NVN_TEX_DEDUPE=1` | Off; Mac only | Experimental page faults and restore I/O; texture reads and loading require visual checks | Releases cold guest copies; upstream reports about 1.9 GB, not reproduced here | oot-mem-fix, #1386 |
+| `DM_NVN_TEX_DEDUPE_AGE_MS` | 2000 ms; inert without dedupe | Short ages increase release/restore churn | Trades retained bytes against I/O | oot-mem-fix |
+| `DM_NVN_TEX_DEDUPE_MB` | 32 MiB per submission; inert without dedupe | Large budgets can stall submission | Bounds synchronous backup/release work | oot-mem-fix |
+| `DM_NVN_TEX_DEDUPE_DIR` | `TMPDIR`; dedupe refuses absent/unwritable storage | Restore timeout now fails closed; permanent failure stops before GPU/kernel access. Disk I/O and release races remain visual/latency risks | Unlinked disk backup enables release; does not shrink Metal textures | oot-mem-fix |
+| `DM_NVN_UPLOAD_TRIM=1` | Off; Mac only | Later uploads reallocate and can hitch | Zero to 192 MiB of retained staging after 120 unused submissions | oot-mem-fix |
+| `DM_NVN_BORDER_SPLIT=1` | Off at build and runtime; only exact `1` enables | Sampler changes must select/invalidate the correct `_b`/`_bn` PSO; check custom borders | Removes correction code from eligible ordinary pixel shaders | oot-1203-fix |
 | `DM_ECO_SAME_FRAME=1` | Off; only exact `1` enables | Wrong sameness proof could leave stale scanout; synthetic tests cover conservative refusals | Avoids display-only GPU work for repeated proven GPU-only images; never skips guest submissions | oot-idle |
-| `DM_ECO_HIDDEN=pause` | Off | **do not use: audio/clock mismatch, fix pending** | Blocked until queued audio and guest clocks pause together | oot-idle |
+| `DM_ECO_HIDDEN=pause` | Off | Audio/clock mismatch repaired by oot-idle-fix; real window/dialogue acceptance open | Preserves queued PCM while guest clock and graphics pause | oot-idle, oot-idle-fix |
 | `DM_ECO_HIDDEN=slow` | Off | Hidden progression may slow; verify resume | Caps each NVN acquire/vsync caller at 8 Hz | oot-idle |
 | `DM_UPSCALER=game` / `metalfx` | `game` | Spatial substitution changes reconstruction and sharpness; check motion, edges and colours | Replaces eligible standard NDSR compute work; no Ocarina GPU result | oot-upscale, existing control |
 | `DM_OPMODE=0` / `1` | `1`, docked | Handheld intentionally lowers image resolution; not visual equivalence | At equal palette level, 43.75% fewer scene/final pixels; not a whole-frame saving | oot-upscale, existing control |
@@ -44,7 +45,9 @@ The raw-load, storage-run and constant-reuse switches compose in `dmsh_chain.opt
 Their tools enter `FILES` and `CODE_FP`. Each combination requires its own
 regenerated header, matching shader libraries and rebuilt host. Runtime switches
 cannot enable a build pass. No full shader build was run for this integration.
-The blocked border split is absent from active stage keys and library routing.
+The border split build flag now enters the chain/complete-shader key. The pure
+`border_plain` pass has its own intermediate key. Default `_b`/`_bx` compile
+inputs retain correction; opt-in `_bn` assets are disposable and fail back to `_b`.
 
 ## Inherited controls used by the experiments
 
@@ -58,8 +61,8 @@ The blocked border split is absent from active stage keys and library routing.
 | `DM_RT` | On | Acquire/present scheduling can change | `0` removes acquire thread's Mach time-constraint policy | oot-cpu |
 | `DM_NVN_FAST_WAKE` | On | Fence wake semantics | Already present; `0` is a comparison control | oot-cpu |
 | `DM_PRESENT_FIFO` | On | Frame selection and latency | Already present; `0` chooses newest queued frame | oot-cpu |
-| `DM_GUEST_FILE` | Unavailable after revert | Historical compatibility guard only | No file-backed guest implementation is included | oot-mem |
-| `DM_NVN_DIRTYCHECK` | Off | Diagnostic hash/read overhead | Verifies uploads; not an efficiency switch | oot-mem |
+| `DM_GUEST_FILE=1` | Off | Compatibility guard disables dedupe; backing implementation itself is not included | Avoids combining file-backed guest memory with dedupe | oot-mem-fix |
+| `DM_NVN_DIRTYCHECK` | Off | Diagnostic hash/read overhead | Verifies uploads; not an efficiency switch | oot-mem-fix |
 | `DM_FOCUS_KEEP` | Off | Affects game focus response | Harness uses `1`; explicit eco hidden policy takes precedence | oot-cpu, oot-idle, oot-bench |
 | `DM_PRESENT_LINK` | `1` | Cadence/latency | Stack's direct-present A/B uses `0` | oot-stack |
 | `DM_PRESENT_HZ` | 60 | Pacing; `0` is uncapped | Synthetic tests use `0`; not an efficiency recommendation | oot-idle |
@@ -103,8 +106,8 @@ The blocked border split is absent from active stage keys and library routing.
 | `DMSH_CHAIN`, `DMSH_GMEM_MAP_ENTRIES`, `DMSH_GMEM_MAP_ENTRY` (compiled ABI) | Generated chain; 4096 minimum entries; 32 bytes per entry | Host/translator ABI mismatch can hang GPU | Growing power-of-two table through 2^20 preserves existing low-entry hints | oot-stack |
 
 No branch adds a user-facing C compiler optimization flag. #1360's growing
-pool table and #1161's readable-tile function lookup are unconditional source
-fixes inherited from `oot-stack`. The #1203 library splitting and memory experiments are excluded. Idle submission accounting also
+pool table and #1161's original readable-tile lookup are inherited source
+paths from `oot-stack`. The fixed #1203 library splitting and memory experiments are integrated, default-off. Idle submission accounting also
 runs with experiments off. No feature default was changed during integration; the incoming safety branch already defaults DM_SAFE_GPU on for Ocarina Mac.
 `DM_NVN_CUT_FIRST` and `DM_NVN_HANGLOG` appear in historical notes but are removed
 names, not supported controls. Shell recipe path variables such as `AB`, `SOURCE`,

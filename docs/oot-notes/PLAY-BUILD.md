@@ -25,6 +25,7 @@ export GAME=0400486024DEC000 DM_GAME=0400486024DEC000
 export DMSH_OOT_VISUAL=1
 export DMSH_RAW_LOAD_QUADS=0 DMSH_CBUF_REUSE=0 DMSH_STORAGE_RUNS=0
 export DMSH_STAGECACHE=0 DMSH_STAGECACHE_WARM=0
+export DM_NVN_BORDER_SPLIT=0
 export DM_FAST_CLOCK=0 DM_REWRITE_J=4 J=4
 export DMSH_TARGETS=mac XLATE_DEBUG=1 XLATE_REDUCED=1
 export DOTNET_ROOT="$HOME/.dotnet"
@@ -66,6 +67,10 @@ DM_OPMODE=1
 DM_FPS_TARGET=0
 DM_RENDER_SCALE=1
 DM_PRESENT_ABSOLUTE=0
+DM_NVN_FEEDBACK_MEMO=0
+DM_NVN_TEX_DEDUPE=0
+DM_NVN_UPLOAD_TRIM=0
+DM_NVN_BORDER_SPLIT=0
 DM_ECO_COPY_WAIT=0
 DM_ECO_COMPILE_THREADS=0
 DM_ECO_SAME_FRAME=0
@@ -85,9 +90,8 @@ and diagnostic environment variables unset. Keep audio enabled. Leave source-com
 and `DM_NVN_TEXDUMP` diagnostics unset. Prepare complete offline libraries and
 pipeline archives before play. This task did not prove that every runtime driver
 pipeline-specialization request is served without compilation; the parent must
-verify that strict gate before release. Do not enable
-memory dedupe or border splitting; their original branches are blocked. Never
-use `DM_ECO_HIDDEN=pause`: audio/clock mismatch, fix pending.
+verify that strict gate before release. Keep memory dedupe and border splitting off for the correctness play build.
+Hidden pause is repaired by oot-idle-fix, but stays off here as an experiment.
 
 The safety net defaults on for this Ocarina Mac profile and caps GPU memory at
 70% of recommendedMaxWorkingSetSize. Its source fixes remain active. It cannot

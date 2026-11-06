@@ -318,6 +318,16 @@ class Dependencies(unittest.TestCase):
             with mock.patch.dict(os.environ, {'DMSH_OOT_VISUAL': '1'}):
                 self.assertNotEqual(cache.translator_code('unused'), off)
 
+    def test_border_split_changes_complete_key_but_reuses_translation(self):
+        with mock.patch.object(cache, 'tool_code', return_value='same translator'):
+            with mock.patch.dict(os.environ, {'DM_NVN_BORDER_SPLIT': '0'}):
+                off, translation = dmsh_chain.version(), cache.translator_code('unused')
+            with mock.patch.dict(os.environ, {'DM_NVN_BORDER_SPLIT': '1'}):
+                self.assertNotEqual(dmsh_chain.version(), off)
+                self.assertEqual(cache.translator_code('unused'), translation)
+        # A pure border pass has a real independently computable dependency key.
+        self.assertEqual(len(cache.function_code(build_functions()['border_plain'])), 64)
+
     def test_inline_helper_and_constant_changes_invalidate_only_dependents(self):
         ns = build_functions()
         original = cache.function_code(ns['pool_arrays'])

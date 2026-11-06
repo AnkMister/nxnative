@@ -1,7 +1,7 @@
 # Ocarina integrated branch
 
 The branch is `oot-hyper`, based on oot-stack `8284776d`. Branch snapshots are
-preserved in [docs/oot-notes](docs/oot-notes/FLAGS.md). Local commits only; no push,
+preserved in [docs/oot-notes](../../docs/oot-notes/FLAGS.md). Local commits only; no push,
 PR, game run, regress.py, full shader build or protected baseline/game writes.
 
 ## Merge order and exclusions
@@ -33,8 +33,8 @@ their package union matches it exactly. Publish used --no-restore,
 --self-contained false and at most four jobs. The original universal launcher
 remains unchanged. No unaudited runtime pack was restored.
 
-[NuGet dates, source URLs and package SHA256s](docs/oot-notes/nuget-audit.json)
-and [full source/distribution SHA256s](docs/oot-notes/translator-fingerprints.json)
+[NuGet dates, source URLs and package SHA256s](../../docs/oot-notes/nuget-audit.json)
+and [full source/distribution SHA256s](../../docs/oot-notes/translator-fingerprints.json)
 are committed. The latter covers source beyond the launcher's limited embedded
 digest. The lock was updated from the rebuilt tools and checked. Default chain
 and recommended visual-enabled chain are recorded in the final verification.
@@ -74,8 +74,8 @@ ship default-on DM_SAFE_GPU watchdog until oot-stable-fix**, and do not accept t
 visual set before oot-visual-fix. Passing tests below do not clear those findings.
 Each pending *-fix replaces its parent implementation when it lands.
 
-[FLAGS](docs/oot-notes/FLAGS.md), [PLAY-BUILD](docs/oot-notes/PLAY-BUILD.md) and
-[NEXT-MERGES](docs/oot-notes/NEXT-MERGES.md) carry the exact choices and blockers.
+[FLAGS](../../docs/oot-notes/FLAGS.md), [PLAY-BUILD](../../docs/oot-notes/PLAY-BUILD.md) and
+[NEXT-MERGES](../../docs/oot-notes/NEXT-MERGES.md) carry the exact choices and blockers.
 Play requires full ahead-of-time shaders. Lazy shaders remain off; partial maps
 and source-compiling diagnostics are excluded. Runtime driver compilation has
 not been proven absent by this source integration.
