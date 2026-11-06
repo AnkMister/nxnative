@@ -115,11 +115,11 @@ source, with the audited local feed at `AUDIT/NuGet.Config`:
 ```sh
 export PATH="$HOME/.dotnet:$PATH"
 export DOTNET_ROOT="$HOME/.dotnet"
-export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
+export TMPDIR=$HOME/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
 export DOTNET_PROCESSOR_COUNT=4
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
-export AUDIT=/Users/ankur/Documents/Crypt/Projects/_work/nxnative/oot-stack
+export AUDIT=$HOME/Documents/Crypt/Projects/_work/nxnative/oot-stack
 export NUGET_PACKAGES="$AUDIT/nuget-packages"
 # SOURCE is either an archive of ee9b7765 or this checkout.
 # PUBLISH is an isolated output folder, never the protected baseline.
@@ -150,7 +150,7 @@ replacement artifacts were installed or executed.
 The repo tools then wrote the lock and header:
 
 ```sh
-PY=/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python
+PY=$HOME/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python
 "$PY" dm/gfx/tools/tool_lock.py --update-lock
 "$PY" dm/gfx/tools/dmsh_chain.py --header
 "$PY" dm/gfx/tools/tool_lock.py --check-tools
@@ -268,13 +268,13 @@ folder were deliberately not inspected. Do not change the profile's version
 rows or extract/rewrite the game as part of this A/B.
 
 ```sh
-cd /Users/ankur/.t3/worktrees/nxnative-oot/t3-91962084
-export PATH="/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin:$HOME/.dotnet:$PATH"
+cd $HOME/.t3/worktrees/nxnative-oot/t3-91962084
+export PATH="$HOME/Documents/Crypt/Gaming-rea/nxnative/.venv/bin:$HOME/.dotnet:$PATH"
 export DOTNET_ROOT="$HOME/.dotnet"
-export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
-export PY=/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python
+export TMPDIR=$HOME/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
+export PY=$HOME/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python
 export DM_GAME=0400486024DEC000 GAME=0400486024DEC000 J=6
-export AB=/Users/ankur/Documents/Crypt/Projects/_work/nxnative/oot-ab
+export AB=$HOME/Documents/Crypt/Projects/_work/nxnative/oot-ab
 unset IOSOUT XLATE DMSH_RAW_LOAD_QUADS
 : "${OOT_SHADER_PKG:?set to the existing v131072 shader package folder}"
 : "${OOT_MODULES:?set to the existing rewritten v131072 module folder}"
@@ -422,7 +422,7 @@ The existing shader chain and translator binary remain unchanged by this branch.
 The requested host-only build uses the repository's own small host Metal shaders.
 
 Source-only ports were tested as they landed, then together. Evidence files
-are under `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-stable/`.
+are under `$HOME/Documents/Crypt/Gaming-rea/_work/nxnative/oot-stable/`.
 The JSON there contains the issue body and all 21 comments read for this task.
 
 - `1391-test.log`: 20 guard checks plus 2 held-lock timer checks, all pass.
@@ -460,8 +460,8 @@ rendering quality settings. On a busy Mac it can stop earlier by design.
 Use this worktree and the existing Python environment. No game is needed:
 
 ```sh
-export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
-export PATH=/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin:$PATH
+export TMPDIR=$HOME/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
+export PATH=$HOME/Documents/Crypt/Gaming-rea/nxnative/.venv/bin:$PATH
 make -j2 -C dm/gfx/tests GAME=0400486024DEC000 check_t_safe_gpu check_t_res_guard
 make -j2 -C dm/gfx/tests GAME=0400486024DEC000 check_t_gpu_hang_names check_t_raw_residency check_t_gmem_marks check_t_pool_chunks check_t_gmem_raw check_t_deferred_release perf-order-cpu check_t_perf_order check_t_cpu_tex check_t_cpu_storage
 make -C dm/host/tests GAME=0400486024DEC000 check_gpu_stop
@@ -565,3 +565,44 @@ Final stable verification passes 1,221 tools tests with 23 skips, all 197 safe
 GPU checks, all 23 residency-guard checks and the host build. Both source fix
 branches have been verified separately; this task creates no combined branch.
 The requested external report contains the final commit IDs and merge notes.
+
+
+## AOT pipeline coverage on oot-aot
+
+Base: oot-stable-fix at 78ccb75f. The implementation reuses the existing archive
+batching, Metal 4 loader, render manifest and per-game save path. DM_AOT=1 gates
+all new coverage/prewarm/learning behavior. Accounting is always on, as requested.
+DM_AOT_STRICT=1 reports gameplay compiler entries without disabling fallback.
+
+The portable descriptor inventory covers render bases, compute/helpers, native
+mesh bases and learned exact render/mesh state. Startup archive-only loading uses
+four workers and waits for completion. Native covered mesh draws avoid the old
+async omission. Function constants, diagnostic source and unseen state remain
+explicit gaps. The report is docs/analysis/oot-aot.md, copied to the requested
+external aot.md. No complete-coverage or gameplay result is claimed.
+
+Verification: 38 offline planner tests, 63 Mac packer tests, 58 bundle checks,
+67 host-library checks, 3 new AOT tests including a real Metal archive round trip,
+and the Mac Ocarina host build passed. Changed Python files pass Ruff/Pyright.
+Full Python lint has three findings in unchanged tests. C tidy could not run
+because clang-tidy is absent. No installs, game runs, regress.py, full shader
+rebuilds, iOS builds or protected-folder writes occurred.
+
+pstack feature checklist: subsystem traced; one implementation owner, as required
+for this sub-agent; domain map checked; Metal fixtures and host build verified.
+Nested design/delegation and independent review remain with the integrator.
+No PR is opened because the task explicitly requires local commits only.
+
+Generated task paths: dm/host/dmhost, dm/host/gen (including the compile database),
+dm/gfx/tests/t_aot, dm/gfx/tests/t_pso_bundle, dm/gfx/tests/t_host_msl, plus the
+external aot-fixtures evidence folder. Tests clean their own temporary archives.
+The external evidence folder retains logs and small compiler-format probes.
+Inherited note paths were made home-relative to keep machine paths out of the
+commit. No package caches or other agents' artifacts were removed.
+
+Storage handoff: retained dm/host/gen (13 MiB) and the four named host/test
+executables (about 9 MiB total) for the integrator's pending review and acceptance
+continuation. Removed the abandoned synthetic t_pso_bundle.7XIAj6 folder only
+after checking it had no Git metadata, open files or process working directories.
+Its failed invocation log is retained as initial-bundle-cwd-error.log in the
+external evidence folder. The successful fixture cleaned its own generated root.

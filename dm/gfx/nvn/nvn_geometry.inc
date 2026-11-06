@@ -94,7 +94,7 @@ static id<MTLRenderPipelineState> geo_capture_pso(NvShader *vs) {
     id<MTLRenderPipelineState> ps = hm_get_id(&g_pso, &k);
     if (ps || hm_get_id(&g_pso_fail, &k)) return ps;
     NSError *e = nil;
-    ps = [g_dev newRenderPipelineStateWithDescriptor:pso_desc(&k, vs, nil, nil, 0) error:&e];
+    ps = aot_render(pso_desc(&k, vs, nil, nil, 0), &e);
     if (ps) hm_put_id(&g_pso, &k, ps);
     else { hm_put_id(&g_pso_fail, &k, NSNull.null); MLOG("[RED] geometry vertex capture %s: %s", vs->key, e.localizedDescription.UTF8String); }
     return ps;
@@ -345,7 +345,7 @@ static NvShader *geo_lean_pick(NvProg *pr, NvShader *gs, int topology, int insta
     }
     NvShader *lean = base->geo_lean_v[topology];
     if (!lean || !lean->geo_slot || lean->geo_vertices != (uint32_t)nvn_geo_width(topology) || lean->geo_invocations != 1) return NULL;
-    if (!lean->geo_pso && !lean->geo_pso_failed) { NSError *e = nil; lean->geo_pso = [g_dev newComputePipelineStateWithFunction:lean->fn error:&e];
+    if (!lean->geo_pso && !lean->geo_pso_failed) { NSError *e = nil; lean->geo_pso = aot_compute(lean->fn, &e);
         if (!lean->geo_pso || lean->geo_pso.maxTotalThreadsPerThreadgroup < 32) { lean->geo_pso = nil; lean->geo_pso_failed = 1; MLOG("[RED] lean geometry compute %s: %s; the full kernel draws", lean->key, e ? e.localizedDescription.UTF8String : "no 32-thread group"); } }
     if (!lean->geo_pso) return NULL;
     if (!g_geo_lean_k[2]) {
@@ -354,7 +354,7 @@ static NvShader *geo_lean_pick(NvProg *pr, NvShader *gs, int topology, int insta
         NSError *error = nil;
         id<MTLLibrary> lib = host_lib("geo_pack", &error);
         const char *names[] = {"geo_lean_cull", "geo_lean_index", "geo_lean_tri"};
-        for (int i = 0; i < 3 && lib; i++) g_geo_lean_k[i] = [g_dev newComputePipelineStateWithFunction:[lib newFunctionWithName:@(names[i])] error:&error];
+        for (int i = 0; i < 3 && lib; i++) g_geo_lean_k[i] = aot_compute(aot_function(lib, @(names[i])), &error);
         if (!g_geo_lean_k[0] || !g_geo_lean_k[1] || !g_geo_lean_k[2]) {
             failed = 1; g_geo_lean_k[0] = g_geo_lean_k[1] = g_geo_lean_k[2] = nil;
             MLOG("[RED] lean geometry index kernels: %s", error.localizedDescription.UTF8String); return NULL;
@@ -399,10 +399,10 @@ static id<MTLFunction> geo_mesh_fn(NvProg *pr, const p_draw *dw, const p_draw_id
         NSString *path = [NSString stringWithFormat:@"%@/%.16s_%.16s_m3.metallib", g_msl_dir, vs->key, lean->key];
         id<MTLLibrary> lib = [NSFileManager.defaultManager fileExistsAtPath:path] ? [g_dev newLibraryWithURL:[NSURL fileURLWithPath:path] error:nil] : nil;
         NSString *want = [vs->fn.name isEqualToString:@"main0_z"] ? @"dm_mesh_z" : @"dm_mesh";
-        f = lib ? [lib newFunctionWithName:want] : nil;
-        if (lib && !f) for (NSString *nm in lib.functionNames) if ([nm hasPrefix:[want stringByAppendingString:@"_p"]]) { f = [lib newFunctionWithName:nm]; break; }   // fewer triangles a group (dm_mesh_p16)
+        f = lib ? aot_function(lib, want) : nil;
+        if (lib && !f) for (NSString *nm in lib.functionNames) if ([nm hasPrefix:[want stringByAppendingString:@"_p"]]) { f = aot_function(lib, nm); break; }   // fewer triangles a group (dm_mesh_p16)
         if (f) { if (!g_geo_mesh_runfn) g_geo_mesh_runfn = [NSMutableDictionary dictionary];   // its run twin: dm_mesh_z_p16 → dm_mesh_run_z_p16
-            g_geo_mesh_runfn[[NSValue valueWithPointer:(__bridge const void *)f]] = [lib newFunctionWithName:[@"dm_mesh_run" stringByAppendingString:[((id<MTLFunction>)f).name substringFromIndex:7]]] ?: NSNull.null; }
+            g_geo_mesh_runfn[[NSValue valueWithPointer:(__bridge const void *)f]] = aot_function(lib, [@"dm_mesh_run" stringByAppendingString:[((id<MTLFunction>)f).name substringFromIndex:7]]) ?: NSNull.null; }
         static int n; if (f || n++ < 16) MLOG("geometry mesh: vertex %s kernel %s %s", vs->key, lean->key, f ? "has a mesh library" : "has no mesh library (geo_mesh.tsv): the compute path draws it");
         vs->geo_mesh[k] = f = f ?: NSNull.null;
     }
@@ -430,7 +430,7 @@ static id<MTLRenderPipelineState> geo_mesh_pso_for(NvProg *pr, id<MTLFunction> f
         const char *vk = vs->key, *fk = fs ? fs->key : "-", *gk = g_geo_mesh.lean->key; pso_key kk = k;
         dispatch_async(pp_bg_queue(), ^{
             NSError *e = nil; uint64_t t0 = bp_now();
-            id<MTLRenderPipelineState> p = [g_dev newRenderPipelineStateWithMeshDescriptor:m options:MTLPipelineOptionNone reflection:nil error:&e];
+            id<MTLRenderPipelineState> p = aot_mesh(m, &e);
             MLOG("%sgeometry mesh pipeline: vertex %s fragment %s kernel %s, %.1f ms in the background%s%s", p ? "" : "[RED] ", vk, fk, gk, (bp_now() - t0) / 1e6, p ? "" : ": ", p ? "" : e.localizedDescription.UTF8String);
             os_unfair_lock_lock(&g_pso_mesh_lock); hm_put_id(&g_pso_mesh, &kk, p ?: NSNull.null); os_unfair_lock_unlock(&g_pso_mesh_lock);
         });
@@ -571,10 +571,12 @@ static id<MTLRenderPipelineState> mtk_pso(NvProg *raster) {
     m.rasterSampleCount = d.rasterSampleCount; m.alphaToCoverageEnabled = d.alphaToCoverageEnabled;
     for (int i = 0; i < 8; i++) m.colorAttachments[i] = d.colorAttachments[i];
     m.depthAttachmentPixelFormat = d.depthAttachmentPixelFormat; m.stencilAttachmentPixelFormat = d.stencilAttachmentPixelFormat;
+    if (dm_aot_on()) { NSDictionary *j = aot_render_row(m, 1); aot_record(j); id loaded = aot_lookup(j, 1, nil);
+        if (loaded) { os_unfair_lock_lock(&g_pso_mtk_lock); hm_put_id(&g_pso_mtk, &k, loaded); os_unfair_lock_unlock(&g_pso_mtk_lock); return loaded; } }
     const char *tk = ts ? ts->key : "-", *mk = ms->key, *fk = fs ? fs->key : "-"; pso_key kk = k;
     dispatch_async(pp_bg_queue(), ^{
         NSError *e = nil; uint64_t t0 = bp_now();
-        id<MTLRenderPipelineState> p = [g_dev newRenderPipelineStateWithMeshDescriptor:m options:MTLPipelineOptionNone reflection:nil error:&e];
+        id<MTLRenderPipelineState> p = aot_mesh(m, &e);
         MLOG("%stask / mesh pipeline: task %s mesh %s fragment %s, %.1f ms in the background%s%s", p ? "" : "[RED] ", tk, mk, fk, (bp_now() - t0) / 1e6, p ? "" : ": ", p ? "" : e.localizedDescription.UTF8String);
         os_unfair_lock_lock(&g_pso_mtk_lock); hm_put_id(&g_pso_mtk, &kk, p ?: NSNull.null); os_unfair_lock_unlock(&g_pso_mtk_lock);
     });
@@ -752,7 +754,7 @@ static int geo_prep(NvProg *pr, const p_draw *dw0, const p_draw_idx *di0, geo_jo
     if (lean) gs = lean;
     uint32_t record = lean ? gs->geo_words : GEO_CAPTURE_WORDS;
     id<MTLRenderPipelineState> capture = geo_capture_pso(vs); if (!capture) return 0;
-    if (!gs->geo_pso) { NSError *e = nil; gs->geo_pso = [g_dev newComputePipelineStateWithFunction:gs->fn error:&e];
+    if (!gs->geo_pso) { NSError *e = nil; gs->geo_pso = aot_compute(gs->fn, &e);
         if (!gs->geo_pso) { MLOG("[RED] geometry compute %s: %s", gs->key, e.localizedDescription.UTF8String); return 0; } }
     if (gs->geo_pso.maxTotalThreadsPerThreadgroup < 32) { MLOG("[RED] geometry kernel cannot run a 32-thread group"); return 0; }
 
@@ -966,7 +968,7 @@ static void geo_draw_(NvProg *pr, const p_draw *dw0, const p_draw_idx *di0, uint
     static id<MTLComputePipelineState> pack[5];   // count, parallel scan, write, fused small draw, legacy scan
     if (!pack[4]) { NSError *e = nil; id<MTLLibrary> lib = host_lib("geo_pack", &e);
         const char *fn[5] = {"geo_pack_count", "geo_pack_scan", "geo_pack_write", "geo_pack_small", "geo_pack_scan_legacy"};
-        for (int i = 0; i < 5 && lib; i++) if (!(pack[i] = [g_dev newComputePipelineStateWithFunction:[lib newFunctionWithName:@(fn[i])] error:&e])) break;
+        for (int i = 0; i < 5 && lib; i++) if (!(pack[i] = aot_compute(aot_function(lib, @(fn[i])), &e))) break;
         if (!pack[4]) { for (int i = 0; i < 5; i++) pack[i] = nil; MLOG("[RED] geometry index compaction: %s", e.localizedDescription.UTF8String); return; } }
     if (g_blit) { enc_b_end(g_blit); g_blit = nil; }
     if (g_geo_split_compute < 0) { const char *e = getenv("DM_NVN_GEOMETRY_COMPUTE"); g_geo_split_compute = e && !strcmp(e, "split"); }

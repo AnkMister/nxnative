@@ -2720,6 +2720,9 @@ def mac_pso(py, repo, work, lib, g, gpus, env, logs):
     PROG.add(1); PROG.stage('Pipeline archive', step=f'{arch} (metal-tt, minutes when its inputs changed)')
     out = work / 'pso/mac'
     cmd = [py, repo / 'dm/gfx/tools/pso_offline.py', '--game', g.id, '--msl', lib, '--out', out, '--work', work / 'pso/mac-work', '--gpu', arch, '--platform', 'macos']
+    if env.get('DM_AOT') == '1':
+        seen = Path(env.get('DM_PSO_SEEN') or str(Path.home() / 'Library/Application Support/nxnative' / g.id / 'pso_seen.jsonl'))
+        if seen.is_file(): cmd += ['--seen', seen]
     if not g.table('pso_pairs.tsv').is_file() and (work / 'shader/pso_pairs.tsv').is_file():   # the split's copy, as the app gets it (--pso-pairs)
         cmd += ['--pairs', g.table('shader_pairs.tsv'), '--pairs', work / 'shader/pso_pairs.tsv']
     if run(cmd, logs / 'pso_offline_mac.log', env=env, fatal=False):   # an optimization: the app builds the bases on its first start without it
@@ -2765,6 +2768,8 @@ def mac_app(py, repo, out, app, work, game, patched, host, font, msl, aoc, gfx, 
         if ln.startswith('app: ') and ln.endswith(', reused (inputs unchanged)'): unchanged = True
     run(cmd, logs / 'mac_app.log', env=env, on_line=line)
     if not (out / 'Contents/MacOS/dmhost').is_file(): raise BuildError(f'no app at {out}')
+    if env.get('DM_AOT') == '1':
+        run([py, repo / 'scripts/aot_preflight.py', out, '--out', work / 'pso/mac-preflight.json'], logs / 'aot_preflight.log', env=env)
     PROG.end(f'{out.name}, ' + ('reused (inputs unchanged)' if unchanged else amount(tree_size(out)[1], 'B')))
 
 

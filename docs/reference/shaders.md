@@ -1843,3 +1843,10 @@ Finding, keying and translating shaders (`dm/gfx/tools/shader_split.py`, `dmsh_b
 - **Cause:** an availability check does not provide declarations absent from the compiling SDK.
 - **Fix:** declare the setter-only Objective-C protocol and send the same selectors under the existing OS 27 check. This changes the compile-time declaration, not the scaler's work or shader output.
 - **Found on:** the NVN memory fixture build on macOS 26.5.2, Xcode 26.5. The non-origin temporal-scaler path was not run.
+
+### Pipeline creation remains after offline shader translation
+
+- **Symptom:** first-use stutter, render-base specialization, compute pipeline creation or native mesh draws omitted while their pipeline builds.
+- **Cause:** offline metallibs and render bases do not cover every final pipeline descriptor, compute kernel or native task/mesh combination.
+- **Fix:** opt-in `DM_AOT=1` adds offline compute, layer and mesh-base coverage, helper kernels, portable `pso_seen.jsonl` learning and archive-only startup loading. Always-on counters separate startup from gameplay. `DM_AOT_STRICT=1` logs gameplay compiler API entries as `[RED]` and keeps the fallback playable. Unknown final state and function constants remain open. The [coverage report](../analysis/oot-aot.md) describes packing, preflight and acceptance checks.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#found-on-this-game), static shader audit. Synthetic archives pass; complete game coverage and visual acceptance are unverified.

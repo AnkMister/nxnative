@@ -31,6 +31,10 @@
 import argparse, filecmp, hashlib, json, os, shutil, struct, subprocess, sys, time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pso_aot
+AOT_ENUMS = {}
+
 LAYER = b'render_target_array_index'
 BATCH = 1000   # bases per metal-tt run: Odyssey's largest compiler lifetime footprint at this size was 2.065 GiB on an 8 GB M2
 COLOUR = ('pixel_format', 'write_mask', 'blending_state', 'alpha_blend_operation', 'rgb_blend_operation', 'destination_alpha_blend_factor', 'destination_rgb_blend_factor',
@@ -79,15 +83,23 @@ def functions(path):
         count = struct.unpack_from('<I', b, fo)[0]; p = fo + 4; names = []
         for _ in range(count):   # each entry: its size (counting the size field), then tags
             size = struct.unpack_from('<I', b, p)[0]; names.append(tags(p + 4, p + size)[b'NAME'].rstrip(b'\0').decode()); p += size
-        consts, p = [], po
-        for _ in range(count):   # each entry: its size (not counting the size field), then tags
-            size = struct.unpack_from('<I', b, p)[0]; consts.append(b'CNST' in tags(p + 4, p + 4 + size)); p += 4 + size
-        if p != po + ps: raise ValueError(f'{path}: public metadata does not match the function list')
+        # metal -c + metallib excludes the size word; direct metal -o includes
+        # it on current Xcode. Validate the complete section in either format.
+        for includes_size in (False, True):
+            consts, p = [], po
+            try:
+                for _ in range(count):
+                    size = struct.unpack_from('<I', b, p)[0]; end = p + size + (0 if includes_size else 4)
+                    if end > po + ps or end <= p + 4: raise ValueError('metadata bounds')
+                    consts.append(b'CNST' in tags(p + 4, end)); p = end
+                if p == po + ps: break
+            except (struct.error, ValueError): pass
+        else: raise ValueError(f'{path}: public metadata does not match the function list')
     except (struct.error, KeyError) as e: raise ValueError(f'{path}: unreadable function list ({e})') from e
     return dict(zip(names, consts))
 
 
-def plan(lib_dir, chain, pairs, zero):
+def plan(lib_dir, chain, pairs, zero, aot=False):
     """The bases the archive holds: [(vertex library, vertex entry, pixel library, pixel entry)], the pairs left to the device (function constants), and counts of the pairs left out"""
     lib_dir = Path(lib_dir); js, fns, layer = {}, {}, {}
     def refl(key):
@@ -114,10 +126,11 @@ def plan(lib_dir, chain, pairs, zero):
         vl, fl = vk + ('_bp' if pull else '_b'), fk + '_b'
         vf, ff = fn(vl), fn(fl)
         if vf is None or ff is None: left['library'] += 1; continue
-        if writes_layer(vl): left['layer'] += 1; continue
+        layered = writes_layer(vl)
+        if layered and not aot: left['layer'] += 1; continue
         if ventry not in vf or fentry not in ff: left['entry'] += 1; continue
         if vf[ventry] or ff[fentry]: rest.append((vk, fk)); continue
-        b = (vl, ventry, fl, fentry)
+        b = (vl, ventry, fl, fentry) + (('layer',) if layered else ())
         if b not in seen: seen.add(b); bases.append(b)
     return bases, rest, left
 
@@ -126,15 +139,22 @@ def script(lib_dir, bases):
     """A Metal 4 pipelines script (metal4-pipelines-script(5), the .mtl4-json format metal-tt reads) with one render pipeline descriptor per base"""
     libs, fns, pipes = {}, {}, []
     def fd(lib, entry):
-        if lib not in libs: libs[lib] = {'label': lib, 'path': str(Path(lib_dir).resolve() / f'{lib}.metallib')}
+        if lib not in libs: libs[lib] = {'label': lib, 'path': str(pso_aot.library_path(lib_dir, lib).resolve())}
         label = f'{lib}.{entry}'
         if label not in fns: fns[label] = {'label': label, 'library': f'lib:{lib}', 'name': entry}
         return f'fnd:{label}'
-    for vl, ve, fl, fe in bases:
+    extra = {}
+    for row in bases:
+        if isinstance(row, dict):
+            name, desc = pso_aot.configuration(row, fd, AOT_ENUMS)
+            extra.setdefault(name, []).append(desc); continue
+        vl, ve, fl, fe = row[:4]
         pipes.append({'vertex_function_descriptor': fd(vl, ve), 'fragment_function_descriptor': fd(fl, fe),
-                      'color_attachments': [dict.fromkeys(COLOUR, 'Unspecialized') for _ in range(8)]})
+                      'color_attachments': [dict.fromkeys(COLOUR, 'Unspecialized') for _ in range(8)],
+                      **({'input_primitive_topology': 'Triangle'} if len(row) == 5 else {})})
+    pipes.extend(extra.pop('render_pipeline_descriptors', []))
     return {'libraries': list(libs.values()), 'function_descriptors': {'library_function_descriptors': list(fns.values())},
-            'pipeline_descriptors': {'render_pipeline_descriptors': pipes}}
+            'pipeline_descriptors': dict(extra, render_pipeline_descriptors=pipes)}
 
 
 def write_script(path, configuration):
@@ -149,10 +169,11 @@ def write_script(path, configuration):
 def library_digest(lib_dir, bases):
     """The bytes metal-tt consumes: a profile/chain stamp does not change when the same shaders are rebuilt by another Metal compiler."""
     h = hashlib.sha256()
-    for name in sorted({lib for vl, _, fl, _ in bases for lib in (vl, fl)}):
+    names = {lib for row in bases if not isinstance(row, dict) for lib in (row[0], row[2])} | pso_aot.libraries([row for row in bases if isinstance(row, dict)])
+    for name in sorted(names):
         h.update(name.encode() + b'\0')
         lib = hashlib.sha256()
-        with open(Path(lib_dir) / f'{name}.metallib', 'rb') as f:
+        with open(pso_aot.library_path(lib_dir, name), 'rb') as f:
             while chunk := f.read(1 << 20): lib.update(chunk)
         h.update(lib.digest())
     return h.hexdigest()
@@ -276,13 +297,18 @@ def main(argv=None):
     ap.add_argument('--os-min', help='minimum OS of the archives (default: iOS, the SDK\'s major version; macOS, this Mac\'s)')
     ap.add_argument('--script-only', action='store_true', help='write the script and the stamp, run no metal-tt')
     ap.add_argument('--batch-size', type=int, default=BATCH, help=f'compile sequential groups of at most N bases and merge with metal-pack, when there are more (default {BATCH}; 0: one compiler invocation)')
+    ap.add_argument('--aot', action='store_true', default=os.getenv('DM_AOT') == '1', help='expanded compute/mesh/layer/helper coverage and exact learned descriptors (opt-in)')
+    ap.add_argument('--seen', action='append', default=[], help='per-game pso_seen.jsonl, repeatable; stale entries fail visibly')
+    ap.add_argument('--shader-map', help='program-source evidence for native mesh combinations (default: profile shader_map.tsv)')
     a = ap.parse_args(argv)
+    if a.seen and not a.aot: ap.error('--seen requires --aot')
     if a.batch_size < 0: ap.error('--batch-size must be zero or positive')
     if a.game:
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'games')); import game
         g = game.load(a.game)
         a.pairs = a.pairs or [str(g.table('shader_pairs.tsv')), str(g.table('pso_pairs.tsv'))]
         a.depth = a.depth or g.get('depth_mode', 'gl')
+        a.shader_map = a.shader_map or str(g.table('shader_map.tsv'))
         if a.depth not in ('gl', 'zero'): sys.exit(f'[RED] pso_offline: {g.id}: depth_mode must be gl or zero: {a.depth}')
     if not a.pairs: sys.exit('[RED] pso_offline: no pair lists (--pairs or --game)')
     a.depth = a.depth or 'gl'
@@ -295,8 +321,26 @@ def main(argv=None):
     zero = a.depth == 'zero'
     t0 = time.time()
     pairs = read_pairs(text)
-    bases, rest, left = plan(lib_dir, chain, pairs, zero)
+    bases, rest, left = plan(lib_dir, chain, pairs, zero, aot=a.aot)
     work.mkdir(parents=True, exist_ok=True); out.mkdir(parents=True, exist_ok=True)
+    if a.aot:
+        global AOT_ENUMS
+        AOT_ENUMS = pso_aot.enums(a.platform)
+        host_dir = pso_aot.prepare_helpers(work, a.platform)
+        learned = a.seen or ([os.environ['DM_PSO_SEEN']] if os.environ.get('DM_PSO_SEEN') else [])
+        rows, gaps = pso_aot.plan(lib_dir, chain, learned, functions, host_dir, a.shader_map, zero)
+        inventory = pso_aot.base_rows(bases, chain) + rows
+        bases.extend(rows)
+        (out / 'aot.json').write_text(json.dumps(inventory, sort_keys=True, separators=(',', ':')) + '\n')
+        classes = {k: sum(r['class'] == k for r in rows) for k in ('compute', 'mesh', 'render')}
+        report = {'format': 1, 'chain': chain, 'classes': classes, 'gaps': dict(gaps, **left), 'constant_pairs': len(rest),
+                  'layer_bases': sum(isinstance(b, tuple) and len(b) == 5 for b in bases),
+                  'unknown': ['unobserved final render/mesh state', 'function-constant variants', 'diagnostic source', 'helper render state until learned'],
+                  'render_bases': len(inventory) - len(rows), 'exact_learned_render': sum(r['class'] == 'render' and not r.get('base') for r in rows),
+                  'complete': False, 'archive_verified': False}
+        (out / 'aot-preflight.json').write_text(json.dumps(report, indent=2) + '\n')
+    else:
+        for name in ('aot.json', 'aot-preflight.json'): (out / name).unlink(missing_ok=True)
     js = work / 'bases.mtl4-json'   # metal-tt takes the format from the extension: .mtl4-json is Metal 4's (.mtlp-json is the Metal 3 format)
     configuration = script(lib_dir, bases)
     write_script(js, configuration)

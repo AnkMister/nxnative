@@ -11,11 +11,8 @@ int nvn_deswz_gpu_init(id<MTLDevice> dev) {
     NSError *error = nil;
     id<MTLLibrary> library = host_msl_lib(dev, nil, "deswz", &error);   // compiled when the host is built (dm/gfx/msl/deswz.metal)
     if (!library) return -1;
-    id<MTLFunction> function = [library newFunctionWithName:@"deswz"];
-    if (!function) return -1;
-    g_nvn_deswz_pipeline = [dev newComputePipelineStateWithFunction:function error:&error];
-    id<MTLFunction> direct = [library newFunctionWithName:@"deswz_direct"];
-    if (direct) g_nvn_deswz_direct = [dev newComputePipelineStateWithFunction:direct error:&error];
+    g_nvn_deswz_pipeline = host_msl_compute(dev, library, @"deswz", &error);
+    g_nvn_deswz_direct = host_msl_compute(dev, library, @"deswz_direct", &error);
     return g_nvn_deswz_pipeline ? 0 : -1;
 }
 

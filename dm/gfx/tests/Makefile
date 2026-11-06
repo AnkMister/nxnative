@@ -506,3 +506,9 @@ check_t_safe_gpu: t_safe_gpu
 	./t_safe_gpu alloc-stop
 	./t_safe_gpu attach-stop
 	./t_safe_gpu lock-stop
+
+t_aot: t_aot.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_aot.m $(MTL_T_SRC) $(FW)
+.PHONY: check_t_aot
+check_t_aot: t_aot
+	DM_TEST_AOT=$(CURDIR)/t_aot python3 -m unittest test_aot.py
