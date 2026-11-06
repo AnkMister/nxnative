@@ -25,6 +25,7 @@ static NSDictionary *aot_render_row(id d, int mesh) {
         [colors addObject:@[@(c.pixelFormat), @(c.writeMask), @(c.blendingEnabled), @(c.sourceRGBBlendFactor), @(c.destinationRGBBlendFactor),
             @(c.rgbBlendOperation), @(c.sourceAlphaBlendFactor), @(c.destinationAlphaBlendFactor), @(c.alphaBlendOperation)]]; }
     j[@"colors"] = colors;
+    j[@"depth"] = @([d depthAttachmentPixelFormat]); j[@"stencil"] = @([d stencilAttachmentPixelFormat]);
     if (mesh) {
         MTLMeshRenderPipelineDescriptor *m = d; NSArray *t = aot_ref(m.objectFunction);
         if (m.objectFunction && !t) return nil; if (t) j[@"object"] = t;
@@ -69,6 +70,7 @@ static MTL4PipelineDescriptor *aot_descriptor(NSDictionary *j) {
                 vd.layouts[i].stride = [l[0] unsignedIntegerValue]; vd.layouts[i].stepFunction = [l[1] unsignedIntegerValue]; vd.layouts[i].stepRate = [l[2] unsignedIntegerValue]; }
             r.vertexDescriptor = vd; }
     }
+    [d setDepthAttachmentPixelFormat:[j[@"depth"] unsignedIntegerValue]]; [d setStencilAttachmentPixelFormat:[j[@"stencil"] unsignedIntegerValue]];
     [d setRasterSampleCount:[j[@"samples"] unsignedIntegerValue]]; [d setRasterizationEnabled:[j[@"raster"] boolValue]];
     [d setAlphaToCoverageState:[j[@"a2c"] boolValue] ? MTL4AlphaToCoverageStateEnabled : MTL4AlphaToCoverageStateDisabled];
     NSArray *colors = j[@"colors"]; if (colors.count != 8) return nil;

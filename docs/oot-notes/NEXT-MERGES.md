@@ -12,10 +12,11 @@ relevant when moving the combined source onto upstream main. The second variant
 will use origin/main resolved at creation, including upstream alias layout and
 renderer PCM blocks. Keep its packed library loader and repaired source gates.
 
-| Pending branch | Predicted conflicts and required checks |
-| --- | --- |
-| `oot-aot` (from oot-stable-fix) | Full offline pipeline coverage, compile counters and pso_seen learning overlap native mesh prewarm, packed library loading, stage-cache/side-library outputs, quality presentation and safety commit gates. Preserve no runtime shader compilation. Confirm all compute/native mesh/specialized pipeline classes and fail visibly on misses. |
-| `oot-foliage` (from oot-brent) | Opcode 0x3a9 overlaps the existing global CAS port and translator refusal checks; wide-load grouping overlaps raw_load_quads, storage_runs, constant reuse and actual marked-pool table semantics. Merge source, retain exact numeric/bit tests, update FILES/stage fingerprints, rebuild translator and regenerate artifacts. |
+No requested finished branch is pending. oot-aot and oot-foliage are integrated
+after their reviewed stable/Brent ancestors. Existing committed history is kept.
+Future changes to AOT must preserve packed-library loading, all final render
+state (including depth/stencil), colorspace, quality helpers and mesh safety.
+Future grouping changes must preserve marked pool bounds and stage fingerprints.
 
 The scanner is bench tooling, not a shader optimization. Its static scores do not
 prove executed cost or permit skipping effects. Keep performance experiments off

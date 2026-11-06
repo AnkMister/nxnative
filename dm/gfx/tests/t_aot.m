@@ -14,6 +14,17 @@ int main(int argc, char **argv) { @autoreleasepool {
     setenv("DM_AOT", "1", 1); setenv("DM_AOT_STRICT", "1", 1); setenv("DM_PSO_BUNDLE", argv[2], 1);
     setenv("DM_PSO_ARCHIVE", "off", 1); setenv("DM_PSO_SEEN", argv[3], 1);
     g_dev = MTLCreateSystemDefaultDevice(); CHECK(g_dev); g_msl_dir = @(argv[1]); pso4_init(); CHECK(g_arch_bundle);
+    // Exact keys must distinguish depth/stencil state; replay must restore it.
+    MTLRenderPipelineDescriptor *ds = [MTLRenderPipelineDescriptor new];
+    ds.vertexFunction = aot_function(lib_from_file([g_msl_dir stringByAppendingPathComponent:@"v_b.metallib"], nil), @"main0");
+    NSDictionary *no_depth = aot_render_row(ds, 0);
+    ds.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
+    ds.stencilAttachmentPixelFormat = MTLPixelFormatStencil8;
+    NSDictionary *with_depth = aot_render_row(ds, 0);
+    CHECK(![aot_bytes(no_depth) isEqual:aot_bytes(with_depth)]);
+    MTL4RenderPipelineDescriptor *roundtrip = (id)aot_descriptor(with_depth);
+    CHECK(roundtrip.depthAttachmentPixelFormat == MTLPixelFormatDepth32Float);
+    CHECK(roundtrip.stencilAttachmentPixelFormat == MTLPixelFormatStencil8);
     uint64_t before = dm_aot_compiler_count(0); aot_prewarm(); CHECK(dm_aot_compiler_count(0) == before);
     NSData *data = [NSData dataWithContentsOfFile:[@(argv[2]) stringByAppendingPathComponent:@"aot.json"]];
     NSArray *rows = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil]; CHECK(rows.count >= 3);

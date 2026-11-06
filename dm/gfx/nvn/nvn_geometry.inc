@@ -557,8 +557,8 @@ static uint64_t g_mtk_n;
 static nvn_hmap g_pso_mtk = {.klen = sizeof(pso_key)};   // demand and warm results are installed on the submit thread
 static id<MTLFunction> mtk_nofrag(void) {   // the fragment function of a task / mesh program with no pixel stage (depth only): a mesh pipeline must have one
     static id<MTLFunction> fn; static dispatch_once_t once;
-    dispatch_once(&once, ^{ NSError *e = nil; id<MTLLibrary> lib = [g_dev newLibraryWithSource:@"#include <metal_stdlib>\nfragment void dm_mesh_nofrag() {}\n" options:nil error:&e];
-        fn = [lib newFunctionWithName:@"dm_mesh_nofrag"]; if (!fn) MLOG("[RED] task / mesh: the empty fragment function did not compile: %s", e.localizedDescription.UTF8String); });
+    dispatch_once(&once, ^{ NSError *e = nil; id<MTLLibrary> lib = host_lib("mesh_nofrag", &e);
+        fn = aot_function(lib, @"dm_mesh_nofrag"); if (!fn) MLOG("[RED] task / mesh: the empty fragment function did not compile: %s", e.localizedDescription.UTF8String); });
     return fn;
 }
 static id<MTLRenderPipelineState> mtk_build(const pso_key *k, NvShader *ts, NvShader *ms, NvShader *fs, NSError **error) {
@@ -570,7 +570,7 @@ static id<MTLRenderPipelineState> mtk_build(const pso_key *k, NvShader *ts, NvSh
     m.rasterSampleCount = d.rasterSampleCount; m.alphaToCoverageEnabled = d.alphaToCoverageEnabled;
     for (int i = 0; i < 8; i++) m.colorAttachments[i] = d.colorAttachments[i];
     m.depthAttachmentPixelFormat = d.depthAttachmentPixelFormat; m.stencilAttachmentPixelFormat = d.stencilAttachmentPixelFormat;
-    return [g_dev newRenderPipelineStateWithMeshDescriptor:m options:MTLPipelineOptionNone reflection:nil error:error];
+    return aot_mesh(m, error);
 }
 static void mtk_bind_key(pso_key *k, NvShader *ts, NvShader *ms, NvShader *fs) {
     k->vs = (__bridge void *)ms; k->fs = (__bridge void *)fs;

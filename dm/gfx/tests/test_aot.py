@@ -30,6 +30,15 @@ class Planning(unittest.TestCase):
         row['vertex'] = ['/private/library', 'main0']
         with self.assertRaises(ValueError): pso_aot.validate(row, 'x')
 
+    def test_depth_stencil_are_offline_descriptor_inputs(self):
+        row = render('x', 'mesh')
+        row.update(depth=252, stencil=253)
+        enum = pso_aot.enums('macos')
+        kind, descriptor = pso_aot.configuration(row, lambda *x: x, enum)
+        self.assertEqual(kind, 'mesh_render_pipeline_descriptors')
+        self.assertEqual(descriptor['depth_attachment_pixel_format'], 'Depth32Float')
+        self.assertEqual(descriptor['stencil_attachment_pixel_format'], 'Stencil8')
+
     def test_preflight_never_claims_completeness(self):
         spec = importlib.util.spec_from_file_location('aot_preflight', ROOT / 'scripts/aot_preflight.py')
         assert spec and spec.loader
