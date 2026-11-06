@@ -26,6 +26,23 @@ FW=-framework Metal -framework MetalFX -framework Foundation -framework QuartzCo
 # Tests that #include nvn_mtl.m link the rest of the NVN layer beside it (hle_nvn.c: memory pools, sparse pools, serials) and the host's large stack, with weak stubs of what they need of the host (t_host_stubs.c)
 MTL_T_DEP=../nvn/hle_nvn.c ../../host/crash.c ../../host/hle_bigstack.c t_host_stubs.c $(GFX) $(GFX_H)
 MTL_T_SRC=../nvn/hle_nvn.c ../../host/crash.c ../../host/hle_bigstack.c t_host_stubs.c $(filter-out ../nvn/nvn_mtl.m,$(GFX))
+t_ubc_wait: t_ubc_wait.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_ubc_wait.m $(MTL_T_SRC) $(FW)
+check_t_ubc_wait: t_ubc_wait
+	DM_ECO_COPY_WAIT=0 ./t_ubc_wait
+	DM_ECO_COPY_WAIT=1 ./t_ubc_wait
+t_eco_compile: t_eco_compile.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_eco_compile.m $(MTL_T_SRC) $(FW)
+check_t_eco_compile: t_eco_compile
+	env -u DM_ECO_COMPILE_THREADS ./t_eco_compile 0
+	DM_ECO_COMPILE_THREADS=0 ./t_eco_compile 0
+	DM_ECO_COMPILE_THREADS=1 ./t_eco_compile 1
+	DM_ECO_COMPILE_THREADS=2 ./t_eco_compile 2
+	DM_ECO_COMPILE_THREADS=4 ./t_eco_compile 4
+	DM_ECO_COMPILE_THREADS=invalid ./t_eco_compile 0
+	DM_ECO_COMPILE_THREADS=2junk ./t_eco_compile 0
+	DM_ECO_COMPILE_THREADS=-1 ./t_eco_compile 0
+	DM_ECO_COMPILE_THREADS=65 ./t_eco_compile 0
 # The run list: every t_*.c and t_*.m but those in NOT_RUN. `make run` builds them all (in parallel with -j), then runs them one after another, each through its check_
 # target: ./t_x by default, with the environment its RUN_ENV gives it (check_t_x: RUN_ENV = MTL_DEBUG_LAYER=1, beside its build rule), or a check_t_x recipe of its own when it
 # runs several ways. A new test needs its source and its build rule; no list to add it to. NOT_RUN: helpers linked into other tests (t_host_stubs, t_present_rescue_focus),
