@@ -26,7 +26,7 @@ for name in ${(k)parameters}; do
 done
 unset IOSOUT XLATE SPIRV_CROSS DMSH_CAS DMSH_PREFILL WORK DM_GAMES_DIR DM_GAMES_FIRST DM_OOT_BRENT DM_SDK22_SERVICES DM_NVN_GMEM_COMMIT
 export GAME=0400486024DEC000 DM_GAME=0400486024DEC000
-export J=4 MAKEFLAGS=-j4 DM_REWRITE_J=4 DM_PSO_J=4 DM_METAL_PACK_THREADS=4
+export J=12 MAKEFLAGS=-j12 DM_REWRITE_J=12 DM_PSO_J=12 DM_METAL_PACK_THREADS=12
 export DOTNET_ROOT="$HOME/.dotnet"
 export NUGET_PACKAGES=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-play-evidence/nuget-packages
 export RestoreConfigFile="$RUN_ROOT/pipeline-inputs/NuGet.Config"
