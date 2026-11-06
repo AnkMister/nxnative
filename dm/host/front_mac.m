@@ -1583,3 +1583,12 @@ void front_gpu_memory_stop(unsigned long long used_mb, unsigned long long limit_
                      [NSString stringWithFormat:@"The game reached %llu MB of the %llu MB macOS can keep in GPU memory. Going on could freeze this Mac, so the game stops here; progress since your last save is lost. The log has the details. "
                                                  "Please report it on GitHub with python3 scripts/bug_report.py %@, which collects the log.", used_mb, limit_mb, @(DM_GAME_ID)]);
 }
+
+// PR #1332: use the same full-screen exit and alert as the memory guard.
+void front_gpu_lost(void) {
+    if (!g_layer) { kill(getpid(), SIGTERM); return; }
+    LOG("front end: macOS revoked GPU access; telling the player and quitting");
+    front_stop_alert([@"The GPU stopped running " stringByAppendingString:@(DM_GAME_NAME)],
+                     [NSString stringWithFormat:@"After a GPU error, macOS stopped running the game's GPU work, so the game quits. The log has the details. "
+                                                 "Please report it on GitHub with python3 scripts/bug_report.py %@, which collects the log.", @(DM_GAME_ID)]);
+}

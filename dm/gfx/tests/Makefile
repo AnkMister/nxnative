@@ -48,7 +48,7 @@ check_t_eco_compile: t_eco_compile
 # runs several ways. A new test needs its source and its build rule; no list to add it to. NOT_RUN: helpers linked into other tests (t_host_stubs, t_present_rescue_focus),
 # a fixture test_image_atomic_bounds.py builds itself (t_atomic_return), t_geometry_primitive_id (the GPU half of test_dmsh_geometry.py, which gives it the directory of
 # its translated fixtures), t_visual_numeric (built and driven by test_dmsh_visual_numeric.py), t_wide_group (test_dmsh_wide.py), and t_gpuprof, which CI's CPU subset runs (.github/workflows/tests.yml)
-NOT_RUN = t_wide_group t_visual_numeric t_host_stubs t_present_rescue_focus t_atomic_return t_geometry_primitive_id t_gpuprof
+NOT_RUN = t_gpu_lost_front t_wide_group t_visual_numeric t_host_stubs t_present_rescue_focus t_atomic_return t_geometry_primitive_id t_gpuprof
 RUN_TESTS = $(filter-out $(NOT_RUN),$(basename $(sort $(wildcard t_*.c t_*.m))))
 check_t_%: t_%
 	$(RUN_ENV) ./$<
@@ -602,3 +602,9 @@ check_t_pool_retire: RUN_ENV = MTL_DEBUG_LAYER=1
 
 t_pool_table: t_pool_table.m $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -o $@ t_pool_table.m $(filter-out ../nvn/hle_nvn.c,$(MTL_T_SRC)) $(FW)
+
+t_gpu_lost: t_gpu_lost.m t_gpu_lost_front.c $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_gpu_lost.m t_gpu_lost_front.c $(MTL_T_SRC) $(FW)
+check_t_gpu_lost: t_gpu_lost
+	MTL_DEBUG_LAYER=1 ./t_gpu_lost default
+	MTL_DEBUG_LAYER=1 ./t_gpu_lost
