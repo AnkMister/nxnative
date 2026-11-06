@@ -74,3 +74,7 @@ Gate tensor output with DMSH_HMMA_TENSOR=1 and Apple10 runtime selection with DM
 ## Brent round 2, poolstat/texstat, 01cce669
 
 Add explicit DM_CTL poolstat and texstat diagnostics. Preserve local texture storage fields and safety policy. No automatic diagnostic dump or quality change.
+
+## Brent round 2, #1388/#1353 table refresh, 62e966b8
+
+Restore three NDSR keys and facts from the corrected split. The splitter algorithm remains behind DMSH_OOT_VISUAL=1. No profile switch is enabled. Re-split prepared inputs before using the changed numeric shader indices; rebuild shaders and the AOT archive.
