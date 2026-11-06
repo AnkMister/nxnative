@@ -143,9 +143,39 @@ def plan(lib_dir, chain, pairs, zero, aot=False):
     return bases, rest, left
 
 
+def compute_keys(paths):
+    """The compute shaders of the shader maps (column 3 'compute', column 4 the key), in order, each once"""
+    seen, out = set(), []
+    for p in paths:
+        if not p or not Path(p).is_file(): continue
+        for line in Path(p).read_text(encoding='utf-8', errors='replace').split('\n'):
+            c = line.split('\t')
+            if line.startswith('#') or len(c) < 4 or c[2] != 'compute' or c[3] in seen: continue
+            seen.add(c[3]); out.append(c[3])
+    return out
+
+
+def plan_compute(lib_dir, chain, keys):
+    """The compute pipelines the archive holds: [(library, entry)], one per compute shader whose library the host would dispatch (a reflection of this chain, the entry in the
+    library, no function constants), and counts of the shaders left out. A compute pipeline has no base: the dispatch takes it whole from the archive (nvn_mtl.m cps_make), where
+    Metal otherwise compiles it at the shader's first dispatch, on the submit thread"""
+    lib_dir = romfs.Path(lib_dir); kernels, left = [], dict.fromkeys(('reflection', 'library', 'entry', 'function constants'), 0)
+    for key in keys:
+        try: j = json.loads((lib_dir / f'{key}_b.json').read_bytes())
+        except (OSError, ValueError): j = None
+        if not j or j.get('chain') != chain or j.get('stage') != 'cs': left['reflection'] += 1; continue
+        lib, entry = key + '_b', j.get('entry') or 'main0'
+        try: fns = functions(lib_dir / f'{lib}.metallib')
+        except (OSError, ValueError): left['library'] += 1; continue
+        if entry not in fns: left['entry'] += 1; continue
+        if fns[entry]: left['function constants'] += 1; continue
+        kernels.append((lib, entry))
+    return kernels, left
+
+
 def script(lib_dir, bases):
     """A Metal 4 pipelines script (metal4-pipelines-script(5), the .mtl4-json format metal-tt reads) with one render pipeline descriptor per base"""
-    libs, fns, specs, pipes = {}, {}, {}, []
+    libs, fns, specs, pipes, kernels = {}, {}, {}, [], []
     def fd(lib, entry, constants=None):
         if lib not in libs: libs[lib] = {'label': lib, 'path': str(pso_aot.library_path(lib_dir, lib).resolve())}
         label = f'{lib}.{entry}'
@@ -160,11 +190,14 @@ def script(lib_dir, bases):
         if isinstance(row, dict):
             name, desc = pso_aot.configuration(row, fd, AOT_ENUMS)
             extra.setdefault(name, []).append(desc); continue
+        if len(row) == 2:
+            kernels.append({'compute_function_descriptor': fd(*row)}); continue
         vl, ve, fl, fe = row[:4]
         pipes.append({'vertex_function_descriptor': fd(vl, ve), 'fragment_function_descriptor': fd(fl, fe),
                       'color_attachments': [dict.fromkeys(COLOUR, 'Unspecialized') for _ in range(8)],
                       **({'input_primitive_topology': 'Triangle'} if len(row) == 5 else {})})
     pipes.extend(extra.pop('render_pipeline_descriptors', []))
+    if kernels: extra.setdefault('compute_pipeline_descriptors', []).extend(kernels)
     return {'libraries': list(libs.values()), 'function_descriptors': dict({'library_function_descriptors': list(fns.values())},
             **({'specialized_function_descriptors': list(specs.values())} if specs else {})),
             'pipeline_descriptors': dict(extra, render_pipeline_descriptors=pipes)}
@@ -182,7 +215,7 @@ def write_script(path, configuration):
 def library_digest(lib_dir, bases):
     """The bytes metal-tt consumes: a profile/chain stamp does not change when the same shaders are rebuilt by another Metal compiler."""
     h = hashlib.sha256()
-    names = {lib for row in bases if not isinstance(row, dict) for lib in (row[0], row[2])} | pso_aot.libraries([row for row in bases if isinstance(row, dict)])
+    names = {lib for row in bases if not isinstance(row, dict) for lib in ((row[0],) if len(row) == 2 else (row[0], row[2]))} | pso_aot.libraries([row for row in bases if isinstance(row, dict)])
     for name in sorted(names):
         h.update(name.encode() + b'\0')
         lib = hashlib.sha256()
@@ -273,7 +306,7 @@ def real_libraries(lib_dir, bases, work):
     An archive whose key still holds compiles nothing and gets none"""
     if os.path.isdir(lib_dir): return lib_dir
     real = Path(work) / 'libraries'; shutil.rmtree(real, ignore_errors=True); real.mkdir(parents=True)
-    names = {lib for row in bases if not isinstance(row, dict) for lib in (row[0], row[2])}
+    names = {lib for row in bases if not isinstance(row, dict) for lib in ((row[0],) if len(row) == 2 else (row[0], row[2]))}
     names |= pso_aot.libraries([row for row in bases if isinstance(row, dict)])
     for name in sorted(n for n in names if not n.startswith('host:')):
         with romfs.open(os.path.join(lib_dir, f'{name}.metallib'), 'rb') as f, open(real / f'{name}.metallib', 'wb') as o: shutil.copyfileobj(f, o)
@@ -403,6 +436,7 @@ def main(argv=None):
     ap.add_argument('--msl', required=True, help='the shader libraries, b-<chain version> (with their reflection <key>_b.json)')
     ap.add_argument('--game', help='the game profile: its pair lists and depth_mode key')
     ap.add_argument('--pairs', action='append', help='shader_pairs.tsv, then pso_pairs.tsv (missing files are skipped; default: the profile\'s)')
+    ap.add_argument('--compute', action='append', help='shader_map.tsv: every compute shader in it gets its pipeline in the archive (default: the profile\'s map with --game; none without)')
     ap.add_argument('--out', required=True, help='the folder the app bundles (archives and stamp)')
     ap.add_argument('--work', required=True, help='the script, keys and logs')
     ap.add_argument('--gpu', default='g18p', help='GPU architectures, comma-separated (default g18p)')
@@ -424,6 +458,7 @@ def main(argv=None):
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'games')); import game
         g = game.load(a.game)
         a.pairs = a.pairs or [str(g.table('shader_pairs.tsv')), str(g.table('pso_pairs.tsv'))]
+        a.compute = a.compute or [str(g.table('shader_map.tsv'))]
         a.depth = a.depth or g.get('depth_mode', 'gl')
         a.shader_map = a.shader_map or str(g.table('shader_map.tsv'))
         if a.depth not in ('gl', 'zero'): sys.exit(f'[RED] pso_offline: {g.id}: depth_mode must be gl or zero: {a.depth}')
@@ -439,6 +474,8 @@ def main(argv=None):
     t0 = time.time()
     pairs = read_pairs(text)
     bases, rest, left = plan(lib_dir, chain, pairs, zero, aot=a.aot)
+    kernels, cleft = plan_compute(lib_dir, chain, compute_keys(a.compute or []))
+    nrender = len(bases); bases = bases + kernels   # one list for the script, the digest and the batches: a kernel is a 2-tuple, a base a 4-tuple
     work.mkdir(parents=True, exist_ok=True); out.mkdir(parents=True, exist_ok=True)
     if a.aot:
         global AOT_ENUMS, AOT_HOST, AOT_SHADER_MAP, AOT_ZERO
@@ -476,8 +513,8 @@ def main(argv=None):
     configuration = script(lib_dir, bases)
     write_script(js, configuration)
     st = stamp(chain, zero, text)
-    print(f'pso_offline: {len(pairs)} pairs: {len(bases)} bases, {len(rest)} left to the device (function constants), left out as the host leaves them: '
-          + ', '.join(f'{k} {v}' for k, v in left.items()) + f' ({time.time() - t0:.1f} s)')
+    print(f'pso_offline: {len(pairs)} pairs: {nrender} bases, {len(rest)} left to the device (function constants), left out as the host leaves them: '
+          + ', '.join(f'{k} {v}' for k, v in left.items()) + f'; {len(kernels)} compute pipelines, left out: ' + ', '.join(f'{k} {v}' for k, v in cleft.items()) + f' ({time.time() - t0:.1f} s)')
     if a.script_only: (out / 'prebuilt.tsv').write_text(st); return 0
     if pairs and not bases and not rest: sys.exit('[RED] pso_offline: no base to build')   # pairs, but the host would leave out every one: wrong or missing libraries
     if not pairs: print('pso_offline: no pairs (only a header): nothing to build, no archive')   # a profile whose split found no pair (GitHub issue #338)
@@ -542,7 +579,7 @@ def main(argv=None):
     if rest: rp.write_text(''.join(f'{v}\t{f}\n' for v, f in rest))
     else: rp.unlink(missing_ok=True)
     (out / 'archive.tsv').write_text(f'# the pipeline archive made offline (dm/gfx/tools/pso_offline.py); the host reads prebuilt.tsv, not this file\narch\t{" ".join(archs)}\n'
-                                     f'platform\t{a.platform}\t{osmin}\ntoolchain\t{tv}\nbases\t{len(bases) - (len(denied) if a.aot else 0)}\nrest\t{len(rest)}\n')
+                                     f'platform\t{a.platform}\t{osmin}\ntoolchain\t{tv}\nbases\t{nrender - (len(denied) if a.aot else 0)}\ncompute\t{len(kernels)}\nrest\t{len(rest)}\n')
     return 0
 
 
