@@ -5,10 +5,22 @@
 #undef HLE_FORCE
 #define HLE_FORCE(mangled, why, ret, cname, ...) static ret cname(__VA_ARGS__)
 #include "../hle_movie.c"
+static pthread_mutex_t *submit_mu, *submit_dmu;
+static int submit_has_dmu, submit_mu_locks;
+static int checked_codec_lock(pthread_mutex_t *mu);
+#define pthread_mutex_lock checked_codec_lock
 #include "../hle_codec_video.c"
+#undef pthread_mutex_lock
 #include "../hle_movie_avc.c"
 #include "../hle_movie_av1.c"
 #include <assert.h>
+
+static int checked_codec_lock(pthread_mutex_t *mu) {
+    if (mu == submit_mu) { assert(submit_has_dmu); submit_mu_locks++; }
+    int r = pthread_mutex_lock(mu);
+    if (mu == submit_dmu && !r) submit_has_dmu = 1;
+    return r;
+}
 
 static uint64_t g_test_wall = 1, g_test_frames, g_test_focus_in; static int g_test_focus = 1;
 uint64_t now_ns(void) { return g_test_wall; }
@@ -224,6 +236,25 @@ int main(void) {
             assert(ns == 20); for (int i = 0; i < 20; i++) assert(seen[i] == 1000 * (int64_t)i);
             mav1_free(a);
         }
+        unsetenv("DM_AV1_DAV1D"); unsetenv("DM_AV1_PARALLEL");
+    }
+    {   // Parallel Submit must hold dmu before its first mu acquisition and until publishing, including the full-queue return.
+        setenv("DM_AV1_DAV1D", "1", 1); setenv("DM_AV1_PARALLEL", "1", 1);
+        _Alignas(16) uint8_t state[0x400] = {0};
+        assert(!cv_dec_init(state, CV_AV1, 64, 64, 1, 1, NULL, 0));
+        cv_dec *d = cv_of(state); submit_mu = &d->mu; submit_dmu = &d->dmu; submit_has_dmu = submit_mu_locks = 0;
+        assert(!cv_dec_submit(&id, state, av1, sizeof av1, 1000, true));
+        assert(submit_has_dmu && submit_mu_locks == 2);
+        assert(!pthread_mutex_trylock(&d->mu)); pthread_mutex_unlock(&d->mu);
+        assert(!pthread_mutex_trylock(&d->dmu)); pthread_mutex_unlock(&d->dmu);
+        int held = d->nheld; d->nheld = CV_HOLD; submit_has_dmu = submit_mu_locks = 0;
+        assert(cv_dec_submit(&id, state, av1, sizeof av1, 2000, false) == CV_BUSY);
+        assert(submit_has_dmu && submit_mu_locks == 1);
+        assert(!pthread_mutex_trylock(&d->mu)); pthread_mutex_unlock(&d->mu);
+        assert(!pthread_mutex_trylock(&d->dmu)); pthread_mutex_unlock(&d->dmu);
+        d->nheld = held; submit_mu = submit_dmu = NULL;
+        assert(!cv_dec_fin(state) && !cv_of(state));
+        assert(cv_dec_submit(&id, state, av1, sizeof av1, 3000, false) == CV_R(2004));
         unsetenv("DM_AV1_DAV1D"); unsetenv("DM_AV1_PARALLEL");
     }
     {   // A native image: SDK 22's preference and pool, the handle names the pool's memory, and a picture lands there as RGBA in NVN's linear layout

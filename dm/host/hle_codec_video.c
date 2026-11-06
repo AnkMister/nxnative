@@ -56,7 +56,7 @@ typedef struct {
 } cv_dec;
 
 static cv_dec *g_cv[16];
-static pthread_mutex_t g_cv_mu = PTHREAD_MUTEX_INITIALIZER;   // lock order: g_cv_mu, then a decoder's mu, then g_spt_mu
+static pthread_mutex_t g_cv_mu = PTHREAD_MUTEX_INITIALIZER;   // lock order: g_cv_mu, then a decoder's dmu (when decoding), then mu, then g_spt_mu
 
 static cv_dec *cv_of(void *t) { cv_dec *d = t ? *(cv_dec **)t : NULL; return d && d->magic == CV_MAGIC ? d : NULL; }
 static cv_pool *pool_of(const void *t) { cv_pool *p = t ? *(cv_pool *const *)t : NULL; return p && p->magic == CV_MAGIC ? p : NULL; }
@@ -312,7 +312,7 @@ static Result cv_dec_init(void *t, int codec, uint16_t w, uint16_t h, uint32_t i
 }
 static Result cv_dec_fin(void *t) {
     cv_dec *d = cv_of(t); if (!d) return 0;
-    pthread_mutex_lock(&g_cv_mu); g_cv[d->id - 1] = NULL; pthread_mutex_lock(&d->dmu); pthread_mutex_lock(&d->mu); pthread_mutex_unlock(&d->mu); pthread_mutex_unlock(&d->dmu); pthread_mutex_unlock(&g_cv_mu);   // no sync handle lookup is still inside
+    pthread_mutex_lock(&g_cv_mu); g_cv[d->id - 1] = NULL; pthread_mutex_lock(&d->dmu); pthread_mutex_lock(&d->mu); *(cv_dec **)t = NULL; pthread_mutex_unlock(&d->mu); pthread_mutex_unlock(&d->dmu); pthread_mutex_unlock(&g_cv_mu);   // no sync handle lookup or new submission is still inside
     if (d->codec != CV_H264 && d->codec != CV_AV1 && d->vpx_ok) vpx_codec_destroy(&d->vpx);
     if (d->avc) mavc_free(d->avc);
     if (d->av1) mav1_free(d->av1);
@@ -322,7 +322,7 @@ static Result cv_dec_fin(void *t) {
     // event "bound" and was not given one: the game had cleared that memory, and nn::os aborted on the uninitialised event (Donkey Kong Bananza, its second movie)
     static void (*destroy)(void *); if (!destroy && !(destroy = guest_sym("_ZN2nn2os18DestroySystemEventEPNS0_15SystemEventTypeE"))) die("nn::os::DestroySystemEvent missing");
     destroy(d->event);
-    pthread_mutex_destroy(&d->mu); pthread_mutex_destroy(&d->dmu); free(d); *(cv_dec **)t = NULL;
+    pthread_mutex_destroy(&d->mu); pthread_mutex_destroy(&d->dmu); free(d);
     return 0;
 }
 static Result cv_dec_reg(void *t, uint32_t i, void *pool, uint32_t pidx) {
@@ -392,9 +392,13 @@ static vpx_image_t *av1_to_i420(const mav1_picture *p) {   // the decoder's NV12
 }
 // One packet: decoded at once; its pictures wait for released buffers (end of stream marks the last one, or comes as a buffer of its own)
 static Result cv_dec_submit(uint64_t *out, void *t, const void *data, uint64_t size, int64_t ts, bool eos) {
-    cv_dec *d = cv_of(t); if (!d) return CV_R(2004);
-    pthread_mutex_lock(&d->mu);
-    if (d->nheld >= CV_HOLD) { static int n; if (n++ < 4) LOG("[RED] nn::codec %s: a packet refused with %d pictures waiting for a released buffer", k_cv_name[d->codec], d->nheld); if (d->event) hle_clear_system_event(d->event); pthread_mutex_unlock(&d->mu); return CV_BUSY; }
+    // Acquire the lifetime and decode locks before mu. Releasing mu during AV1 decoding must not let Reset or Finalize pass this submission.
+    pthread_mutex_lock(&g_cv_mu);
+    cv_dec *d = cv_of(t); if (!d) { pthread_mutex_unlock(&g_cv_mu); return CV_R(2004); }
+    int parallel = d->codec == CV_AV1 && mav1_parallel(d->av1);
+    if (parallel) pthread_mutex_lock(&d->dmu);
+    pthread_mutex_lock(&d->mu); pthread_mutex_unlock(&g_cv_mu);
+    if (d->nheld >= CV_HOLD) { static int n; if (n++ < 4) LOG("[RED] nn::codec %s: a packet refused with %d pictures waiting for a released buffer", k_cv_name[d->codec], d->nheld); if (d->event) hle_clear_system_event(d->event); pthread_mutex_unlock(&d->mu); if (parallel) pthread_mutex_unlock(&d->dmu); return CV_BUSY; }
     int got = 0;
     if (d->codec == CV_H264 && d->avc) {   // VideoToolbox reorders: pictures leave in presentation order, all of them at the end of the stream
         if (size && mavc_decode(d->avc, data, (int)size, ts / 1000) < 0) { static int n; if (n++ < 4) LOG("[RED] nn::codec H.264: VideoToolbox could not decode a packet"); }
@@ -411,12 +415,12 @@ static Result cv_dec_submit(uint64_t *out, void *t, const void *data, uint64_t s
         // Decoded without the decoder lock: dav1d's frame threads can keep a packet waiting tens of milliseconds for a free frame, and under the lock the game's Release and
         // Acquire would wait as long. The decode lock keeps a reset or Finalize from running beside it. A packet can give more than one picture (frames finished together), and
         // the end of the stream gives the frames still decoding
-        pthread_mutex_unlock(&d->mu); pthread_mutex_lock(&d->dmu);
+        pthread_mutex_unlock(&d->mu);
         vpx_image_t *pics[CV_BURST + 24]; int64_t pts[CV_BURST + 24]; int np = 0; mav1_picture pic;
         if (size && mav1_decode_ts(d->av1, data, (size_t)size, ts, &pic) == 1)
             do { vpx_image_t *c = av1_to_i420(&pic); if (c && np < (int)(sizeof pics / sizeof pics[0])) { pics[np] = c; pts[np++] = pic.ts; } else if (c) vpx_img_free(c); } while (mav1_next(d->av1, &pic));
         if (eos) while (mav1_drain(d->av1, &pic)) { vpx_image_t *c = av1_to_i420(&pic); if (c && np < (int)(sizeof pics / sizeof pics[0])) { pics[np] = c; pts[np++] = pic.ts; } else if (c) vpx_img_free(c); }
-        pthread_mutex_lock(&d->mu); pthread_mutex_unlock(&d->dmu);
+        pthread_mutex_lock(&d->mu);
         for (int i = 0; i < np; i++) got += cv_hold(d, pics[i], pts[i]);
     } else if (size && d->vpx_ok) {
         if (vpx_codec_decode(&d->vpx, data, (unsigned)size, NULL, 0) != VPX_CODEC_OK) { static int n; if (n++ < 4) LOG("[RED] nn::codec %s: %s (%s)", k_cv_name[d->codec], vpx_codec_error(&d->vpx), vpx_codec_error_detail(&d->vpx) ? vpx_codec_error_detail(&d->vpx) : ""); }
@@ -427,6 +431,7 @@ static Result cv_dec_submit(uint64_t *out, void *t, const void *data, uint64_t s
     *out = ++d->submits;
     drain(d, 1);
     pthread_mutex_unlock(&d->mu);
+    if (parallel) pthread_mutex_unlock(&d->dmu);
     return 0;
 }
 static Result cv_dec_acq(uint32_t *idx, cv_sync *sync, void *t) {
