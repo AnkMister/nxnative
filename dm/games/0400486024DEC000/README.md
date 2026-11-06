@@ -340,3 +340,38 @@ Run the VQA log check on every run folder, using the same window as the A/B meas
 ```
 
 Repeat for the other run folders. Reject new skipped pipelines, missing or untranslated shader keys, nonfinite pixels, ledger violations, or new `[RED]` types. Existing failures must be reconciled, not hidden by a smaller byte count. Pair that check with screenshots and a visual comparison allowing only the scene's normal animation. Include Link's house, Kokiri Forest, the fog horizon, menus and a loading transition. No such VQA or game comparison has been performed for this port.
+
+## Border library experiment (current, unmeasured)
+
+The `oot-1203` port of PR #1203 adds `DM_NVN_BORDER_SPLIT=1`. It uses a plain
+pixel library on draws whose samplers need no border correction. Unset or `0`
+retains the original correcting `_b` library on every ordinary draw. Builds
+with the flag enabled add optional plain `_bn` assets; missing optional assets
+keep `_b`. Split handles use both words, as argument encoding does. Alpha-test and logic
+entry points keep correcting in either mode.
+
+A read-only snapshot of the existing `b-d1f10abd26a7` cache found 16,947 pixel
+reflections against the profile's 22,356 unique pixel keys (42,851 map rows:
+22,356 pixel, 15,852 vertex, 4,123 compute, 20 task, 500 mesh). Of those
+reflections, 16,574 contain border twins and matching `dm_bs` calls: 97.80% of
+the inspected subset, or a confirmed lower bound of 74.14% of all pixel keys.
+373 inspected shaders have no correction; 5,409 keys lack reflection in this
+snapshot. The subset is ordered by key, not a random sample. Static eligibility
+across the whole map is therefore bounded at 74.14% to 98.33%; 97.80% must not
+be presented as a measured whole-game share or draw-weighted saving.
+
+Sampler reflection contains 140,754 twin bindings, all `samp_tex`, across the
+16,574 shaders. 16,724 inspected shaders have scalar samplers and three have
+sampler arrays. There are 310,780 wrapped sample occurrences, including nested
+copies. The facts table has 4,123 entries containing only `local` and `shared`;
+no pixel entries and no border-colour or wrap-state data. Shader reflection
+shows that correction code is compiled, not whether a draw takes its branch.
+No runtime sampler-state capture was available for this census, so actual
+custom-border use, hot-pass coverage, spills and GPU/energy gains remain open.
+
+The census script and its full key list are under
+`/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-1203/`. The port's
+[implementation notes](../../../docs/oot-notes/oot-1203-fix.md) contain validation,
+risks and the isolated Mac A/B recipe. No game run or full shader build was
+performed for this port.
+

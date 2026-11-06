@@ -233,6 +233,30 @@ def border_emu(msl):
         twin = f'spvDescriptorSet0.{m.group(2)}{abi.BORDER_TWIN}'
         msl = msl[:m.start()] + f'dm_bs({msl[m.start():i]}, spvDescriptorSet0.{abi.BORDER_MEMBER}, {bit[m.group(2)]}u, spvDescriptorSet0.{m.group(1)}, {twin}, {args})' + msl[i:]
     return msl.replace('using namespace metal;\n', 'using namespace metal;\n' + BORDER_HELPERS, 1)
+
+def border_plain(msl):
+    """The source without its border corrections (border_emu): every dm_bs(sample, …) back to the sample, the twin samplers and the block still declared, so the argument
+    buffer is the one the host encodes either way. The correction is a branch that is almost never taken, but the compiler gives its twin sample registers in every pixel:
+    Donkey Kong Bananza's material shader 6f9fd9cb5fbc873b spilled 336 bytes a thread with it and 160 without (its scene pass 5.1 → 3.2 ms on an M1), and Splatoon Raiders'
+    c0ae76e0ca76b574 592 and 0 (the 236-draw pass after the first cutscene 20-21 → 9.3 ms, the frame 31.6 → 19.8 ms). A pixel shader's main library <key>_b is this source;
+    <key>_b.metal keeps the correcting source, from which ps_libraries makes <key>_bb (the same entry points, correcting) and <key>_bx. The host takes <key>_bb only for a
+    draw whose border mask is not zero (nvn_mtl.m border_key)"""
+    at = msl.find(BORDER_HELPERS)
+    if at < 0: return msl
+    at += len(BORDER_HELPERS)
+    def strip(text):
+        out, i = [], 0
+        while (j := text.find('dm_bs(', i)) >= 0:
+            depth, k, first = 1, j + 6, None
+            while depth:
+                c = text[k]
+                if c == '(': depth += 1
+                elif c == ')': depth -= 1
+                elif c == ',' and depth == 1 and first is None: first = k
+                k += 1
+            out.append(text[i:j] + '(' + strip(text[j + 6:first]).strip() + ')'); i = k   # a sample inside the first argument is unwrapped too
+        return ''.join(out) + text[i:]
+    return msl[:at] + strip(msl[at:])
 CAS =os.environ.get('DMSH_CAS', os.path.join(cache_root, 'cas'))
 CAS_LOCKS, CAS_LOCKS_GUARD = {}, threading.Lock()
 PRE_STATS = collections.Counter()
@@ -365,7 +389,7 @@ def publish_cache(key, digest, rule_fp, code_fp):
         for name in names:
             if name.endswith('.json'):
                 src = os.path.join(out if label == 'mac' else IOSOUT, name)
-                value = json.load(open(src)); value.pop('fetch', None); value.pop('vin', None); value.pop('pull', None); value.pop('alpha', None); value.pop('logic', None); value.pop('limit16', None)   # the side libraries are made again from the restored MSL (fetch_finish, vin_finish, pull_finish, alpha_finish, logic_finish)
+                value = json.load(open(src)); value.pop('fetch', None); value.pop('vin', None); value.pop('pull', None); value.pop('alpha', None); value.pop('logic', None); value.pop('limit16', None); value.pop('border', None)   # the side libraries are made again from the restored MSL (fetch_finish, vin_finish, pull_finish, alpha_finish, logic_finish)
                 atomic_json(os.path.join(d, name), value)
     atomic_json(cache_meta_path(key), {'digest': digest, 'rule_fp': rule_fp, 'code_fp': code_fp})
 
@@ -448,6 +472,7 @@ def fetch_finish(key, src, refl):
 VIN_STATS = collections.Counter()
 PULL_STATS = collections.Counter()
 SIDE_STATS = collections.Counter()
+BORDER_STATS = collections.Counter()
 
 def pull_finish(key, full, refl):
     """The pulling library <key>_bp of a vertex shader with stage inputs (dmsh_pull.py: no [[stage_in]], the inputs read through the per-draw layout block), compiled through the
@@ -508,7 +533,7 @@ def vin_finish(key, full, refl):
     VIN_STATS['inputs'] += len(shadows); VIN_STATS['float only'] += sum(1 for s in shadows if 'sint' not in s and 'uint' not in s)
     return refl
 
-def ps_libraries(key, msl, full):
+def ps_correcting_libraries(key, msl, full):
     """A pixel shader's libraries: <key>_b, and <key>_bx with its alpha test and logic operation entry points, cut from one compile through the MSL-keyed Metal cache (dmsh_side.py). msl: the file of
     its plain source, full. A shader none of them apply to, or whose compile unit does not build, gets <key>_b from the plain source and no <key>_bx (a stale one removed): the host draws it
     without. → what the reflection says of them. Raises CalledProcessError when the plain source does not compile"""
@@ -546,6 +571,31 @@ def limit_finish(key, full, refl):
         LIMIT_STATS['failed'] += 1
         print(f'[RED] {key}: float16 output limit failed: {str(e)[:120]}', flush=True)
     return refl
+
+def ps_libraries(key, msl, full):
+    """Keep the original correcting _b/_bx assets. Opt-in _bn is disposable."""
+    result = ps_correcting_libraries(key, msl, full)
+    targets = [(t, d) for t, d in (('mac', out), ('ios', IOSOUT)) if d and t in TARGETS]
+    plain = stage_pass(border_plain, full) if os.environ.get('DM_NVN_BORDER_SPLIT') == '1' else full
+    for _, d in targets:
+        for suffix in ('_bb', '_bn'):
+            try: os.unlink(os.path.join(d, key + suffix + '.metallib'))
+            except FileNotFoundError: pass
+    if plain == full: return result
+    pm = os.path.join(w, key + '_plain.metal'); open(pm, 'w').write(plain)
+    try:
+        for t, d in targets: MTL.compile(t, pm, os.path.join(d, key + '_bn.metallib'))
+        result['border'] = {'entries': [m.group(1) for m in re.finditer(r'^\s*fragment\s+\S+\s+(\w+)\s*\(', full, re.M)]}
+        BORDER_STATS['generated'] += 1
+    except subprocess.CalledProcessError:
+        BORDER_STATS['failed'] += 1
+        for _, d in targets:
+            try: os.unlink(os.path.join(d, key + '_bn.metallib'))
+            except FileNotFoundError: pass
+        print(f'[RED] {key}: plain border variant unavailable; keeping correcting library', flush=True)
+    finally:
+        os.unlink(pm)
+    return result
 
 pc_of, loc = {}, {}
 MAP_ROWS, MAP_CONFLICT_ROWS = {}, {}
@@ -1628,6 +1678,7 @@ print(f'variant cache: generated {BF_STATS["generated"]}, hit {BF_STATS["hit"]},
 print(f'shadow-input libraries (<key>_bv, dmsh_vin.py): {VIN_STATS["generated"]} generated, {VIN_STATS["failed"]} failed to compile, {VIN_STATS["not generated"]} not generated; '
       f'{VIN_STATS["inputs"]} integer inputs shadowed, {VIN_STATS["float only"]} of them with no other-sign shadow (attribute indices ran out)')
 print(f'alpha test and logic operation libraries (<key>_bx, dmsh_side.py): {SIDE_STATS["generated"]} generated, {SIDE_STATS["failed"]} failed to compile, {SIDE_STATS["not generated"]} pixel shaders without either')
+print(f'optional plain libraries (<key>_bn, border_plain): {BORDER_STATS["generated"]} generated, {BORDER_STATS["failed"]} failed to compile', flush=True)
 print(f'pulling libraries (<key>_bp, dmsh_pull.py): {PULL_STATS["generated"]} generated, {PULL_STATS["failed"]} failed to compile, {PULL_STATS["not generated"]} not generated, '
       f'{PULL_STATS["no stage input"]} vertex shaders without stage inputs (none needed)')
 print('mesh libraries (<vertex>_<geometry>_m3, dmsh_mesh.py): ' + (', '.join(f'{k} {v}' for k, v in MESH_STATS.items()) or 'none'))
