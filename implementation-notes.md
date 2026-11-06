@@ -422,3 +422,10 @@ No game, full shader build, settings write, push or remote branch change ran.
 - Ported 0034c911's opt-in DM_TEX_RELEASE, probe mode, completion-gated discard and GPU donor copies. Preserved safe-GPU feedback and injected upload-loss handling.
 - Release refuses file-backed guests, active DM_NVN_TEX_DEDUPE, kernel-visible tracked ranges and ranges shared by multiple registrations. Existing dedupe remains the recoverable alternative.
 - DM_TEX_RELEASE=2 is destructive and experimental. Recreated textures of a different description or without a live donor can read zero pages. Keep it disabled until visual checks cover transitions and masks. No builds or tests ran.
+
+## Harvest 3: PR 1450 copy state
+
+- Ported the PR diff against origin/main, not its merge commit, so unrelated upstream changes were excluded.
+- DM_NVN_COPY_STATE=1 stores strides on cmd_t and snapshots them beside buffer/texture copy commands. Default-off preserves OP_COPY_STRIDE recording. Older captures still decode and replay.
+- Kept #1390's destination-range write marker instead of upstream's whole-pool API. No p1444 lane changes this command layout.
+- Added upstream capture-compatibility and 256-byte command-memory fixtures. They are not run while the game is active.
