@@ -435,6 +435,13 @@ Frame pacing: the host's frame step, engine frame limiters, present intervals an
 - **Fix:** main-thread registration calls the same `qos_apply` used by worker threads, before recording the actual class, and logs the resulting class. With diagnostics enabled, `DM_NVN_CPUPROF=1` measures inclusive CPU/wall time in pass begin/end, pipeline lookup, argument encoding, texture lookup, draw, geometry, and submission indexing. These nested phase times overlap. The thread regression confirms `0x21`; on-device performance remains to be validated.
 - **Found on:** [NieR:Automata US 1.0.3](../../dm/games/010056B015FE8000/README.md), where the slow gameplay captures show 159–160 million host translation instructions per frame, considerable scheduling delay, nominal thermal state, and ample memory headroom.
 
+### Uniform-copy consumers spin while their worker is delayed
+
+- **Symptom:** a thread waiting for uniform-shadow copies can burn CPU while another app delays the copy worker.
+- **Cause:** `ubc_wait` polls the completion counter with ARM yield and has no blocking path. The worker already sleeps when its input queue is empty.
+- **Fix:** optional Mac `DM_ECO_COPY_WAIT=1` waits on a separate completion condition variable. The worker publishes copied bytes with release ordering before broadcasting under the wait mutex. Consumers recheck with acquire ordering, including after spurious wakes. Default off for gameplay A/B; blocking can increase latency for short copies. Synthetic tests cover real queued copies, concurrent consumers, completed waits and spurious wakes. Gameplay CPU and energy savings remain unmeasured.
+- **Found on:** source audit for [Ocarina of Time](../../dm/games/0400486024DEC000/README.md), with other apps running as the target workload. No gameplay run was made for this change.
+
 ### Time-constraint computation declared below the thread's peaks
 
 - **Symptom:** stalls of 30–60 ms about once a second, at 30 fps and at 60 (99th percentile 63–127 ms); the main thread waits 20–34 ms for the render thread once a second.
