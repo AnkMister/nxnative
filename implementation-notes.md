@@ -357,3 +357,150 @@ separate from this task.
 | [#1404](https://github.com/seedds/nxnative/pull/1404) | `d3effb232b245a8f21ed0481221411ccbd51fdbb` | adapted | Drop the obsolete `born` field from the upstream pool shape; preserve dynamic capacity and chunk hints. Put dimension preflight in `pool_entry` so incremental and full table paths agree. Keep the stack's `gmem_map` name in the fixture. Upstream still lists unpinned entries and takes large pools whole; #1394 must filter them before use. |
 | [#1394](https://github.com/seedds/nxnative/pull/1394) | `a885f4be50b42e084571a4f34ed9a9a9b442a45e` | adapted | Combine persistent address marks with #1404's explicit-binding raw flags. Keep the nonpinning bounds check from #1404 instead of the duplicate resolver. Virtual remaps and replay stay conservative. Mark the 5,000-pool fixtures; preserve #1360's growth and #1405's hints/bitmap. SDK and storage-check duplicates are omitted. |
 | [#1408](https://github.com/seedds/nxnative/pull/1408) | `e81bfaba860b7ac00074729e290b8250f13b4dc8` | adapted | Keep both appended test rules and findings; the SDK shim is already present from #1409. Linear partition preserves pending order and reverse release order. The interleaved 100,000-reference fixture passes. |
+
+## Safety net
+
+`DM_SAFE_GPU=1` defaults on only for the Ocarina Mac build. Other builds default
+off. `DM_SAFE_GPU=0` restores the ported behavior for A/B tests. The ports are
+requested correctness changes. The default-off shared-context rule was not
+used to disable the explicitly requested safety build.
+
+The graphics state has a sticky stopped flag. Every NVN Metal 4 commit checks
+it at execution, including queued encode-worker records, uploads, main/segment
+buffers, presentation and snapshots. Every NVN Metal 3 commit also checks it.
+Error callbacks trip the gate before reporting or running completion work that
+might block. The first Metal error stops the process, including page faults,
+revoked/ignored submissions, out-of-memory and innocent-victim errors. Safe mode
+deliberately gives up recovery. Already submitted kernel work cannot be undone.
+The timer also trips if work is pending with no completion feedback for ten
+seconds. This measures aggregate feedback progress, not a deadline per shader.
+
+Before residency and queue commits, the guard checks the maximum of Metal's
+current allocations, tracked resource bytes including pending additions, and
+the residency size observed at its last commit. GPU cap = 70% of
+recommendedMaxWorkingSetSize. System wired pages are sampled every 100 ms;
+their cap = physical memory minus max(30% of recommendedMaxWorkingSetSize,
+2 GiB). Sampling avoids a host_statistics call per draw/allocation. Overlapping
+buffers count conservatively. A lower DM_NVN_RES_LIMIT_MB is honored; a higher
+value or zero cannot bypass safe mode. The underlying #1391 refusal also trips
+the gate, so refused residency never leads to submission of uncommitted work.
+These are conservative bounds, not a reservation of RAM against other apps.
+
+The host handoff runs off the failing callback/submit thread. It removes the
+main residency set from both queues, ends residency, clears its allocations,
+and removes snapshot and display-layer residency. It does not wait for GPU
+completion or call the normal graphics drain. It closes audio and exits with
+code 0. The cleanup has an independent exit fallback. If the residency mutex
+is stuck, the attempt is bounded and the log explicitly says release was not
+possible. If a Metal removal itself blocks, the fallback exits. A kernel call
+already unkillable can still outlive process exit. No software guarantee of
+WindowServer survival is claimed.
+
+A critical follow-up from issue comment 21 was reproduced after the ports:
+`tex_by_id` accepted a cached texture with no parent when the current backing
+was nil, because `v.parentTexture == cur` compared two nil values. The new
+stale-view fixture failed exactly that check (1 of 1,082). Requiring `cur`
+before comparing backing identities makes all 1,082 checks pass. This belongs
+to the integration safety fix because #1404 makes empty retired backing common.
+
+The implementation uses a single permanent stop state rather than a resettable
+per-submission error flag (Model the Domain). Ports were kept as separate local
+commits so each source adaptation can be inspected (Sequence Work into
+Verifiable Units). Both principle leaves were read. The pstack bug-fix steps
+used deterministic synthetic triggers because the user forbids a game run.
+Delegation, a separate reviewer and opening a PR are skipped because this is an
+implementation sub-agent with a local-only brief. The parent must review this
+branch independently before any gameplay acceptance.
+
+## Verification and limits
+
+All commands used the existing uv venv on PATH and the prescribed persistent
+TMPDIR. No dependencies were installed. At most four compiler jobs ran across
+concurrent commands. No game, regress.py, full shader build, third-party binary,
+iOS operation, baseline process control or protected-folder write was performed.
+The existing shader chain and translator binary remain unchanged by this branch.
+The requested host-only build uses the repository's own small host Metal shaders.
+
+Source-only ports were tested as they landed, then together. Evidence files
+are under `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-stable/`.
+The JSON there contains the issue body and all 21 comments read for this task.
+
+- `1391-test.log`: 20 guard checks plus 2 held-lock timer checks, all pass.
+- `1382-test.log`: 12 shader-name checks in each encoding mode, all pass.
+- `1409-test.log`: 162 CPU completion checks with fast wake off and 167 with it on,
+  in all four fast-wake/ledger combinations; 36 ordering checks in each of three Metal configurations.
+- `1404-test.log`: 1,079 raw-residency checks and 32 CPU-storage checks pass.
+- `1394-test.log`: 28 address-mark checks, 95 chunk/capacity checks and 61
+  actual translated GPU lookup checks pass (8,192-entry table, 5,001 ranges).
+- `1408-test.log`: 100,000 interleaved references preserve retention and order.
+- `integrated-gfx.log`: the above graphics targets plus 70 packaged/CPU texture
+  checks pass together with the safety net present. Naming/old guard fixtures
+  explicitly disable safe mode to exercise their original recovery semantics.
+- `stale-view-before.log`: the added missing-backing assertion fails before
+  the nil check. `final-gfx.log`: 1,082 raw-residency checks and both shader-name
+  configurations pass after it; hang, ignored, pending-allocation, watchdog,
+  legacy-error, debug-hook and opt-out safety fixtures pass.
+- `host-stop-test.log`: actual host lifecycle code in child processes verifies
+  release-before-cleanup, once-only dispatch, no graphics drain, exit status 0,
+  and exit when the release operation blocks.
+- `docs-tests.log`: 34 documentation, environment, graphics Makefile and chain
+  tests pass. The inherited DM_PRESENT_ABSOLUTE registry row was completed;
+  historical DM_NVN_CUT_FIRST / DM_NVN_HANGLOG mentions remain warnings only.
+
+The broader Metal suite, full host suite, five-game regression, real GPU faults,
+long-session residency, full-screen behavior and WindowServer survival are
+unverified. A fake callback proves the host's response, not driver recovery.
+Visual risk: address-exposure filtering and empty retired descriptors affect
+resource lookup. Preserve the parent stack's shader ABI and compare gameplay
+images during parent acceptance. The safeguard itself changes no shaders or
+rendering quality settings. On a busy Mac it can stop earlier by design.
+
+## Parent verification
+
+Use this worktree and the existing Python environment. No game is needed:
+
+```sh
+export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
+export PATH=/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin:$PATH
+make -j2 -C dm/gfx/tests GAME=0400486024DEC000 check_t_safe_gpu check_t_res_guard
+make -j2 -C dm/gfx/tests GAME=0400486024DEC000 check_t_gpu_hang_names check_t_raw_residency check_t_gmem_marks check_t_pool_chunks check_t_gmem_raw check_t_deferred_release perf-order-cpu check_t_perf_order check_t_cpu_tex check_t_cpu_storage
+make -C dm/host/tests GAME=0400486024DEC000 check_gpu_stop
+python -m unittest dm.tools.tests.test_docs dm.tools.tests.test_env_switches dm.tools.tests.test_gfx_tests_makefile dm.tools.tests.test_nsp_chain
+make -j2 -C dm/host GAME=0400486024DEC000 dmhost
+```
+
+If the parent explicitly authorizes a gameplay check, use independent prepared
+inputs and output/save directories, retaining their normal launch environment.
+Set `DM_SAFE_GPU=1 DM_TEST_GPU_HANG=1` on that launch. This injects a callback
+error after the first main command buffer; it does not intentionally hang the
+GPU. Expect the shader-name dump, a `[RED] DM_SAFE_GPU:` stop line, the residency
+release line, a clean host exit and status 0, with no later GPU commits. Do not
+use the running baseline or its save/temp folders. Compare a normal windowed
+run without the debug hook only after this forced-stop test and independent
+review. A deliberately low `DM_NVN_RES_LIMIT_MB` can check preventive stopping
+without exhausting real memory; zero does not turn safe mode off.
+
+The final residency-boundary fixture (`final-guard.log`) adds a separate case
+where Metal's set-size reading exceeds the cap while device/tracked allocations
+do not. It proves the refused residency commit also closes the submission gate.
+An original #1391 fixture exposed a CPU-reference race under parallel validation:
+feedback publishes g_done before releasing its local ready array. Its weak
+references may remain alive briefly after the fence. The fixture now waits up to
+one second for those CPU references, then checks release; no product wait or
+retry was added. The unchanged binary also passed immediately on replay, which
+is evidence for the race rather than a reason to ignore the failed run.
+
+Issue comment 21 also identifies alias takeover evicting the linear parent of a
+live sRGB view. The same serial-holder check now follows Metal texture parents
+for live and ghost holders. The guard fixture explicitly checks this ownership
+before idle eviction. It is a conservative O(n) scan like the existing direct
+holder scan; its gameplay CPU cost has not been measured.
+
+Final acceptance on the completed source is in `final-acceptance.log`: 159 safe
+GPU checks across eight fresh processes; 21 normal and 2 held-lock residency
+checks; 1,082 raw-residency/stale-view checks; 12 shader-name checks in each
+encoding mode; 70 packaged/CPU texture checks; and 32 CPU-storage checks. All
+1,390 checks pass. `host-build.log` is the successful final
+`make -j2 -C dm/host GAME=0400486024DEC000 dmhost` build. Compiler warnings remain;
+there is no game/runtime acceptance claim. Earlier `final-guard.log` retains
+the original fixture race failure; `final-acceptance.log` supersedes it.

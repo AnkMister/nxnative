@@ -62,11 +62,16 @@ static void eviction(void) {
     alias_key k; memset(&k, 0, sizeof k); k.pool = (uint64_t)(uintptr_t)&pool; k.off = seen.off; k.d = seen.d;
     pthread_mutex_lock(&g_smu); nvn_hm_put(&g_alias_seen, &k, (void *)(uintptr_t)(g_fence + 1)); pthread_mutex_unlock(&g_smu);   // a lookup just now
     id<MTLBuffer> staging = [g_dev newBufferWithLength:1 << 20 options:MTLResourceStorageModePrivate]; res_add(staging); g_up_slot_blk[1] = staging; __weak id<MTLBuffer> w_staging = staging; staging = nil;
+    CHECK(serial_holds(&g_by_serial, w_base), "a live sRGB view holds its linear parent for storage takeover too");
     uint64_t idle = g_alias_idle, gen = g_ser_gen;
     g_sub_thread = pthread_self(); atomic_store(&g_sub_thread_set, 1);
     guard_evict(1);
     CHECK(g_alias_idle == idle + 1 && g_ser_gen == gen + 1, "one entry left, one bump");
     settle();
+    // g_done is published before the feedback handler returns and releases its
+    // ready array. Its last CPU references may briefly outlive the GPU fence.
+    uint64_t deadline = bp_now() + 1000000000ull;
+    while ((w_dead || w_staging) && bp_now() < deadline) usleep(1000);
     CHECK(!w_dead, "the idle entry nothing holds is gone");
     CHECK(w_live && in_set(w_live), "a live object's texture stays, and stays resident");
     CHECK(w_seen && in_set(w_seen), "an entry a lookup found lately stays");
@@ -103,7 +108,7 @@ static void stuck(void) {
 int main(int argc, char **argv) { @autoreleasepool {
     (void)argv; signal(SIGTERM, on_term);
     setenv("DM_NVN_RES_LIMIT_MB", "0", 1);   // this test sets the levels itself
-    mtl_init();
+    setenv("DM_SAFE_GPU", "0", 1); mtl_init();
     if (argc > 1) stuck();
     else { levels(); commits(); eviction(); stop(); }
     printf("t_res_guard: %d checks, %d failed\n", checks, failed);

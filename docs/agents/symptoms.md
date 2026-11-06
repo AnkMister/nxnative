@@ -142,6 +142,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - process footprint and Metal allocation grow during stationary gameplay even after readback fences complete; the deferred-release queue and command allocator sizes remain bounded. → [Completion readbacks survive a guest waiter's pool](../reference/memory.md#completion-readbacks-survive-a-guest-waiters-pool)
 - a game ends stuck after `[RED] GPU out of memory`, or the Mac itself freezes until the power button; on an 8 GB Mac, WindowServer's watchdog restarts the desktop. Now: `[RED] GPU memory guard: ... stopping the game before the driver cannot wire more`, the report of what the residency set holds, and an alert before the app quits. → [GPU memory past Metal's working set freezes the Mac](../reference/memory.md#gpu-memory-past-metals-working-set-freezes-the-mac)
 - `footprint` shows `Malloc Large` about the size of `pso_archive/` (the log's `pipeline archive …: N files, … MB`), resident for the whole run. `MallocStackLogging=1` with `malloc_history <pid> -allBySize` gives `newArchiveWithURL` → `MTL4ArchiveImpl::loadFromURL` → `LoaderGlobalState::loadFile` → `-[NSData initWithContentsOfFile:options:maxLength:error:]` → malloc. → [A pipeline archive on an external drive is read into memory](../reference/memory.md#a-pipeline-archive-on-an-external-drive-is-read-into-memory)
+- a GPU hang or ignored submission is followed by more failed submissions, or a residency burst leaves too little wired memory for the desktop. → [Fail-stop GPU safety for a Mac shared with other apps](../reference/memory.md#fail-stop-gpu-safety-for-a-mac-shared-with-other-apps)
 
 ## Threads
 
@@ -539,9 +540,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - `nvnWindowGetPresentInterval`, `nvnCommandBufferSetCopyImageStride` missing. → [SDK 8 window and copy-stride entry points](../reference/nvn-objects.md#sdk-8-window-and-copy-stride-entry-points)
 - `[RED] texture bound to an image slot lacks the shader-write usage`, and compute image writes go to a dummy texture. → [Image bindings supply shader-write intent](../reference/nvn-objects.md#image-bindings-supply-shader-write-intent)
 - the host stops with `NSInvalidArgumentException: -[NvPkg buffer]: unrecognized selector sent to instance` under `tex_by_id` (via `pool_entry`, `pool_gpu`, `encode_args_`, `draw_`, `mesh_tasks_draw`); not a GPU hang, no `kIOGPU` errors. Or a `[RED] texture serial N has a packaged entry but is not CPU-written` line. → [A packaged texture entry handed out as the texture](../reference/nvn-objects.md#a-packaged-texture-entry-handed-out-as-the-texture)
-
 - a Switch 2 load makes private textures and their tiled guest copies resident together. Bindless descriptor scans can also allocate fresh zero-filled textures for retired objects whose aliases have already been replaced, triggering more alias takeovers and table rebuilds. → [A raw address table pins CPU-only pools and revives retired textures](../reference/nvn-objects.md#a-raw-address-table-pins-cpu-only-pools-and-revives-retired-textures)
-
 - a large mixed queue of completed and pending GPU references stalls cleanup on the CPU. → [Deferred releases repeatedly shift pending entries](../reference/nvn-objects.md#deferred-releases-repeatedly-shift-pending-entries)
 
 ## Rendering

@@ -114,7 +114,21 @@ static void texture_classes(void) {
     mtl_reg_tex(TID,NULL,NULL); mtl_reg_tex(TID+1,NULL,NULL); mtl_tex_release(&volume); mtl_tex_release(&cube);
     mtl_alias_drop_pool(&pool); mtl_pool_del(mem); mtl_finish(); munmap(mem,SIZE);
 }
+static void stale_cached_view(void) {
+    tex_t t = {.magic=MAGIC('T','E','X',0), .serial=nvn_new_serial(),
+        .d={.target=NVN_TEXTURE_TARGET_2D, .format=NVN_FORMAT_RGBA8,
+            .flags=NVN_TEXTURE_FLAGS_COMPRESSIBLE, .width=64, .height=64, .depth=1, .levels=1, .samples=1}};
+    nvn_tex_layout(&t.d, &t.L); mtl_tex_init(&t); mtl_reg_tex(32000, &t, NULL);
+    mtl_sub_begin(); os_unfair_lock_lock(&g_rmu);
+    id<MTLTexture> old = tex_by_id(32000);
+    CHECK(old && !old.parentTexture, "cached base has no parent");
+    serial_del(t.serial); g_treg[32000].gone = 1; g_ser_gen++;
+    CHECK(!tex_by_id(32000), "a missing backing invalidates its cached base view");
+    os_unfair_lock_unlock(&g_rmu);
+    CHECK(mtl_wait(mtl_sub_commit(), 5000000000ull), "stale-view test completes");
+    mtl_reg_tex(32000, NULL, NULL); mtl_tex_release(&t);
+}
 int main(void) { @autoreleasepool {
-    mtl_init(); retired_gpu_aliases(); raw_address_apis(); texture_classes();
+    mtl_init(); retired_gpu_aliases(); raw_address_apis(); texture_classes(); stale_cached_view();
     printf("raw residency: %d checks, %d failed\n", checks, failed); return failed != 0;
 } }
