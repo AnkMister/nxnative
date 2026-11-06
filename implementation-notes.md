@@ -685,3 +685,8 @@ game run, shader corpus build, push or PR is authorized here.
 - 8708bcd3's NUP icon validation rejects non-image control data with
   DM_OOT_BRENT=1. Keep the old extraction policy when disabled. This affects
   packaging only, not rendered game frames.
+
+- #1368 resolution 9a7a5ff0 keeps an empty fragment function for genuinely
+  depth-only native meshes. DM_NVN_VISUAL=1 enables it. Track missing declared
+  pixel shaders separately so they are never replaced by that empty function.
+  The prewarm test builds an actual depth-only mesh pipeline on Metal.

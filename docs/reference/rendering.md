@@ -1435,3 +1435,12 @@ Digimon Story Cyber Sleuth: Complete Edition (Media.Vision's MVGL engine, SDK 6.
 - **Fix:** the present reports the shape of the frame it draws, the valid rectangle of the presented texture, whenever its width / height changes (`nvn_mtl.m` `present_now` → `front.h` `front_picture_shape`; every graphics API presents there). The iOS front end lays the game's view out in that shape (`DmLayout.h` takes it as a parameter: the overlay, the split, Fill and the TV alike), so a 1.43:1 picture fills a 1.43:1 screen in Fit and touches are normalized on the picture as drawn; the Mac maps the mouse on the picture's own rectangle. A 16:9 game reports 16:9 and keeps its layout, and a size change of the same shape (1280x720 handheld, 1920x1080 docked) is not reported.
 - **Check:** the [Duo harness](../../dm/ios/tests/duo/README.md) tests the taller picture in Fit, in Fill and on a wider screen, and the production root view following a reported shape and returning to 16:9. Not yet run on a device.
 - **Found on:** [Breath of the Wild](../../dm/games/01007EF00011E000/README.md#screen-shape-dm_screen_aspect-current) and [Animal Crossing: New Horizons](../../dm/games/01006F8002326000/README.md#screen-shape-dm_screen_aspect-current) with `DM_SCREEN_ASPECT=1.43`.
+
+## A depth-only native mesh pipeline needs a fragment function
+
+Symptom: Metal rejects a native mesh program with no pixel stage.
+Cause: the mesh pipeline descriptor had a nil fragmentFunction.
+Fix: with DM_NVN_VISUAL=1, use an empty fragment function for a genuinely
+depth-only program. A declared pixel shader that failed to load still skips its
+draw. Ported from oot-combined's #1368 resolution 9a7a5ff0.
+Found on: [Ocarina](../../dm/games/0400486024DEC000/README.md).
