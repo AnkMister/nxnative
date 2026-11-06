@@ -398,6 +398,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 
 ## Frame rate
 
+- a stopped game's display link keeps receiving empty callbacks; a covered or unfocused window can continue rendering. → [Repeated scan-out and unwatched window work](../reference/frame-rate.md#repeated-scan-out-and-unwatched-window-work)
 - clang reports division by zero in `fstep_tick` (`hle_nvn.c`). → [Frame cap checked and used from the same sample](../reference/frame-rate.md#frame-cap-checked-and-used-from-the-same-sample)
 - a 30 fps game to run at 60; after the floor was lowered, slow motion on a GPU-bound device (GitHub issue #9). → [sead's dynamic present interval, `ksys::VFR` and the host's frame step](../reference/frame-rate.md#seads-dynamic-present-interval-ksysvfr-and-the-hosts-frame-step)
 - `scripts/regress.py` reports a hang (`no frame after … s`, a state dump with every game thread waiting) in some runs of Tears of the Kingdom, baseline and candidate alike; the log's last focus line before it is `oe focus state → 2`, with no `→ 1` after it. → [A regress run stops when another app takes the key window](../reference/frame-rate.md#a-regress-run-stops-when-another-app-takes-the-key-window)

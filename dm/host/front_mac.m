@@ -16,6 +16,7 @@
 #include "dm.h"
 #include "dm_input.h"
 #include "front.h"
+#include "../gfx/nvn/nvn_eco.h"
 #include "hle.h"
 #include "pad_slots.h"
 #include "haptics_apple.h"
@@ -64,6 +65,28 @@ int front_fullscreen(void) { return g_fullscreen; }   // nvn_mtl.m link_latency:
 // for 60 and 30 fps), for this app only: macOS switches it back when the host quits, crashes included, and leaving fullscreen or that screen switches it back at once. A window keeps the
 // screen's rate, because the switch changes the whole screen for every app and most external screens go black for a second or more. A screen with no such mode keeps the virtual ticks
 static NSWindow *g_win; static _Atomic int g_match_want;   // the game's window; the frame rate to match (0 = not known yet), written by the present thread only
+// Main-thread policy, independent of the game's requested focus-handling mode.
+extern void mtl_link_pause(int on);
+extern void mtl_present_discard(int on);
+static void eco_window_update(void) {
+    nvn_eco_mode mode = nvn_eco_hidden_mode();
+    if (!mode || !g_win) return;
+    int hidden = nvn_eco_hidden(NSApp.isActive, g_win.isKeyWindow,
+        (g_win.occlusionState & NSWindowOcclusionStateVisible) != 0, g_win.miniaturized, g_text_box);
+    static int was = -1;
+    if (hidden == was) return;
+    int paused = hidden && mode == NVN_ECO_PAUSE;
+    was = hidden;
+    nvn_eco_set_hidden(hidden);
+    if (paused) {
+        dm_focus_set(2); guest_clock_freeze_for(3, 1);
+        dm_audio_suspend(1); mtl_present_discard(1); dm_gfx_suspend(1); mtl_link_pause(1);
+    } else {
+        mtl_link_pause(0); dm_gfx_suspend(0); mtl_present_discard(0); guest_clock_freeze_for(3, 0);
+        dm_audio_suspend(0); dm_focus_set(1);
+    }
+    LOG("[eco] window %s: %s", hidden ? "unwatched" : "watched", paused ? "clock frozen, graphics and audio suspended" : hidden ? "8 Hz acquire/vsync limit, focus kept" : "normal clock and presentation");
+}
 static CGDirectDisplayID g_match_id; static CGDisplayModeRef g_match_orig;   // main thread: the screen this host switched and its own mode (NULL = none switched)
 static double mode_hz(CGDisplayModeRef m) { double hz = CGDisplayModeGetRefreshRate(m); return hz > 0 ? hz : 0; }   // 0 = not known (older built-in screens report none)
 static int hz_multiple(double hz, int fps) { double k = round(hz / fps); return k >= 1 && fabs(hz / fps - k) < 0.01; }   // 59.94 Hz counts as 60
@@ -446,7 +469,7 @@ void front_picture_shape(int w, int h) { if (w > 0 && h > 0) g_picture_aspect = 
     CAMetalLayer *l = (CAMetalLayer *)self.layer; if (![l isKindOfClass:CAMetalLayer.class] || !self.window) return;
     l.contentsScale = self.window.backingScaleFactor;
     NSSize px = [self convertSizeToBacking:self.bounds.size]; if (px.width < 1 || px.height < 1 || CGSizeEqualToSize(l.drawableSize, px)) return;
-    l.drawableSize = px; LOG("front end: drawable %.0fx%.0f", px.width, px.height);
+    l.drawableSize = px; nvn_eco_surface_changed(); LOG("front end: drawable %.0fx%.0f", px.width, px.height);
 }
 - (void)setFrameSize:(NSSize)s { [super setFrameSize:s]; [self fitDrawable]; }
 - (void)viewDidChangeBackingProperties { [super viewDidChangeBackingProperties]; [self fitDrawable]; }
@@ -1349,7 +1372,7 @@ void front_run(void (*guest)(void)) {
         // DM_WINDOW_TOP=1 orders it in front without activation and keeps it above other apps' windows; the log names every change of the window's visibility either way
         if (getenv("DM_WINDOW_TOP") && atoi(getenv("DM_WINDOW_TOP"))) { win.level = NSFloatingWindowLevel; [win orderFrontRegardless]; LOG("front end: window kept in front (DM_WINDOW_TOP)"); }
         [[NSNotificationCenter defaultCenter] addObserverForName:NSWindowDidChangeOcclusionStateNotification object:win queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *n) {
-            (void)n; static int vis = -1; int v = (win.occlusionState & NSWindowOcclusionStateVisible) != 0; if (v == vis) return; vis = v;
+            (void)n; eco_window_update(); nvn_eco_surface_changed(); static int vis = -1; int v = (win.occlusionState & NSWindowOcclusionStateVisible) != 0; if (v == vis) return; vis = v;
             if (v) LOG("front end: window visible"); else LOG("front end: window covered (its display link fires about once a second: frame times measure nothing)"); }];
         // Main menu: AppKit runs ⌘ shortcuts only through menu items, so ⌘Q quits and ⌃⌘F toggles fullscreen from here (AppKit shows the item as Globe-F and keeps ⌃⌘F as a hidden twin)
         NSMenu *bar = [NSMenu new], *app = [NSMenu new], *wm = [[NSMenu alloc] initWithTitle:@"Window"];
@@ -1424,10 +1447,13 @@ void front_run(void (*guest)(void)) {
         // DM_FOCUS_KEEP=1 (scripts/regress.py): the game stays in focus while its window is up, whichever app is active. Tears of the Kingdom stops presenting out of focus, so
         // another app taking the key window during an unattended run read as a hang (no frame after the last focus change)
         static int keep = -1; if (keep < 0) keep = getenv("DM_FOCUS_KEEP") && atoi(getenv("DM_FOCUS_KEEP"));
-        [nc addObserverForName:NSWindowDidResignKeyNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; input_release(); if (!win.miniaturized && !g_text_box && !keep) dm_focus_set(2); }];
-        [nc addObserverForName:NSWindowDidBecomeKeyNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; input_resume(); dm_focus_set(1); }];
-        [nc addObserverForName:NSWindowDidMiniaturizeNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; input_release(); dm_focus_set(3); dm_audio_suspend(1); dm_gfx_suspend(1); }];
-        [nc addObserverForName:NSWindowDidDeminiaturizeNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; dm_gfx_suspend(0); dm_audio_suspend(0); dm_focus_set(2); }];
+        [nc addObserverForName:NSWindowDidResignKeyNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; input_release(); if (nvn_eco_hidden_mode()) { eco_window_update(); return; } if (!win.miniaturized && !g_text_box && !keep) dm_focus_set(2); }];
+        [nc addObserverForName:NSWindowDidBecomeKeyNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; input_resume(); if (nvn_eco_hidden_mode()) { eco_window_update(); return; } dm_focus_set(1); }];
+        [nc addObserverForName:NSWindowDidMiniaturizeNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; input_release(); if (nvn_eco_hidden_mode()) { eco_window_update(); return; } dm_focus_set(3); dm_audio_suspend(1); dm_gfx_suspend(1); }];
+        [nc addObserverForName:NSWindowDidDeminiaturizeNotification object:win queue:nil usingBlock:^(NSNotification *n) { (void)n; if (nvn_eco_hidden_mode()) { eco_window_update(); return; } dm_gfx_suspend(0); dm_audio_suspend(0); dm_focus_set(2); }];
+        for (NSNotificationName nm in @[NSApplicationDidBecomeActiveNotification, NSApplicationDidResignActiveNotification, NSApplicationDidHideNotification, NSApplicationDidUnhideNotification])
+            [nc addObserverForName:nm object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *n) { (void)n; eco_window_update(); nvn_eco_surface_changed(); }];
+        eco_window_update();
         display_awake(win.isKeyWindow);   // the window may have become key (makeKeyAndOrderFront above) before these observers were installed
         // Guest thread: 64 MiB stack (the Switch main thread stack is specified by npdm; the host gives plenty)
         static guest_arg ga; ga.fn = guest;

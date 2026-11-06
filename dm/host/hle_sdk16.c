@@ -1,6 +1,7 @@
 // System service interfaces used by games on newer SDKs (16.x): oe / time / pl (shared font) / vi vsync / diag.
 // On the real device all of these go through Horizon system services (IPC); the host gives values directly or makes them "unavailable".
 #include "hle.h"
+#include "../gfx/nvn/nvn_eco.h"
 #include <fcntl.h>
 #include <pthread.h>
 #include <pthread/qos.h>
@@ -294,8 +295,9 @@ static void *vsync_thread(void *arg) {
     vsync_event_t *v = arg;
     dm_host_helper_qos(QOS_CLASS_USER_INTERACTIVE);   // the game paces frames on this event
     const char *e = getenv("DM_VSYNC_HZ"); double hz = e ? atof(e) : 60.0; if (hz <= 0) hz = 60.0;
-    uint64_t period = (uint64_t)(1e9 / hz), next = now_ns() + period, seen = 0;
+    uint64_t period = (uint64_t)(1e9 / hz), next = now_ns() + period, seen = 0, eco_next = 0;
     for (;;) {
+        nvn_eco_wait(&eco_next);
         if (!e && mtl_link_wait_vsync(&seen, 2 * period)) { if (!vsync_tick(v)) break; next = now_ns() + period; continue; }
         uint64_t t = now_ns(); if (next > t) { struct timespec ts = {(time_t)((next - t) / 1000000000ull), (long)((next - t) % 1000000000ull)}; nanosleep(&ts, NULL); }
         if (!vsync_tick(v)) break;

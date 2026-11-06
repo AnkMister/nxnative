@@ -25,6 +25,8 @@
 #include "nvn_builtin.h"
 #include "host_msl.h"
 #include "nvn_dirty.h"
+#include "nvn_eco.h"
+static _Atomic uint64_t g_eco_work, g_eco_displayed;
 #include "nvn_depth_clear.h"
 #include "nvn_refl.h"
 #include "nvn_cover.h"
@@ -904,6 +906,7 @@ void mtl_prepare(void) {
 }
 static void sub_cut_begin(void);
 void mtl_sub_begin(void) {
+    if (nvn_eco_same_on()) atomic_fetch_add(&g_eco_work, 1);
     mtl_init(); g_sub_serial++; g_seg = 0; seg_clk_put(g_sclk); g_sclk = NULL; g_rc_npend = 0; g_rc_skip = 0;
     sub_cut_begin();
     defer_drain();
@@ -1771,6 +1774,7 @@ uint64_t mtl_sub_commit(void) {
     g_cb = nil;
     g_commit_blocks = nil;
     objc_autoreleasePoolPop(g_sub_pool); g_sub_pool = NULL;
+    if (nvn_eco_same_on()) atomic_fetch_add(&g_eco_work, 1);
     return fence;
 }
 
@@ -13171,7 +13175,7 @@ static void present_gpu_note(double s, int fx) {
     n[fx] = 0;
 }
 static double g_link_it_tin;   // Enqueue time of the frame the display-link callback is presenting (read and written only on the display-link thread)
-static int present_now(const tex_t *t, double period, uint64_t frame, uint64_t ticket, const int crop[4], id<CAMetalDrawable> supplied, double target_ts) {
+static int present_now(const tex_t *t, double period, uint64_t frame, uint64_t ticket, const int crop[4], id<CAMetalDrawable> supplied, double target_ts, uint64_t work, int own) {
     if (g_present_stall_ns) { struct timespec ts = {0, (long)g_present_stall_ns}; nanosleep(&ts, NULL); }
     g_present_n++;
     if (bootprof() && (g_present_n == 1 || g_present_n % 120 == 0)) {
@@ -13236,6 +13240,33 @@ static int present_now(const tex_t *t, double period, uint64_t frame, uint64_t t
 #endif
     present_pipeline(layer.pixelFormat);   // Same as the original path: the first frame compiles the pipeline before taking the drawable
     if (g_grab_cb) grab_present(src, crop, layer.drawableSize);   // Game picture needed by the whole-window screenshot (peek without the lock first; the real take locks inside the function)
+    static nvn_eco_detector eco;
+    static uint64_t eco_ticket, eco_skipped, eco_considered;
+    nvn_eco_image image = {0}; int known = 0;
+    if (nvn_eco_same_on()) {
+        image = (nvn_eco_image){.serial = t->serial, .resource = src.gpuResourceID._impl,
+            .work = work, .surface = nvn_eco_surface(), .width = (uint64_t)layer.drawableSize.width,
+            .height = (uint64_t)layer.drawableSize.height, .format = layer.pixelFormat,
+            .origin = atomic_load(&g_origin_ll)};
+        if (crop) memcpy(image.crop, crop, sizeof image.crop);
+        // Guest memory and external producers have no complete write certificate here.
+        // Private, non-aliased GPU-only storage can change only through a submission.
+        known = own && t->pool && (t->pool->flags & NVN_MEMORY_POOL_FLAGS_CPU_NO_ACCESS) &&
+            !(t->pool->flags & NVN_MEMORY_POOL_FLAGS_VIRTUAL) &&
+            !(t->d.flags & NVN_TEXTURE_FLAGS_SPARSE) && src.storageMode == MTLStorageModePrivate &&
+            !src.buffer && !src.iosurface && !tex_from_storage(t) && work == atomic_load(&g_eco_work);
+        pthread_mutex_lock(&g_pq_mu);
+        int displayed = eco_ticket && atomic_load(&g_eco_displayed) == eco_ticket;
+        int same = nvn_eco_same(&eco, &image, known && displayed && !g_pq_inflight);
+        if (same) g_pres[ticket % PRING] = (pres_ent){ticket, target_ts > 0 ? target_ts : CACurrentMediaTime()};
+        pthread_mutex_unlock(&g_pq_mu);
+        eco_considered++; eco_skipped += same;
+        if (eco_considered % 300 == 0 && (getenv("DM_NVN_LOG") || getenv("DM_METAL_HUD")))
+            MLOG("[eco] considered %llu, skipped %llu, display GPU command buffers avoided %llu; guest submissions avoided 0",
+                (unsigned long long)eco_considered, (unsigned long long)eco_skipped, (unsigned long long)eco_skipped);
+        if (same) return 0;   // Core Animation retains the last image; a drawable may be presented only once.
+        eco.valid = 0;
+    }
     uint64_t dt0 = now_ns();
     id<CAMetalDrawable> dr = supplied ? supplied : [layer nextDrawable];
     if (!supplied) g_drawable_ns += now_ns() - dt0;
@@ -13287,11 +13318,13 @@ static int present_now(const tex_t *t, double period, uint64_t frame, uint64_t t
     [dr addPresentedHandler:^(id<MTLDrawable> d) {   // Actual presentation time (the time this frame is really put on screen, CACurrentMediaTime base)
         CFTimeInterval tt = d.presentedTime;
         g_pres[pn % PRING] = (pres_ent){pn, tt > 0 ? tt : -1};
+        if (nvn_eco_same_on() && tt > 0) atomic_store(&g_eco_displayed, pn);
     }];
     // Each frame is displayed for at least one present period: when the GPU completion time jitters around a 120 Hz refresh boundary, the paired "25 ms + 8.33 ms" stutter no longer appears
     if (target_ts > 0) [dr present];
     else if (period > 0) [dr presentAfterMinimumDuration:period]; else [dr present];
 #endif
+    if (nvn_eco_same_on()) { nvn_eco_record(&eco, &image, known); eco_ticket = ticket; }
     (void)frame;
     return 1;
 }
@@ -13302,14 +13335,14 @@ static int present_now(const tex_t *t, double period, uint64_t frame, uint64_t t
 // Swapchain texture return: before AcquireTexture gets a texture it waits for the ticket of that texture's previous present to be processed (mtl_present_wait), after which the commands the game draws into it
 // are necessarily ordered after that blit on the GPU queue.
 #define PQ 8
-typedef struct { tex_t t; double period; uint64_t frame; int crop[4]; double t_in; uint64_t ev_val, snap_v; } pq_item;   // snap_v: the snapshot copy this present shows (snap_commit_wait)   // t_in: the time the game handed this frame into the present queue (CACurrentMediaTime); ev_val: see g_ext_ev
+typedef struct { tex_t t; double period; uint64_t frame; int crop[4]; double t_in; uint64_t ev_val, snap_v, eco_work; int eco_own; } pq_item;   // snap_v: the snapshot copy this present shows (snap_commit_wait)   // t_in: the time the game handed this frame into the present queue (CACurrentMediaTime); ev_val: see g_ext_ev
 // External producer (the Vulkan layer, dm/gfx/vk) renders on its own queue and signals this event when a frame's rendering is done: the present of that frame waits for the value on g_q4
 static id<MTLSharedEvent> g_ext_ev;
 static void ext_wait(uint64_t v) { if (v && g_ext_ev) [g_q4 waitForEvent:g_ext_ev value:v]; }
 static void snap_commit_wait(uint64_t v);
 static pq_item g_pq[PQ];
 static uint64_t g_pq_in;
-static int present_now(const tex_t *, double, uint64_t, uint64_t, const int[4], id<CAMetalDrawable>, double);
+static int present_now(const tex_t *, double, uint64_t, uint64_t, const int[4], id<CAMetalDrawable>, double, uint64_t, int);
 static double g_link_vperiod, g_link_vhalf;   // virtual ticks (link_range): seconds per counted tick (0 = every callback is a tick) and half a refresh of the screen
 
 @interface NvMetalDisplayLinkDelegate : NSObject <CAMetalDisplayLinkDelegate>
@@ -13332,6 +13365,8 @@ static uint64_t g_rescue_back_at, g_rescue_back_ns = 3000000000ull, g_rescue_n;
 // but it is not counted as stuck and no failure is reported; the stall is measured from the later of "the most recent callback / the most recent activation" (A16 logs: 8–17 seconds inactive and 17 seconds in the background were both reported as "stuck in foreground")
 __attribute__((weak)) int dm_focus_now(void) { return 1; }   // The host's hle_oe.c provides the strong definition; when graphics unit tests do not link the host it is treated as always active
 __attribute__((weak)) uint64_t dm_focus_in_since(void) { return 0; }
+static CAMetalDisplayLink *g_link;
+static unsigned g_eco_tick_waiters;   // g_pq_mu
 @implementation NvMetalDisplayLinkDelegate
 - (void)metalDisplayLink:(CAMetalDisplayLink *)link needsUpdate:(CAMetalDisplayLinkUpdate *)update {
     (void)link;
@@ -13356,7 +13391,7 @@ __attribute__((weak)) uint64_t dm_focus_in_since(void) { return 0; }
     pthread_cond_broadcast(&g_link_cv);
     pthread_mutex_unlock(&g_link_mu);
     pthread_mutex_lock(&g_pq_mu);
-    if (!g_dm_present_link || g_rescue_mode || g_pq_read == g_pq_in) { if (g_dm_present_link && !g_rescue_mode) g_link_empty++; pthread_mutex_unlock(&g_pq_mu); return; }
+    if (!g_dm_present_link || g_rescue_mode || g_pq_read == g_pq_in) { if (g_dm_present_link && !g_rescue_mode) g_link_empty++; if (nvn_eco_same_on() && !g_eco_tick_waiters && g_pq_read == g_pq_in) link.paused = YES; pthread_mutex_unlock(&g_pq_mu); return; }
     // The previous frame's present interval was >= 2 (period > 25 ms): keep it on screen for its whole period before taking the next one, as the Switch flips only every N vertical syncs. This also holds while the link runs at 60 Hz (Mario 1.2.1 sets 2 for single frames, see nvn_game_fps in hle_nvn.c);
     //   before, every tick took the newest frame, so that frame, carrying the extra time step the game advanced for it, was shown for only 16.7 ms and the game looked like it jumped ahead
     if (g_link_hold_until > 0 && update.targetPresentationTimestamp < g_link_hold_until - tol) { g_link_held++; pthread_mutex_unlock(&g_pq_mu); return; }
@@ -13375,7 +13410,7 @@ __attribute__((weak)) uint64_t dm_focus_in_since(void) { return 0; }
     pthread_mutex_unlock(&g_pq_mu);
     int submitted;
     ext_wait(it.ev_val); snap_commit_wait(it.snap_v);
-    @autoreleasepool { submitted = present_now(&it.t, it.period, it.frame, ticket, it.crop, update.drawable, update.targetPresentationTimestamp); }
+    @autoreleasepool { submitted = present_now(&it.t, it.period, it.frame, ticket, it.crop, update.drawable, update.targetPresentationTimestamp, it.eco_work, it.eco_own); }
     g_link_hold_until = submitted && it.period > 0.025 ? update.targetPresentationTimestamp + it.period : 0;
     if (!submitted) {
         pthread_mutex_lock(&g_pq_mu);
@@ -13386,7 +13421,7 @@ __attribute__((weak)) uint64_t dm_focus_in_since(void) { return 0; }
 }
 @end
 
-static CAMetalDisplayLink *g_link; static CFRunLoopRef g_link_rl; static int g_link_started;
+static CFRunLoopRef g_link_rl; static int g_link_started;
 static int g_link_owns_layer, g_classic_busy;   // Under g_pq_mu: nextDrawable throws while the layer has the display link object attached, so the present thread that takes its own drawable and the display link object are mutually exclusive
 static int link_on(void) { return g_dm_present_link && !atomic_load(&g_rescue_mode) && g_link != nil; }
 // Screens whose refresh rate is not a multiple of the link's (144 or 165 Hz against 60 or 30): asked for 60 Hz, the system fires the link on every third refresh of a 165 Hz screen,
@@ -13439,7 +13474,7 @@ static void *link_main(void *arg) {   // Display link thread: started when switc
 static void link_sync(void) {   // Called every frame by the game's present thread: aligns the display link object's state to g_dm_present_link and the power-saving mode (can change at run time)
     static int applied;
     pthread_mutex_lock(&g_pq_mu);
-    int want = g_dm_present_link;
+    int want = nvn_eco_is_hidden() && nvn_eco_hidden_mode() == NVN_ECO_SLOW ? 0 : g_dm_present_link;
     if (want < 0 || want > 2) { g_dm_present_link = applied == 3 ? 1 : applied; pthread_mutex_unlock(&g_pq_mu); return; }
     if (g_rescue_mode && (want != g_rescue_mode || now_ns() >= g_rescue_back_at)) {
         g_rescue_mode = 0; g_stall_t0 = 0; __atomic_store_n(&g_link_tick_ns, now_ns(), __ATOMIC_RELAXED);
@@ -13499,7 +13534,7 @@ static void *present_main(void *arg) {
         pthread_mutex_unlock(&g_pq_mu);
         int submitted;
         ext_wait(it.ev_val); snap_commit_wait(it.snap_v);
-        @autoreleasepool { submitted = present_now(&it.t, it.period, it.frame, ticket, it.crop, nil, 0); }
+        @autoreleasepool { submitted = present_now(&it.t, it.period, it.frame, ticket, it.crop, nil, 0, it.eco_work, it.eco_own); }
         pthread_mutex_lock(&g_pq_mu); g_classic_busy = 0; pthread_cond_broadcast(&g_pq_cv); pthread_mutex_unlock(&g_pq_mu);
         if (!submitted) {
             pthread_mutex_lock(&g_pq_mu);
@@ -13664,9 +13699,10 @@ static uint64_t present_enqueue(const tex_t *t, double period, const int crop[4]
     }
     pthread_mutex_lock(&g_pq_mu);
     while (g_pq_in - g_pq_done >= PQ) pthread_cond_wait(&g_pq_cv, &g_pq_mu);   // Wait only when the queue is full; normally AcquireTexture blocks first
-    pq_item *it = &g_pq[g_pq_in % PQ]; *it = (pq_item){*t, period, atomic_load(&g_cur_frame), {0}, CACurrentMediaTime(), ev_val, ss ? g_snap[slot].ev : 0};
+    pq_item *it = &g_pq[g_pq_in % PQ]; *it = (pq_item){*t, period, atomic_load(&g_cur_frame), {0}, CACurrentMediaTime(), ev_val, ss ? g_snap[slot].ev : 0, atomic_load(&g_eco_work), !ev_val && !ss};
     if (crop) memcpy(it->crop, crop, sizeof it->crop);   // The current frame's state is enqueued with the ticket number, rather than reading the mutable window late on the present thread
     uint64_t tk = ++g_pq_in;
+    if (nvn_eco_same_on()) g_link.paused = NO;
     if (ss) { g_snap[slot].ticket = tk; atomic_fetch_add(&g_snap_next, 1); }
     pthread_cond_broadcast(&g_pq_cv);
     pthread_mutex_unlock(&g_pq_mu);
@@ -13736,18 +13772,26 @@ int mtl_link_wait_tick(int vsyncs, uint64_t timeout_ns) {
 void mtl_link_mode_set(int mode) { pthread_mutex_lock(&g_pq_mu); g_dm_present_link = mode; pthread_mutex_unlock(&g_pq_mu); }   // 120 fps follows the screen: link_sync applies it
 int mtl_link_rate(void) { return g_link_mode == 3 ? 30 : g_link_mode == 2 ? 120 : 60; }
 // The same wait counted in the display link's own ticks: one per frame for a frame rate as high as the link's (present_interval display at DM_PRESENT_HZ=120 on a 120 Hz link)
+static void eco_tick_demand(int on) {
+    if (!nvn_eco_same_on()) return;
+    pthread_mutex_lock(&g_pq_mu);
+    if (on) { g_eco_tick_waiters++; g_link.paused = NO; }
+    else g_eco_tick_waiters--;
+    pthread_mutex_unlock(&g_pq_mu);
+}
 int mtl_link_wait_ticks(int ticks, uint64_t timeout_ns) {
     if (!mtl_link_active()) return 0;
     static uint64_t started_tick;   // Display-link tick number when the previous frame started work (only the game's present thread calls this function)
     const uint64_t step = ticks < 1 ? 1 : (uint64_t)ticks;
+    eco_tick_demand(1);
     pthread_mutex_lock(&g_link_mu);
-    if (g_link_tick_n >= started_tick + step) { started_tick = g_link_tick_n; pthread_mutex_unlock(&g_link_mu); return 1; }
+    if (g_link_tick_n >= started_tick + step) { started_tick = g_link_tick_n; pthread_mutex_unlock(&g_link_mu); eco_tick_demand(0); return 1; }
     struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
     ts.tv_sec += timeout_ns / 1000000000ull; ts.tv_nsec += timeout_ns % 1000000000ull;
     if (ts.tv_nsec >= 1000000000L) { ts.tv_sec++; ts.tv_nsec -= 1000000000L; }
-    while (g_link_tick_n < started_tick + step) if (pthread_cond_timedwait(&g_link_cv, &g_link_mu, &ts) == ETIMEDOUT) { pthread_mutex_unlock(&g_link_mu); return 0; }
+    while (g_link_tick_n < started_tick + step) if (pthread_cond_timedwait(&g_link_cv, &g_link_mu, &ts) == ETIMEDOUT) { pthread_mutex_unlock(&g_link_mu); eco_tick_demand(0); return 0; }
     started_tick = g_link_tick_n;
-    pthread_mutex_unlock(&g_link_mu); return 1;
+    pthread_mutex_unlock(&g_link_mu); eco_tick_demand(0); return 1;
 }
 
 // The display's vsync for vi::GetDisplayVsyncEvent (hle_sdk16.c): returns 1 at the first display-link tick of the next 60 Hz vsync after *seen (the tick count it last returned, updated),
@@ -13755,14 +13799,15 @@ int mtl_link_wait_ticks(int ticks, uint64_t timeout_ns) {
 int mtl_link_wait_vsync(uint64_t *seen, uint64_t timeout_ns) {
     if (!mtl_link_active() || g_link_mode == 3) return 0;
     const uint64_t step = g_link_mode == 2 ? 2 : 1;
+    eco_tick_demand(1);
     pthread_mutex_lock(&g_link_mu);
     if (*seen > g_link_tick_n || g_link_tick_n > *seen + 4 * step) *seen = g_link_tick_n;   // first call, or far behind (a stall): from the current tick on, no burst
     struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
     ts.tv_sec += timeout_ns / 1000000000ull; ts.tv_nsec += timeout_ns % 1000000000ull;
     if (ts.tv_nsec >= 1000000000L) { ts.tv_sec++; ts.tv_nsec -= 1000000000L; }
-    while (g_link_tick_n < *seen + step) if (pthread_cond_timedwait(&g_link_cv, &g_link_mu, &ts) == ETIMEDOUT) { pthread_mutex_unlock(&g_link_mu); return 0; }
+    while (g_link_tick_n < *seen + step) if (pthread_cond_timedwait(&g_link_cv, &g_link_mu, &ts) == ETIMEDOUT) { pthread_mutex_unlock(&g_link_mu); eco_tick_demand(0); return 0; }
     *seen += step;
-    pthread_mutex_unlock(&g_link_mu); return 1;
+    pthread_mutex_unlock(&g_link_mu); eco_tick_demand(0); return 1;
 }
 
 static id<CAMetalDrawable> g_prefetched_drawable; // Used for compositing straight onto the drawable
