@@ -20,8 +20,8 @@
 15 tests pass with the specified Python and TMPDIR. Tests cover ABI size/offsets, self and fake-host V6 readings, invalid PID, CPU clock conversion, counter deltas/reset rejection, frame/GPU summaries, spread significance, literal env parsing, .app resolution, watchdog hang/reach/early-exit, cap rejection and dry-run with launch forbidden.
 
 ```sh
-TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch \
-/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python \
+TMPDIR=$HOME/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch \
+$HOME/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python \
 -m unittest discover -s dm/tools/tests -p test_oot_ab.py -v
 ```
 
@@ -34,24 +34,37 @@ Run from this checkout. The candidate host path below is the normal dm/host/Make
 First choose an immutable starting save. The build had no run/save at inspection, so the following explicit empty seed reproduces the new-game route without using the running baseline's save. Run this setup only after the current baseline play session is finished. A recorded/test save is preferable if that route requires it: replace --save with that immutable folder for both sides.
 
 ```sh
-mkdir -p /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-ab-input/save
+mkdir -p $HOME/Documents/Crypt/Gaming-rea/_work/nxnative/oot-ab-input/save
 ```
 
 Exact dry-run (validated here; incomplete inputs are allowed):
 
 ```sh
-TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch \
-/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python \
+TMPDIR=$HOME/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch \
+$HOME/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python \
 scripts/oot_ab.py \
---a /Users/ankur/Documents/Crypt/Gaming-rea/_work/games/oot/0400486024DEC000_build/ \
---b /Users/ankur/Documents/Crypt/Gaming-rea/_work/games/oot/0400486024DEC000_build/ \
---b-host /Users/ankur/.t3/worktrees/nxnative-oot/t3-f55bd7db/dm/host/dmhost \
---save /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-ab-input/save \
+--a $HOME/Documents/Crypt/Gaming-rea/_work/games/oot/0400486024DEC000_build/ \
+--b $HOME/Documents/Crypt/Gaming-rea/_work/games/oot/0400486024DEC000_build/ \
+--b-host $HOME/.t3/worktrees/nxnative-oot/t3-f55bd7db/dm/host/dmhost \
+--save $HOME/Documents/Crypt/Gaming-rea/_work/nxnative/oot-ab-input/save \
 --runs 3 \
---out /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-ab-integrated-01 \
+--out $HOME/Documents/Crypt/Gaming-rea/_work/nxnative/oot-ab-integrated-01 \
 --dry-run
 ```
 
 Actual A/B: run the same command with the final --dry-run removed, after baseline packing is complete and the parent is ready to run the game. To compare feature flags, append --a-env and/or --b-env with the parent-created literal DM_* env-file paths; cap, measurement and writable storage settings always override those files. For an A/A noise calibration, remove --b-host as well and choose another fresh --out directory. For a genuinely separate candidate package, replace --b with its build folder or .app.
 
 The benchmark intentionally does not assert that identical scripted input reached identical gameplay. Check logs and the scene once before trusting the default [120,178) window. On a cap unsupported by the game/host, results fail rather than reporting a maximum-fps comparison. Keep the Mac display unobscured; no caffeinate process is launched, so avoid system sleep during the parent's run.
+
+## Ocarina shader waste investigation
+
+- Branch `oot-waste` starts at `oot-bench` (`d7696c63`). The initial checkout was clean. The baseline build and its source checkout were inspected read-only. No installs, game run, shader build, host build, push or GitHub action occurred.
+- Applied pstack's perf-issue playbook and ponytail. Build the Lever drove the repeatable full census. Explain the Number kept static scores and conditional savings separate from GPU measurements. Runtime traces, an independent review delegate and opening a PR were skipped under the explicit sub-agent and no-run/no-push instructions. Parent review remains open.
+- Inspected all 42,851 package records. The finished source census has 42,823 translated shaders and lists every one of the 28 failed candidates. The ordered MSL digest and compact results are in `docs/analysis/oot-shader-waste-summary.json`. Full evidence stays in the assigned analysis folder's `waste/census/` directory. The report is committed at `docs/analysis/oot-shader-waste.md` and copied to the requested external `shader-waste.md`.
+- The top five are foliage mesh variants with 971, 971, 940, 930 and 506 potential raw word accesses. The tool expands generated helper calls and loop costs, excludes alternate entry points, counts conditional border samples and packed storage reads, and reports known per-lane loop bounds. The SASS register counts describe NVIDIA, not Apple. Apple spills, actual execution frequency and frame gains remain unmeasured.
+- Recovered 6,582 declared BAHS program names with existing read-only container readers. An independent extraction matched the scanner's recovery exactly. The two Metal failures are auto-exposure aggregation programs exceeding bracket nesting 256. One apparent unsupported instruction is a suspicious BAHS descriptor inside another record; documented as open in the shader reference and symptom index.
+- The no-stutter requirement preserves build-time compilation for proposed fixes. No shader or host optimization was implemented. Safe pooling needs predicate, range, wrap and alias proofs and overlaps the other implementation lane. No per-shader override is justified. The report gives conditional local lookup savings and pixel/semantic checks, without a frame-time claim.
+- Found online pipeline creation in the existing host. The completed offline archive has 30,515 ordinary render bases from 33,190 pairs and omits 2,675 layer-writing pairs. It has no compute or native mesh descriptors. The compute prewarm list has 11 movie keys. Mesh misses build asynchronously while omitting their draws. Exact runtime miss frequency is unknown. Existing encoder timings are not per-shader timings, and the old PASSGPU path does not attach its counters on this Metal 4 path.
+- Verification: the scanner completed on the entire real build with three analysis workers and one coordinator. All 25 selected tests pass (14 scanner tests and 11 documentation tests). Direct Ruff and Pyright on the two new Python files pass. Full repository lint is not green: 415 findings against 389 baseline entries, with 26 ratchet additions. These are in unchanged files relative to `oot-bench`: 21 in `scripts/oot_ab.py`, two in `test_oot_ab.py`, two in `test_nsp_mac.py`, and one in `test_tree_tar.py`. No lint baseline was changed. No five-game or image regression was run under the explicit task limits.
+- Storage: two interrupted output roots, `waste/census-1/` (37 MiB) and `waste/census-final/` (15 MiB), were removed after their task processes ended and lsof showed no open file or working directory there. Each contained only this task's untracked `shaders.jsonl`; neither was in a Git checkout. Retained the completed census, partial SASS, report generators, pass-name/coverage evidence, logs and final report for parent review. No dependencies or build roots were generated in this checkout.
+- The later user instruction sets commit identity to AnkMister and prohibits absolute user paths in committed files. Portable paths are used in the new artifacts. Existing machine paths in this inherited log were changed to `$HOME` without changing their commands' purpose.

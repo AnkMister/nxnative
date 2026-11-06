@@ -26,6 +26,12 @@ Start a new game to reproduce the opening scene transition. With the test save a
 
 For a run past the opening, copy the committed save folder to the new run's `DM_SAVE` and load slot 00 from the menu. The checkpoint contains both `slot_00/progress.sav` and `slot_00/caption.sav`. The load screen identifies it as **Kokiri Forest Autosave**. A windowed reload reached the playable scene with the HUD and controls, so rendering can be tested without replaying the movie.
 
+## Static shader audit (v131072)
+
+The [shader waste report](../../../docs/analysis/oot-shader-waste.md) and its [compact census](../../../docs/analysis/oot-shader-waste-summary.json) cover the separate v131072 baseline. This is static evidence, with gameplay and Apple GPU timing still unverified. It includes the top 30 candidates, the top five foliage mesh programs, every failed build candidate, runtime failure behavior and the remaining pipeline compilation paths. The scanner is `scripts/oot_shader_waste.py`.
+
+The [BAHS record-boundary finding](../../../docs/reference/shaders.md#a-bahs-scan-accepts-bytes-inside-a-binary-record) explains one suspicious failure. It remains open. No shader or host behavior changed in this audit.
+
 ## Found on this game
 
 - The online library's [eventfd for its poller](../../../docs/reference/services.md#eventfds-served-offline) and the [virtual audio input list](../../../docs/reference/audio.md#no-virtual-audio-input-devices-sdk-22) blocked startup.
