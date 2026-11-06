@@ -17,6 +17,9 @@ static int table_has(uint64_t table_gpu, uint64_t guest) {
     return 0;
 }
 int main(void) { @autoreleasepool {
+    unsetenv("DM_NVN_GMEM_COMMIT"); uint64_t disabled = 0;
+    gmem_slot_note(&disabled, NULL);
+    CHECK("default leaves raw argument tracking off", g_gmem_nslots == 0);
     setenv("DM_NVN_GMEM_COMMIT", "1", 1); mtl_init();
     const uint64_t MB = 1ull << 20;
     uint8_t *mem = mmap(NULL, 64 * MB, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0); if (mem == MAP_FAILED) abort();

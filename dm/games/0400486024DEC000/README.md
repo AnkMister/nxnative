@@ -119,6 +119,11 @@ The [BAHS record-boundary finding](../../../docs/reference/shaders.md#a-bahs-sca
 
 ## Found on this game
 
+- Current source ports, gameplay acceptance open: [depth-writing pool draws](../../../docs/reference/rendering.md#pool-shaders-that-write-depth-taken-as-depth-readers) use `DM_NVN_FB_DSELF=1`; [commit-time raw pool tables](../../../docs/reference/shaders.md#raw-pool-table-words-that-predate-the-pools) use `DM_NVN_GMEM_COMMIT=1`. Both default off.
+- Current source ports, gameplay acceptance open: [retired pool descriptors](../../../docs/reference/nvn-objects.md#finalized-textures-made-again-by-pool-tables) keep live shared storage under the existing opt-in policy. [Pool and texture diagnostics](../../../docs/reference/memory.md#what-fills-a-switch-2-games-gpu-working-set-ocarina-of-time-on-an-ipad) run on explicit `DM_CTL` commands.
+- Current shader metadata: the corrected NDSR split adds `d17eefaff4f0bc23`, `1fdc85178b60f6ce` and `92918e9b7e2f89a4`. Re-split prepared inputs before rebuilding shaders because subsequent numeric indices change. The corrected splitter remains under `DMSH_OOT_VISUAL=1`.
+- Current optional [HMMA tensor path](../../../docs/reference/shaders.md#ampere-hmma-through-metal-4-tensor-operations-on-apple10-gpus) requires `DMSH_HMMA_TENSOR=1` at build and `DM_NVN_HMMA_TENSOR=1` at runtime. M4 Max is Apple9 and retains the existing matrix path even when these flags are set.
+
 - Open experiment: [visual source ports](../../../docs/reference/shaders.md#ocarina-visual-source-ports-experimental) are default-off on `oot-visual`. Ten extracted v131072 targets now translate and compile on the M4 Max, including the foliage, output-payload task, float-reduction, SMAA and deep-expression compute targets. Numeric GPU and focused host fixtures pass. The Open entries below describe the earlier runtime findings; visual/gameplay acceptance remains open.
 
 - Open: [pipeline creation after offline translation](../../../docs/reference/shaders.md#pipeline-creation-remains-after-offline-shader-translation) has opt-in archive coverage and descriptor learning. Synthetic fixtures pass; no gameplay zero-compile or image result is established.
