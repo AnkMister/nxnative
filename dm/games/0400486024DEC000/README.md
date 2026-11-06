@@ -172,10 +172,10 @@ PR #301 derives camera motion for static world pixels and requires a build-speci
 Run this only in the parent's gameplay pass. This task did not run it. The save source must be the parent's **Kokiri Forest Autosave** checkpoint containing `slot_00/progress.sav` and `slot_00/caption.sav`. Do not copy a save while the baseline host is writing it. Supply `SAVE_REF` and `FONT_DIR` from the parent's working baseline launch. The remaining paths match the shared extraction.
 
 ```sh
-export REPO=/Users/ankur/.t3/worktrees/nxnative-oot/t3-ff09367e
-export BUILD=/Users/ankur/Documents/Crypt/Gaming-rea/_work/games/oot/0400486024DEC000_build
-export COMPARE=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-quality/compare
-export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
+export REPO=.
+export BUILD=${OOT_READONLY_GAME_ROOT}/0400486024DEC000_build
+export COMPARE=${OOT_SHARED_CONTEXT}/oot-quality/compare
+export TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch
 # Set these to the parent's known baseline paths before continuing.
 : "${SAVE_REF:?Set SAVE_REF to the Kokiri Forest checkpoint directory}"
 : "${FONT_DIR:?Set FONT_DIR to the working baseline font directory}"
@@ -370,7 +370,7 @@ No runtime sampler-state capture was available for this census, so actual
 custom-border use, hot-pass coverage, spills and GPU/energy gains remain open.
 
 The census script and its full key list are under
-`/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-1203/`. The port's
+`${OOT_SHARED_CONTEXT}/oot-1203/`. The port's
 [implementation notes](../../../docs/oot-notes/oot-1203-fix.md) contain validation,
 risks and the isolated Mac A/B recipe. No game run or full shader build was
 performed for this port.

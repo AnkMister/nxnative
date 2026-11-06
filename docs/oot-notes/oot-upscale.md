@@ -2,7 +2,7 @@
 
 ## Scope and result
 
-Worktree `/Users/ankur/.t3/worktrees/nxnative-oot/t3-e2d6b602`, branch `oot-upscale`, base `ee9b7765` (`oot-base`). The initial worktree was clean. Read the shared `agent-context.md` before investigation. Work was performed directly as the implementation sub-agent. No nested delegation, installation, game run, regression run, full shader build, iOS work, push or PR was performed. The per-game user `env.txt` was not written. Changes are uncommitted for the parent to review; the repository requires an explicit commit request.
+Worktree `.`, branch `oot-upscale`, base `ee9b7765` (`oot-base`). The initial worktree was clean. Read the shared `agent-context.md` before investigation. Work was performed directly as the implementation sub-agent. No nested delegation, installation, game run, regression run, full shader build, iOS work, push or PR was performed. The per-game user `env.txt` was not written. Changes are uncommitted for the parent to review; the repository requires an explicit commit request.
 
 The task assumed Ocarina had no upscaler wiring. Source and the generated header show that `game.py` already derives its 22 standard NDSR compute keys, exactly as for Bananza and Splatoon Raiders. Adding a new profile key or a second list would duplicate that mechanism. The profile change therefore documents the existing opt-in. Tests exercise the real profile header and launcher, and protect the exclusion of VR and NDVE. Runtime defaults and the shader chain are unchanged.
 
@@ -17,9 +17,9 @@ The task's render-scale examples also need a qualification. Ocarina has no rende
 
 ## Evidence
 
-The shared extraction was inspected read-only at `/Users/ankur/Documents/Crypt/Gaming-rea/_work/games/oot/0400486024DEC000_build`. Its `extract/v131072/ExeFS/main` has build ID `e0f3ccfaf50065ae4ea01eb5aeb13b1a`, matching the committed profile's `v0` main. No fixed addresses were added to the host or rewriter.
+The shared extraction was inspected read-only at `${OOT_READONLY_GAME_ROOT}/0400486024DEC000_build`. Its `extract/v131072/ExeFS/main` has build ID `e0f3ccfaf50065ae4ea01eb5aeb13b1a`, matching the committed profile's `v0` main. No fixed addresses were added to the host or rewriter.
 
-Analysis outputs are in `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-upscale/`. `audit_shaders.py` reads the package records in memory, verifies all audited shader hashes, reports control sizes and bindings, and reproduces the host's colour classification. `shader-audit.tsv` contains 78 compute variants across standard NDSR, VR and NDVE. All 22 standard compute resource reports confirm one sampled texture handle 8 (NVN slot 0), one image handle 74 (NVN slot 1), push bank 24 and storage reads only. Eleven have the half-float sRGB decode accepted by the existing host. The remaining eleven stay on the guest shader.
+Analysis outputs are in `${OOT_SHARED_CONTEXT}/oot-upscale/`. `audit_shaders.py` reads the package records in memory, verifies all audited shader hashes, reports control sizes and bindings, and reproduces the host's colour classification. `shader-audit.tsv` contains 78 compute variants across standard NDSR, VR and NDVE. All 22 standard compute resource reports confirm one sampled texture handle 8 (NVN slot 0), one image handle 74 (NVN slot 1), push bank 24 and storage reads only. Eleven have the half-float sRGB decode accepted by the existing host. The remaining eleven stay on the guest shader.
 
 The first analysis assumed every cached shader had a final reflection JSON; seven standard variants did not. The follow-up used their existing translator resource reports and MSL in `tmp/dmsh_92gnntz5`. No translation or compilation of game shaders was started. Another overly strict audit assertion expected bank 24 to be the only constant buffer. Some variants also read bank 0. The corrected check requires bank 24 and verifies the actual texture/image contract; the host does not prohibit other constant-buffer reads.
 
@@ -31,7 +31,7 @@ At equal palette scale, handheld has 56.25% of docked's scene and final-image pi
 
 ## Validation
 
-All commands used `TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch` and the shared uv venv's Python. Builds used at most four jobs.
+All commands used `TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch` and the shared uv venv's Python. Builds used at most four jobs.
 
 ```sh
 make -j4 -C dm/host GAME=0400486024DEC000 dmhost

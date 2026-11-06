@@ -56,9 +56,9 @@ Estimated saving is dynamic reads per second multiplied by roughly 14 ns, subjec
 Use a separate writable A/B directory on the game's drive. Keep both supplied baseline directories read-only. `AB` below must name that new directory, never `oot/0400486024DEC000_build` or its existing patched output. The source modules are read-only inputs.
 
 ```sh
-export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
-PY=/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python
-SRC=/Users/ankur/Documents/Crypt/Gaming-rea/_work/games/oot/0400486024DEC000_build/extract/v131072/ExeFS
+export TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch
+PY=${OOT_PYTHON}
+SRC=${OOT_READONLY_GAME_ROOT}/0400486024DEC000_build/extract/v131072/ExeFS
 : "${AB:?Set AB to a separate writable A/B directory on the game drive}"
 for variant in A B; do
   flag=0
@@ -92,4 +92,4 @@ Alternate A/B runs and compare CPU active time/frame, energy/frame, frame consis
 
 Final results: the complete Python tool suite passes, 1,220 tests with 23 skips. The final host clock target passes in five configurations, including both clock rates, deterministic stepping at both rates and statistics mode. The symbol-index target passes. The final Mac host build exits 0. `git diff --check` passes. Python lint and C tidy retain the limits recorded above. Gameplay, energy and machine sleep/wake proof remain open.
 
-Artifacts for the orchestration task are under `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-clock/`, including the site-count JSON, rewrite test logs, host build logs, lint logs and benchmark samples. The durable measurements and limits are included above; game binaries are not committed.
+Artifacts for the orchestration task are under `${OOT_SHARED_CONTEXT}/oot-clock/`, including the site-count JSON, rewrite test logs, host build logs, lint logs and benchmark samples. The durable measurements and limits are included above; game binaries are not committed.

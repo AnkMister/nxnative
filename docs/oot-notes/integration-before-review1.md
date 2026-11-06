@@ -83,7 +83,7 @@ not been proven absent by this source integration.
 ## Verification
 
 Before review-1 replacements: 397 graphics Python tests pass (2 skips); the full native graphics run and host build pass. Raw GPU checks pass 61 scalar plus 226 scalar/quad comparisons. Tools discovery reaches 1,274 tests with one architecture failure: the incoming stable code hard-coded a title ID. That default is now a profile key (`safe_gpu on`, generated DM_GAME_SAFE_GPU), preserving behavior while keeping host code general. Full verification repeats after the newly authorized fix merges.
-Evidence root: `/Users/ankur/Documents/Crypt/Projects/_work/nxnative/oot-hyper/`.
+Evidence root: `${OOT_EVIDENCE_ROOT}/oot-hyper/`.
 The one verification owner is this implementation agent. The parent owns an
 independent review and later full shader/game/display acceptance.
 

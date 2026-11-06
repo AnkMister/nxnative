@@ -99,7 +99,7 @@ inputs retain correction; opt-in `_bn` assets are disposable and fail back to `_
 | `J`, make `-j` | Tool/make default | Resource contention distorts measurements | Explicit ceiling of four jobs in this integration | oot-stack, oot-msl |
 | `DMSH_TEST_XLATE` | Bundled translator for native fixture target; Python fixture tests opt in | Test-only | Runs trusted translator on synthetic shaders | oot-stack |
 | `DMSH_TEST_METAL`, `DMSH_TEST_GPU`, `DM_TEST_BORDER` | Off/unset | Test-only | Enable synthetic compiler/GPU/border checks | oot-stack, oot-1203 |
-| `TMPDIR` | OS default; explicitly overridden in all integration commands | Wrong path violates workspace storage rules | Use `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch` | All |
+| `TMPDIR` | OS default; explicitly overridden in all integration commands | Wrong path violates workspace storage rules | Use `${OOT_SHARED_CONTEXT}/setup/scratch` | All |
 | `DOTNET_ROOT`, `PATH` | Shell settings | Wrong .NET architecture/runtime prevents translation | Stack rebuild uses `~/.dotnet`; Python uses supplied uv venv | oot-stack |
 | `DOTNET_PROCESSOR_COUNT`, `DOTNET_CLI_TELEMETRY_OPTOUT`, `DOTNET_SKIP_FIRST_TIME_EXPERIENCE`, `NUGET_PACKAGES` | Rebuild recipe uses `4`, `1`, `1`, isolated audited cache | Build provenance only | Cooled exact-version feed; restore uses only the audited local feed in this integration | oot-stack |
 | `DM_GAME_UPSCALER_KEYS`, `DM_GAME_UPSCALER_N` (generated macros) | 22 standard NDSR compute keys | VR/NDVE must remain excluded | Existing profile derivation; not user-settable env switches | oot-upscale |

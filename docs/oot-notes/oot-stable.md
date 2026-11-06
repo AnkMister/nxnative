@@ -115,11 +115,11 @@ source, with the audited local feed at `AUDIT/NuGet.Config`:
 ```sh
 export PATH="$HOME/.dotnet:$PATH"
 export DOTNET_ROOT="$HOME/.dotnet"
-export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
+export TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch
 export DOTNET_PROCESSOR_COUNT=4
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
-export AUDIT=/Users/ankur/Documents/Crypt/Projects/_work/nxnative/oot-stack
+export AUDIT=${OOT_EVIDENCE_ROOT}/oot-stack
 export NUGET_PACKAGES="$AUDIT/nuget-packages"
 # SOURCE is either an archive of ee9b7765 or this checkout.
 # PUBLISH is an isolated output folder, never the protected baseline.
@@ -150,7 +150,7 @@ replacement artifacts were installed or executed.
 The repo tools then wrote the lock and header:
 
 ```sh
-PY=/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python
+PY=${OOT_PYTHON}
 "$PY" dm/gfx/tools/tool_lock.py --update-lock
 "$PY" dm/gfx/tools/dmsh_chain.py --header
 "$PY" dm/gfx/tools/tool_lock.py --check-tools
@@ -268,13 +268,13 @@ folder were deliberately not inspected. Do not change the profile's version
 rows or extract/rewrite the game as part of this A/B.
 
 ```sh
-cd /Users/ankur/.t3/worktrees/nxnative-oot/t3-91962084
-export PATH="/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin:$HOME/.dotnet:$PATH"
+cd .
+export PATH="${OOT_PYTHON_BIN}:$HOME/.dotnet:$PATH"
 export DOTNET_ROOT="$HOME/.dotnet"
-export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
-export PY=/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python
+export TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch
+export PY=${OOT_PYTHON}
 export DM_GAME=0400486024DEC000 GAME=0400486024DEC000 J=6
-export AB=/Users/ankur/Documents/Crypt/Projects/_work/nxnative/oot-ab
+export AB=${OOT_EVIDENCE_ROOT}/oot-ab
 unset IOSOUT XLATE DMSH_RAW_LOAD_QUADS
 : "${OOT_SHADER_PKG:?set to the existing v131072 shader package folder}"
 : "${OOT_MODULES:?set to the existing rewritten v131072 module folder}"
@@ -422,7 +422,7 @@ The existing shader chain and translator binary remain unchanged by this branch.
 The requested host-only build uses the repository's own small host Metal shaders.
 
 Source-only ports were tested as they landed, then together. Evidence files
-are under `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-stable/`.
+are under `${OOT_SHARED_CONTEXT}/oot-stable/`.
 The JSON there contains the issue body and all 21 comments read for this task.
 
 - `1391-test.log`: 20 guard checks plus 2 held-lock timer checks, all pass.
@@ -460,8 +460,8 @@ rendering quality settings. On a busy Mac it can stop earlier by design.
 Use this worktree and the existing Python environment. No game is needed:
 
 ```sh
-export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
-export PATH=/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin:$PATH
+export TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch
+export PATH=${OOT_PYTHON_BIN}:$PATH
 make -j2 -C dm/gfx/tests GAME=0400486024DEC000 check_t_safe_gpu check_t_res_guard
 make -j2 -C dm/gfx/tests GAME=0400486024DEC000 check_t_gpu_hang_names check_t_raw_residency check_t_gmem_marks check_t_pool_chunks check_t_gmem_raw check_t_deferred_release perf-order-cpu check_t_perf_order check_t_cpu_tex check_t_cpu_storage
 make -C dm/host/tests GAME=0400486024DEC000 check_gpu_stop

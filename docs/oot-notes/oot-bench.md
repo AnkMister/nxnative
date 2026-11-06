@@ -20,8 +20,8 @@
 15 tests pass with the specified Python and TMPDIR. Tests cover ABI size/offsets, self and fake-host V6 readings, invalid PID, CPU clock conversion, counter deltas/reset rejection, frame/GPU summaries, spread significance, literal env parsing, .app resolution, watchdog hang/reach/early-exit, cap rejection and dry-run with launch forbidden.
 
 ```sh
-TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch \
-/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python \
+TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch \
+${OOT_PYTHON} \
 -m unittest discover -s dm/tools/tests -p test_oot_ab.py -v
 ```
 
@@ -34,21 +34,21 @@ Run from this checkout. The candidate host path below is the normal dm/host/Make
 First choose an immutable starting save. The build had no run/save at inspection, so the following explicit empty seed reproduces the new-game route without using the running baseline's save. Run this setup only after the current baseline play session is finished. A recorded/test save is preferable if that route requires it: replace --save with that immutable folder for both sides.
 
 ```sh
-mkdir -p /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-ab-input/save
+mkdir -p ${OOT_SHARED_CONTEXT}/oot-ab-input/save
 ```
 
 Exact dry-run (validated here; incomplete inputs are allowed):
 
 ```sh
-TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch \
-/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python \
+TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch \
+${OOT_PYTHON} \
 scripts/oot_ab.py \
---a /Users/ankur/Documents/Crypt/Gaming-rea/_work/games/oot/0400486024DEC000_build/ \
---b /Users/ankur/Documents/Crypt/Gaming-rea/_work/games/oot/0400486024DEC000_build/ \
---b-host /Users/ankur/.t3/worktrees/nxnative-oot/t3-f55bd7db/dm/host/dmhost \
---save /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-ab-input/save \
+--a ${OOT_READONLY_GAME_ROOT}/0400486024DEC000_build/ \
+--b ${OOT_READONLY_GAME_ROOT}/0400486024DEC000_build/ \
+--b-host ./dm/host/dmhost \
+--save ${OOT_SHARED_CONTEXT}/oot-ab-input/save \
 --runs 3 \
---out /Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-ab-integrated-01 \
+--out ${OOT_SHARED_CONTEXT}/oot-ab-integrated-01 \
 --dry-run
 ```
 

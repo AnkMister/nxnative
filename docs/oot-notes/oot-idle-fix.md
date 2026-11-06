@@ -138,8 +138,8 @@ Re-run the focused checks with the provided Python venv on PATH and the approved
 scratch TMPDIR. The Makefile builds no more than the requested targets:
 
 ```sh
-export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
-export PATH=/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin:$PATH
+export TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch
+export PATH=${OOT_PYTHON_BIN}:$PATH
 make -C dm/gfx/tests GAME=0400486024DEC000 check_t_eco check_t_eco_wait check_t_eco_present check_t_gfx_suspend check_t_present_alloc check_t_present_rescue
 make -C dm/host/tests GAME=0400486024DEC000 eco-clock
 make -C dm/host -j2 GAME=0400486024DEC000 dmhost
@@ -158,9 +158,9 @@ sample. A zero or unavailable energy counter is not evidence of zero energy.
 Set up a separate APFS clone so runtime writes cannot touch the live baseline:
 
 ```sh
-export REPO=/Users/ankur/.t3/worktrees/nxnative-oot/t3-65e1be3e
-export BUILD=/Users/ankur/Documents/Crypt/Gaming-rea/_work/games/oot/0400486024DEC000_build
-export EXP=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/idle-ab
+export REPO=.
+export BUILD=${OOT_READONLY_GAME_ROOT}/0400486024DEC000_build
+export EXP=${OOT_SHARED_CONTEXT}/idle-ab
 mkdir -p "$EXP"
 # Run once. cp -c makes an APFS clone; do not substitute symlinks for mutable caches.
 cp -cR "$BUILD" "$EXP/assets"

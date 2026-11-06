@@ -8,7 +8,7 @@ before oot-stable-fix. The settings below are the intended post-fix recipe.
 This recipe enables correctness and stability. Performance experiments stay off.
 It describes the parent's later build; this integration did not run a game, full
 shader build or shader-map extraction. Do not modify the protected baseline
-checkout or `/Users/ankur/Documents/Crypt/Gaming-rea/_work/games/oot/`.
+checkout or `${OOT_READONLY_GAME_ROOT}/`.
 
 ## Split, rewrite and shader-build environment
 
@@ -29,8 +29,8 @@ export DM_NVN_BORDER_SPLIT=0
 export DM_FAST_CLOCK=0 DM_REWRITE_J=4 J=4
 export DMSH_TARGETS=mac XLATE_DEBUG=1 XLATE_REDUCED=1
 export DOTNET_ROOT="$HOME/.dotnet"
-export PATH="/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin:$HOME/.dotnet:$PATH"
-export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
+export PATH="${OOT_PYTHON_BIN}:$HOME/.dotnet:$PATH"
+export TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch
 unset IOSOUT XLATE SPIRV_CROSS DMSH_CAS DMSH_PREFILL WORK DM_GAMES_DIR
 ```
 

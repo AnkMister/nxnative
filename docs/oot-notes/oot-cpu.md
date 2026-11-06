@@ -116,7 +116,7 @@ The integrated checks and build are recorded below.
 ## Integrated validation
 
 The following completed on the Mac with the required Python venv on PATH and
-`TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch`.
+`TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch`.
 No dependency was installed. Builds used at most six total make jobs across
 simultaneous commands, with `-j2` on each command.
 
@@ -160,7 +160,7 @@ save seed and cache seed. The examples below are instructions only; this lane
 did not execute them. Set the variables to those isolated assets first:
 
 ```sh
-export HOST=/Users/ankur/.t3/worktrees/nxnative-oot/t3-7ace80f6/dm/host/dmhost
+export HOST=./dm/host/dmhost
 # CPU_AB: a new workspace outside both protected baseline directories.
 # PATCHED: the isolated rewritten v131072 modules.
 # SAVE_SEED: a copy of the same Kokiri Forest checkpoint for every arm.

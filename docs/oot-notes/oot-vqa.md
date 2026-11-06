@@ -102,11 +102,11 @@ runner. The baseline build remains read-only; saves, temp, PSO writes and logs g
 under the new run directory.
 
 ```sh
-export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
-export VQA_RUN=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/vqa-kokiri-first
+export TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch
+export VQA_RUN=${OOT_SHARED_CONTEXT}/vqa-kokiri-first
 export VQA_HOST="$PWD/dm/host/dmhost"
-export VQA_BUILD=/Users/ankur/Documents/Crypt/Gaming-rea/_work/games/oot/0400486024DEC000_build
-PY=/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python
+export VQA_BUILD=${OOT_READONLY_GAME_ROOT}/0400486024DEC000_build
+PY=${OOT_PYTHON}
 PYTHONPATH="$PWD/scripts" "$PY" - <<'PY'
 import os
 from pathlib import Path
@@ -180,7 +180,7 @@ session is not a clean efficiency measurement. Log events are whole-run evidence
 
 The CLI was also run against the actual synthetic pass-test log. It reported two
 scanned targets and the first pass's 256 bad pixels, with pacing unavailable.
-Reports are in `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/vqa-v2-verification/`.
+Reports are in `${OOT_SHARED_CONTEXT}/vqa-v2-verification/`.
 Build/test logs are in the mandated scratch directory as `oot-vqa-*.log`.
 Changes remain uncommitted on `oot-vqa`, because the repository requires an
 explicit commit request. Nothing was pushed or published.

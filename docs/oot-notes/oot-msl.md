@@ -115,11 +115,11 @@ source, with the audited local feed at `AUDIT/NuGet.Config`:
 ```sh
 export PATH="$HOME/.dotnet:$PATH"
 export DOTNET_ROOT="$HOME/.dotnet"
-export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
+export TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch
 export DOTNET_PROCESSOR_COUNT=4
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
-export AUDIT=/Users/ankur/Documents/Crypt/Projects/_work/nxnative/oot-stack
+export AUDIT=${OOT_EVIDENCE_ROOT}/oot-stack
 export NUGET_PACKAGES="$AUDIT/nuget-packages"
 # SOURCE is either an archive of ee9b7765 or this checkout.
 # PUBLISH is an isolated output folder, never the protected baseline.
@@ -150,7 +150,7 @@ replacement artifacts were installed or executed.
 The repo tools then wrote the lock and header:
 
 ```sh
-PY=/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python
+PY=${OOT_PYTHON}
 "$PY" dm/gfx/tools/tool_lock.py --update-lock
 "$PY" dm/gfx/tools/dmsh_chain.py --header
 "$PY" dm/gfx/tools/tool_lock.py --check-tools
@@ -268,13 +268,13 @@ folder were deliberately not inspected. Do not change the profile's version
 rows or extract/rewrite the game as part of this A/B.
 
 ```sh
-cd /Users/ankur/.t3/worktrees/nxnative-oot/t3-91962084
-export PATH="/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin:$HOME/.dotnet:$PATH"
+cd .
+export PATH="${OOT_PYTHON_BIN}:$HOME/.dotnet:$PATH"
 export DOTNET_ROOT="$HOME/.dotnet"
-export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
-export PY=/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python
+export TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch
+export PY=${OOT_PYTHON}
 export DM_GAME=0400486024DEC000 GAME=0400486024DEC000 J=6
-export AB=/Users/ankur/Documents/Crypt/Projects/_work/nxnative/oot-ab
+export AB=${OOT_EVIDENCE_ROOT}/oot-ab
 unset IOSOUT XLATE DMSH_RAW_LOAD_QUADS
 : "${OOT_SHADER_PKG:?set to the existing v131072 shader package folder}"
 : "${OOT_MODULES:?set to the existing rewritten v131072 module folder}"
@@ -333,9 +333,9 @@ or game speed regresses. No M4 Max gameplay, latency or energy claim is made her
 ## Scope and boundaries
 
 - Base `ee9b7765d579c46e45a7297493565e098f3bda33` (`oot-base`, PR #1299). Work branch `oot-msl`.
-- Read-only source `/Users/ankur/Documents/Crypt/Gaming-rea/_work/games/oot/0400486024DEC000_build/`. No builds, cache writes, gameplay runs, push, or GitHub comments.
-- Corpus and compiler outputs in `/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/msl-mining/`.
-- Python `/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python`. All commands set `TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch`. No installs. At most four jobs.
+- Read-only source `${OOT_READONLY_GAME_ROOT}/0400486024DEC000_build/`. No builds, cache writes, gameplay runs, push, or GitHub comments.
+- Corpus and compiler outputs in `${OOT_SHARED_CONTEXT}/msl-mining/`.
+- Python `${OOT_PYTHON}`. All commands set `TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch`. No installs. At most four jobs.
 - Parent owns independent review, integration with A2, full shader rebuilds, and M4 Max gameplay A/B. A source-site count or successful Metal compile is not GPU performance proof.
 
 ## Decision log
@@ -399,17 +399,17 @@ Recommendation: first A/B constant-word reuse on compute-heavy scenes. Keep stor
 Run from this worktree. Source game data remains read-only. Output folders must be new. `snapshot` uses only the repository's read-only cache inspection functions from the old build module, loaded by AST without importing/running the build. For cas.db it uses Store with SQLite mode=ro and disabled schema/recovery writes. Database extraction follows each current index digest, avoiding duplicate historical versions.
 
 ```sh
-export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
-task_py=/Users/ankur/Documents/Crypt/Gaming-rea/nxnative/.venv/bin/python
-task_work=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/msl-mining
-task_build=/Users/ankur/Documents/Crypt/Gaming-rea/_work/games/oot/0400486024DEC000_build
+export TMPDIR=${OOT_SHARED_CONTEXT}/setup/scratch
+task_py=${OOT_PYTHON}
+task_work=${OOT_SHARED_CONTEXT}/msl-mining
+task_build=${OOT_READONLY_GAME_ROOT}/0400486024DEC000_build
 # Reuse the existing snapshot for exactly the reported counts.
 "$task_py" dm/gfx/tools/dmsh_mine.py report "$task_work/corpus-1" "$task_work/report-replay.json"
 "$task_py" dm/gfx/tools/dmsh_mine.py compare "$task_work/report-replay.json" "$task_work/compile-replay"
 # To take a newer, independent publication snapshot with the old folder cache:
 "$task_py" dm/gfx/tools/dmsh_mine.py snapshot "$task_build/shader/cache/cas" "$task_work/corpus-parent" --per-stage 1024
 # For the newer cache format, use cas.db instead and add:
-# --reader /Users/ankur/Documents/Crypt/Gaming-rea/nxnative/dm/tools/shader_cache.py
+# --reader ./dm/tools/shader_cache.py
 "$task_py" -W ignore::ResourceWarning -m unittest dm/gfx/tests/test_dmsh_reuse.py dm/gfx/tests/test_dmsh_mine.py dm/gfx/tests/test_dmsh_wide.py dm/tools/tests/test_dmsh_code_fp.py dm/tools/tests/test_nsp_chain.py
 ```
 

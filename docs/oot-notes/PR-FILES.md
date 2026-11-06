@@ -4,7 +4,7 @@ All 18 requested file lists were fetched read-only on 2026-11-05 with
 `gh pr view <n> --repo seedds/nxnative --json number,title,headRefOid,files,url`.
 All corresponding stable, visual and TBDR source ports are integrated. These are
 observed PR heads, not assumptions about future upstream changes. Raw JSON is
-retained under `/Users/ankur/Documents/Crypt/Projects/_work/nxnative/oot-hyper/`.
+retained under `${OOT_EVIDENCE_ROOT}/oot-hyper/`.
 
 | PR | Observed head | Files |
 | --- | --- | --- |

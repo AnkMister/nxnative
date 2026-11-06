@@ -69,7 +69,7 @@ No new review delegate was started because this task was explicitly assigned
 as implementation sub-agent work.
 
 **Evidence.** Logs, pre-fix probes and storage inventory are retained at:
-`/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch/review-fixes/`.
+`${OOT_SHARED_CONTEXT}/setup/scratch/review-fixes/`.
 Key files are `border-repro.log`, `border-before-bytes.log`,
 `border-final-python.log`, `border-extra.log`, `mem-before.log`,
 `mem-concurrent.log`, `mem-native.log`, `mem-fs-scope.log`, `mem-python-*.log`, `idle-before.log`,

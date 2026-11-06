@@ -1,7 +1,7 @@
 # Ocarina integrated branch
 
 The branch is `oot-hyper`, based on oot-stack `8284776d`. Branch snapshots are
-preserved in [docs/oot-notes](docs/oot-notes/FLAGS.md). Local commits only; no push,
+preserved in [docs/oot-notes](../../docs/oot-notes/FLAGS.md). Local commits only; no push,
 PR, game run, regress.py, full shader build or protected baseline/game writes.
 
 ## Merge order and review replacements
@@ -34,8 +34,8 @@ their package union matches it exactly. Publish used --no-restore,
 --self-contained false and at most four jobs. The original universal launcher
 remains unchanged. No unaudited runtime pack was restored.
 
-[NuGet dates, source URLs and package SHA256s](docs/oot-notes/nuget-audit.json)
-and [full source/distribution SHA256s](docs/oot-notes/translator-fingerprints.json)
+[NuGet dates, source URLs and package SHA256s](../../docs/oot-notes/nuget-audit.json)
+and [full source/distribution SHA256s](../../docs/oot-notes/translator-fingerprints.json)
 are committed. The latter covers source beyond the launcher's limited embedded
 digest. The lock was updated from the rebuilt tools and checked. Default chain
 and recommended visual-enabled chain are recorded in the final verification.
@@ -75,8 +75,8 @@ ship default-on DM_SAFE_GPU watchdog until oot-stable-fix**, and do not accept t
 visual set before oot-visual-fix. Passing tests below do not clear those findings.
 Each pending *-fix replaces its parent implementation when it lands.
 
-[FLAGS](docs/oot-notes/FLAGS.md), [PLAY-BUILD](docs/oot-notes/PLAY-BUILD.md) and
-[NEXT-MERGES](docs/oot-notes/NEXT-MERGES.md) carry the exact choices and blockers.
+[FLAGS](../../docs/oot-notes/FLAGS.md), [PLAY-BUILD](../../docs/oot-notes/PLAY-BUILD.md) and
+[NEXT-MERGES](../../docs/oot-notes/NEXT-MERGES.md) carry the exact choices and blockers.
 Play requires full ahead-of-time shaders. Lazy shaders remain off; partial maps
 and source-compiling diagnostics are excluded. Runtime driver compilation has
 not been proven absent by this source integration.
@@ -84,7 +84,7 @@ not been proven absent by this source integration.
 ## Verification
 
 Before review-1 replacements: 397 graphics Python tests pass (2 skips); the full native graphics run and host build pass. Raw GPU checks pass 61 scalar plus 226 scalar/quad comparisons. Tools discovery reaches 1,274 tests with one architecture failure: the incoming stable code hard-coded a title ID. That default is now a profile key (`safe_gpu on`, generated DM_GAME_SAFE_GPU), preserving behavior while keeping host code general. Full verification repeats after the newly authorized fix merges.
-Evidence root: `/Users/ankur/Documents/Crypt/Projects/_work/nxnative/oot-hyper/`.
+Evidence root: `${OOT_EVIDENCE_ROOT}/oot-hyper/`.
 The one verification owner is this implementation agent. The parent owns an
 independent review and later full shader/game/display acceptance.
 
