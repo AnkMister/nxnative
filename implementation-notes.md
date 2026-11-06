@@ -403,3 +403,17 @@ The PR's IsUnused check preserves those inputs and still removes wholly dead
 loads. Tests cover both component orders and side-effecting atomic addresses.
 Expected improvement is foliage simulation jitter. No semantic issue found;
 full-game optimizer coverage and visual acceptance remain unverified.
+
+## #1390: adapted
+
+Head `16e86fdc17543e7bc2b247c5763252d573cc89e6`. Imported host range
+tracking and CPU texture/storage tests. Resolved the test conflict by keeping
+#1360's finalized-bindless-pool test and adding the range tests.
+`DM_NVN_VISUAL=1` selects range ownership; off preserves whole-pool ownership.
+The ranges merge, split and disappear with their pool. Render targets, image
+stores, clears and copy destinations mark their own storage instead of the
+whole pool. The tests cover adjacent/overlapping tiles and reused storage.
+Expected improvement is the missing ground and floating stone path, because
+CPU-filled height tiles can coexist with GPU-written textures in one pool.
+No source bug found in the reviewed range algorithms. Aliased pools and full
+gameplay ordering remain risks; no game run was made.
