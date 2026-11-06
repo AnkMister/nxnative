@@ -173,6 +173,10 @@ For a replaced DSP renderer the size query keeps the service's work-buffer contr
 
 ### The update lock read off `UpdateImpl` (SDK 22)
 
+Ported from upstream d7a43c2a. Enable DM_OOT_BRENT=1 on this branch.
+The gameplay results below are upstream reports; this branch checks the decoder
+with synthetic prologues and has not run the game.
+
 - **Symptom:** `CRASH sig=11 addr=0x20` at `nn::audio::server::AddressInfo::GetReference` (`sdk+0x249874`) on the render thread, under `CommandGenerator::GenerateDataSourceCommand` and `render_once`, minutes into a movie. The `AddressInfo` the crash register points at is all zeros, though the function had just read a non-null memory pool pointer from it.
 - **Cause:** the Span layout took the lock at a fixed +0x2d0. SDK 22.2.8's `UpdateImpl` (`sdk+0x238530`) locks the `SdkMutexType` at +0x2d8 (`add x19, x0, #0x2d8; …; mov x0, x19; bl SdkMutexType::Lock`). Locked at +0x2d0, the render excluded nothing and wrote a lock word into the field before the mutex. The game's `RequestUpdate` then rewrote a voice while its commands were being generated. `Update` itself reads the system tick first and calls `UpdateImpl`, so `update_lock` found no lock there.
 - **Fix:** for the Span layout `update_lock` reads the offset off `UpdateImpl` (`hle_audren.c`) and keeps +0x2d0 only when it finds no `SdkMutexType::Lock`. The start-up line names it: `update lock SdkMutexType at +0x2d8`.

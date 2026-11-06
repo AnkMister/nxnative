@@ -49,3 +49,15 @@ For a run past the opening, copy the committed save folder to the new run's `DM_
 - The opening scene calls `nvnCommandBufferDrawMeshTasksIndirect`, which the host does not implement. On `v0` the probe caught the return at `main+0x2be2dc0`; the branch builds the command buffer pointer in `x0` and the indirect argument address in `x1`. It does not set `x2` on that path. A separate sample of the first 64 bytes at the indirect address returned zeros after the call; the populated record's layout is still unverified. The title-only run logged 11 keys missing from the map. The expanded run captured seven of them before the memory failure. A byte-for-byte comparison found none of those seven code areas in the extracted shader package.
 - The 3D scene's CPU cost (37–59 ms a frame, with pool walks of about 33,000 descriptors) is [resolved](../../../docs/reference/frame-rate.md#a-bindless-pool-table-rebuilt-for-every-registration). Open: the GPU's 14–21 ms a frame in Kokiri Forest, which still drops frames below 60 fps; TBDR optimizations are off for this bindless game (`DM_NVN_TBDR=1` turns them on), and attachments load and store about 330 MB a frame.
 - The Nov. 4 Lichii branches offer two shader leads. Its [packed conversion lowering](https://github.com/zortos293/Lichii/commit/35c043b3efaa147d1c1afe8a52cdf19fa92b77bf) handles opcode `0x243` with source A set to `RZ` and mode `0x0000c4ff`; both of this game's failed foliage programs use two registers and mode `0x000004ff`, which needs independent verification. Its [floating-point global reduction](https://github.com/zortos293/Lichii/commit/3aa89d1cdbe58a2bd5ded06b9c615c78da2ade70) matches a separate `F32FtzRn` diagnostic in the Mac shader build, where the translator drops that operation. Neither of the two shaders in the sky lookup and draw uses those instructions or the gather opcodes from Lichii's [fog work](https://github.com/zortos293/Lichii/commit/375c4a472bd95fdfaae0de6e3f192499cd14f806).
+
+## Source harvest pending gameplay acceptance
+
+Current source experiments from oot-combined are opt-in and have not been tested
+in the game on this branch. They add [LDSM shared-memory ordering](../../../docs/reference/shaders.md#ldsm-reads-rows-other-lanes-stored),
+[SDK 22 audio lock discovery](../../../docs/reference/audio.md#the-update-lock-read-off-updateimpl-sdk-22),
+[retired descriptor policy](../../../docs/reference/nvn-objects.md#finalized-textures-made-again-by-pool-tables),
+[Mac alias layout](../../../docs/reference/memory.md#optional-mac-alias-region-from-oot-combined)
+and [depth-only mesh pipelines](../../../docs/reference/rendering.md#a-depth-only-native-mesh-pipeline-needs-a-fragment-function).
+The source comparison, activation flags and remaining integration checks are in
+[brent-compare.md](../../../brent-compare.md). Existing open gameplay findings
+remain open until a matching shader build and host are tested.

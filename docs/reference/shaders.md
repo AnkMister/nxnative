@@ -1202,6 +1202,9 @@ Finding, keying and translating shaders (`dm/gfx/tools/shader_split.py`, `dmsh_b
 
 ### LDSM reads rows other lanes stored
 
+Ported from upstream 2d6f86f8. Enabled here only with DMSH_OOT_VISUAL=1.
+The image measurements below are upstream reports, not a run of this branch.
+
 - **Symptom:** a Switch 2 movie or network output has dotted streaks: every other pixel of a few hundred rows wrong, mostly green and magenta, in other places each run, while its source is clean. Ocarina of Time's title movie after its NDVE filter (texture 6231, before agl's upscaler).
 - **Cause:** a warp stores tiles to shared memory (STS) and reads them back with LDSM, with no BAR between them. The Switch runs a warp's shared-memory accesses in order. Metal orders another lane's threadgroup store and this lane's load only through a barrier, and its compiler moved them past each other. The wrong pixels are mostly at odd x, the high halves of packed pairs.
 - **Fix:** `InstEmitAmpereTensor.ALdsm` puts a subgroup barrier (`Instruction.SubgroupBarrier`, `simdgroup_barrier(mem_flags::mem_threadgroup)`) before its loads and another after them, so that no lane's next store reaches the rows before every lane has read them. LDSM is warp-collective, so the whole SIMD-group reaches both. A SIMD-group-scope fence after each store, with no execution barrier, left about 3,800 such pixels a frame.

@@ -651,7 +651,7 @@ game run, shader corpus build, push or PR is authorized here.
 
 - #1345 / d7a43c2a reads SDK 20+ UpdateImpl's lock offset rather than using
   SDK 20's fixed +0x2d0 on SDK 22 (+0x2d8). DM_OOT_BRENT=1 enables it.
-  NDSR tests pass with the required explicit DM_GAME (9 tests).
+  NDSR tests pass with the required explicit DM_GAME (8 tests).
 
 - #1373 / b44bcafd preserves a provisional profile's alias budget when growing
   its heap reservation. DM_OOT_BRENT=1 enables the new arithmetic. Static
@@ -694,3 +694,29 @@ game run, shader corpus build, push or PR is authorized here.
 - Added a direct audio-lock decoder fixture after the port. Synthetic ARM64
   prologues check SDK 22's +0x2d8 SdkMutex and legacy +0x1f8 OS mutex,
   unknown calls and missing symbols. No guest instructions are executed.
+
+## Brent harvest verification and handoff
+
+One cooled-NuGet source publish completed with SDK 10.0.403 and runtime
+10.0.14. All 57 exact package versions passed the age audit; all four restored
+asset manifests matched. Locally built project assemblies replaced our own
+base bundle's assemblies; the inherited launcher was retained. No Brent
+translator file was checked out or copied. Default chain f2466a5897f3.
+
+Final results: tools 1,233 pass with 23 skips; translator tests 267 pass with
+one skip and 40 GPU PrimitiveID cases; affected graphics checks all pass;
+SVC memory and dirty tracking pass including 16K ASan/UBSan and both optional
+alias layouts; audio decoder/layout and 143 cheat checks pass; Mac host builds.
+Final docs/environment/chain subset has 29 passing tests. See brent-compare.md
+for commands, evidence paths, exact counts and remaining lint/acceptance gates.
+
+The symptom index and required native geometry helper caused initial failures,
+then passed the full reruns after correction. No game or full shader build ran.
+Three inherited Python lint findings remain; no changed-code finding remains.
+clang-tidy is unavailable; no install or baseline weakening was used.
+
+Removed our private NuGet cache (through dotnet's cache command), feed and
+publish output. Retained audit and verification evidence. The harness keeps
+its cwd in this checkout, so task policy prevents deleting checkout-generated
+roots while it is open. Exact roots are recorded in the evidence folder.
+Parent integrator owns independent review and game/shader acceptance.

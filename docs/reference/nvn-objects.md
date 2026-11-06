@@ -150,6 +150,10 @@ The game may also write into an NVN object directly, without an NVN call, throug
 
 ### Finalized textures made again by pool tables
 
+Ported from the #1393 merge 61fa7980. The game measurements below are
+upstream reports. This branch leaves the profile key off and requires
+DM_NVN_POOL_SKIP_RETIRED=1 for acceptance testing.
+
 - **Symptom:** command buffers fail with `kIOGPUCommandBufferCallbackErrorOutOfMemory` at a scene change, after GPU memory jumps past Metal's recommended working set (16 GB allocated against 12.1 GB on a 16 GB Mac); the `pool for handles traced to no slot` lines show texture pool tables of tens of thousands of IDs rebuilt around it.
 - **Cause:** a pool table (`pool_gpu`) resolves every registered texture ID, as a shader that reads textures through handles may reach any of them. At a scene change a game can finalize the old scene's textures and leave their IDs registered. [Finalized textures kept by registered descriptor views](#finalized-textures-kept-by-registered-descriptor-views) drops their views at `mtl_tex_release`, but the next table rebuild made a Metal texture for each of them again from its storage (`tex_fast_rid`), and dropped it again at the end of the submission. Ocarina of Time: about 33,000 IDs in its texture pool, and at the house-to-forest change about 1,500 textures and 2.5 GB held only through retired IDs, with as much again waiting in deferred release.
 - **Fix:** profile key `pool_skip_retired` (`DM_NVN_POOL_SKIP_RETIRED=1` / `0` overrides it): a retired ID that holds no view gets the dummy texture in a pool table. An ID bound to a slot is unchanged, and so is a retired ID that a draw of the same submission already resolved. A key, not the default: on the console a handle to a finalized texture still reads its storage while that is there, and a game that samples through such handles would read the dummy. The table log counts the IDs it skipped. `t_pool_retired` checks a live and a retired ID in one table, with the key and without.

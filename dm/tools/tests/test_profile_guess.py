@@ -1,7 +1,6 @@
-import os
-from unittest.mock import patch
 """Provisional memory layouts must leave room for the game's initial heap."""
 import hashlib
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -47,7 +46,7 @@ class DepthSignal(unittest.TestCase):
         self.assertEqual(value, 'zero'); self.assertIn('near = 0', why); self.assertNotIn('\n', why)
 
 
-@patch.dict(os.environ, DM_OOT_BRENT="1")
+@mock.patch.dict(os.environ, DM_OOT_BRENT="1")
 class HeapSignals(unittest.TestCase):
     """The heap check's keys must give the heap region the whole request with the alias region the profile keeps (hle_svc.c: alias at +256 MB, then stacks, then the heap)"""
     STACK = 0x10000000

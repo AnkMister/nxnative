@@ -225,7 +225,7 @@ DM_OODLE_HOST	path	The Mac host binary that `shader_split.py` runs in its Oodle 
 DM_OODLE_JOB	path	`=<job file>`: the host runs the game's own Oodle decoder on every record of the job file right before `nnMain`, writes `<job file>.out` and exits (Unreal shader archives)
 DM_OODLE_MODULES	path	The rewritten modules the Mac host's Oodle tool mode loads when `shader_split.py` decodes Trinity packs; set by the NSP script
 DM_OODLE_SERVE	switch	`=1`: the host answers decode requests on stdin / stdout with the game's own Oodle (or LZ5) decoder from the guest main thread before the SDK starts, until stdin ends
-DM_OOT_BRENT	switch	`1` enables the source harvest host/tool experiments: Mac 64 GB alias layout, SDK 22 audio lock discovery, completed write-log cleanup, provisional heap alias accounting and mount-stable RomFS identities; default off
+DM_OOT_BRENT	switch	`1` enables the source harvest host/tool experiments: Mac 64 GB alias layout, SDK 22 audio lock discovery, completed write-log cleanup, provisional heap alias accounting mount-stable RomFS identities and NUP icon validation; default off
 DM_OPMODE	player	The operation mode the game sees: `0` handheld, `1` console (default: the profile's `op_mode`, console unless set); read once at startup
 DM_PAD_MERGE	switch	`=1` merges every controller into player 1, as before, instead of giving each controller a player of its own (Mac and iOS)
 DM_PATCH_FRONT	switch	`=<bytes>`: the size of the patch area right before the module base for a long text (`BIG_TEXT`); set only by the rewriter's own rerun with the size it needs
