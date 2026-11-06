@@ -344,7 +344,7 @@ ee9b7765. #1360 is an accepted correctness prerequisite, always enabled:
 
 These changes prevent omission of Ocarina's pools beyond entry 4095. Compare
 performance experiments against this corrected baseline, not unchanged
- ee9b7765. The unchanged-base artifact remains a separate historical control.
+ee9b7765. The unchanged-base artifact remains a separate historical control.
 
 Everything else is opt-in:
 - #1405 requires DMSH_RAW_LOAD_QUADS=1 at build/header generation time; default
@@ -360,7 +360,7 @@ the native feedback test seeds a numeric entry and proves off bypasses it while
 on uses it. Before the fix: 12 Python tests, 1 failure; 134 native checks,
 1 failure. After: wide/chain 29 tests passed; feedback 168 checks in each mode;
 translator 61 tests passed; pool/bitmap 95; raw GPU load 61; pacer 250;
-present allocators 13 off / 19 on. Host build passed. Logs in review-fixes.md.
+present allocators 19 checks in each invocation (including flag-off and flag-on paths). Host build passed. Logs in review-fixes.md.
 
 No translator source changed for this review fix. The existing audited,
 source-built assemblies and lock were retained; no NuGet restore, dependency
