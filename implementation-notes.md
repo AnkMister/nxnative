@@ -70,3 +70,7 @@ Preserve live shared textures under the existing default-off DM_NVN_POOL_SKIP_RE
 ## Brent round 2, #1334, 76cfd109
 
 Gate tensor output with DMSH_HMMA_TENSOR=1 and Apple10 runtime selection with DM_NVN_HMMA_TENSOR=1. Apple9 keeps the existing simdgroup_matrix path. Include cd5f3040 ABI-literal cleanup. Chain header follows the single source publish.
+
+## Brent round 2, poolstat/texstat, 01cce669
+
+Add explicit DM_CTL poolstat and texstat diagnostics. Preserve local texture storage fields and safety policy. No automatic diagnostic dump or quality change.
