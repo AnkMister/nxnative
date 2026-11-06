@@ -77,3 +77,7 @@ Reverted the mesh-output padding commit before rebuilding; chain is again
 successes/refusals, filters the packed prewarm inventory, and records the exact
 refusals. Non-AOT and infrastructure failures remain fatal. All 42 archive tests
 pass. Run at J=16, 16 archive workers, 16 merge threads, make -j16.
+
+Real AOT retry isolated twelve incompatible inferred mesh descriptors and merged
+all accepted pieces. Keep archive.tsv's accepted-base count consistent with the
+filtered inventory, including cached archive reuse. No shader chain change.

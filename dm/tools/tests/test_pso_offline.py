@@ -456,6 +456,7 @@ class Build(unittest.TestCase):
             report = json.loads((self.out / 'aot-preflight.json').read_text())
             self.assertEqual(report['gaps']['compiler-refused descriptors'], 1)
             self.assertEqual(report['render_bases'], 4)
+            self.assertIn('bases\t4\n', (self.out / 'archive.tsv').read_text())
             self.assertNotIn('vertex1', (self.out / 'aot.json').read_text())
             before = list(observed)
             self.main('--aot', '--batch-size', '2', '--os-min', '27.0')
