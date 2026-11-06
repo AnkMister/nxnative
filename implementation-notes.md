@@ -453,3 +453,22 @@ Expected improvement is first-use foliage that previously vanished while its
 pipeline compiled. No source bug found in the reviewed key/publication paths.
 A required first-use compile can stall submission; prewarm benefits need a
 matching captured M row. Gameplay and prepare-screen behavior remain untested.
+
+## #1128: adapted
+
+Head `6c13132839606c4305fbe8830655a5b82e887c16`. Imported the limit16
+rewriter, format selection and side-library loader, and its Python/host tests.
+Adapted the old separate alpha/logic-library code to this stack's combined
+_bx library without replacing the alpha loader. Preserved NVN2 high-attribute
+keys. Generation requires `DMSH_OOT_VISUAL=1`; selection requires
+`DM_NVN_VISUAL=1`. Mac only. Float32 attachments retain the original values.
+Reviewed closed #1149 at `fa565c1c2f3257dd820ea670ab5ab29182d5fe15` only as
+a reference. Its global NaN/Inf-to-zero and varying changes are not imported.
+The #1128 patch clamps only outputs copied from constant buffers, to +/-65504.
+It deliberately leaves computed overflow, mixed limited Float16/Float32
+outputs, alpha-tested draws and specialized tile fragments outside coverage.
+Therefore it is a narrow overflow correction, not a general bloom cure.
+Expected benefit is removing bright dots/blobs where that exact constant-output
+pattern overflows a Float16 target. No Ocarina occurrence or picture is claimed.
+The tests check rewrite scope, target formats, loading and Metal compilation.
+Risks include heuristic MSL matching and limited path coverage.

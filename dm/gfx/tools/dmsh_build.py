@@ -14,7 +14,7 @@ import dmsh_geometry, dmsh_atomic, dmsh_wide, dmsh_meshstage, dmsh_abi as abi   
 DM_ROOT = os.environ.get('DM_ROOT') or os.path.expanduser('~/dm-work')   # Workspace root (game files, build outputs and run artifacts are all under it)
 HOME = os.path.expanduser('~')
 dm_dir, out = sys.argv[1:3]; want = set(sys.argv[3:]); cache_root = out
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import dmsh_chain, dmsh_fetch, dmsh_facts, dmsh_mtlcache, dmsh_pch, dmsh_vin, dmsh_pull, dmsh_side, dmsh_mesh, dmsh_ampere, shader_regressions, tool_lock   # translation chain version: verify the tools against the lock file first; build output goes into b-<V>/
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import dmsh_chain, dmsh_fetch, dmsh_facts, dmsh_mtlcache, dmsh_pch, dmsh_vin, dmsh_pull, dmsh_side, dmsh_limit16, dmsh_mesh, dmsh_ampere, shader_regressions, tool_lock   # translation chain version: verify the tools against the lock file first; build output goes into b-<V>/
 _bad = tool_lock.check_tools()
 if _bad: sys.exit('\n'.join('[RED] translation chain tools do not match the lock file: ' + b for b in _bad) + '\n(if the tools changed, run tool_lock.py --update-lock and commit the lock file; if the translator just was not rebuilt, rebuild it)')
 CHAIN = dmsh_chain.version(); out = os.path.join(out, 'b-' + CHAIN)
@@ -364,7 +364,7 @@ def publish_cache(key, digest, rule_fp, code_fp):
         for name in names:
             if name.endswith('.json'):
                 src = os.path.join(out if label == 'mac' else IOSOUT, name)
-                value = json.load(open(src)); value.pop('fetch', None); value.pop('vin', None); value.pop('pull', None); value.pop('alpha', None); value.pop('logic', None)   # the side libraries are made again from the restored MSL (fetch_finish, vin_finish, pull_finish, alpha_finish, logic_finish)
+                value = json.load(open(src)); value.pop('fetch', None); value.pop('vin', None); value.pop('pull', None); value.pop('alpha', None); value.pop('logic', None); value.pop('limit16', None)   # the side libraries are made again from the restored MSL (fetch_finish, vin_finish, pull_finish, alpha_finish, logic_finish)
                 atomic_json(os.path.join(d, name), value)
     atomic_json(cache_meta_path(key), {'digest': digest, 'rule_fp': rule_fp, 'code_fp': code_fp})
 
@@ -530,6 +530,21 @@ def ps_libraries(key, msl, full):
         except FileNotFoundError: pass
         MTL.compile(t, msl, os.path.join(d, key + '_b.metallib'))
     return {}
+
+LIMIT_STATS = collections.Counter()
+def limit_finish(key, full, refl):
+    if refl['stage'] != 'ps' or os.environ.get('DMSH_OOT_VISUAL') != '1': return refl
+    source, entries = dmsh_limit16.variant(full)
+    if not source: return refl
+    path = os.path.join(w, key + '_bs.metal'); open(path, 'w').write(source)
+    try:
+        if 'mac' in TARGETS: MTL.compile('mac', path, os.path.join(out, key + '_bs.metallib'))
+        refl['limit16'] = {'entries': entries, 'colors': dmsh_limit16.colors(full)}
+        LIMIT_STATS['generated'] += 1
+    except subprocess.CalledProcessError as e:
+        LIMIT_STATS['failed'] += 1
+        print(f'[RED] {key}: float16 output limit failed: {str(e)[:120]}', flush=True)
+    return refl
 
 pc_of, loc = {}, {}
 MAP_ROWS, MAP_CONFLICT_ROWS = {}, {}
@@ -1465,6 +1480,7 @@ def finish(key, w, j, c1):
             'vertex_inputs': [{'location': int(m.group(3)), 'msl_type': m.group(1)} for m in attributes(src)],
             'raster': raster_facts(j['stage'], src), 'vs_pad': pad}
     if j['stage'] == 'vs': full = open(msl).read(); vin_finish(key, full, refl); pull_finish(key, full, refl)   # the shadow-input and pulling libraries (dmsh_vin.py, dmsh_pull.py), from the source with every entry point
+    if j['stage'] == 'ps': limit_finish(key, open(msl).read(), refl)
     refl.update(side)   # the alpha test and logic operation entry points (ps_libraries)
     write_refl(key, refl)
     fetch_finish(key, src, refl)
@@ -1529,7 +1545,7 @@ def fin(key):
         src = open(os.path.join(out, key + '_b.metal')).read() if refl['stage'] in ('ps', 'vs') else ''
         if refl['stage'] == 'vs': write_refl(key, pull_finish(key, src, vin_finish(key, src, refl)))
         if refl['stage'] == 'ps': refl.update(ps_libraries(key, os.path.join(out, key + '_b.metal'), src))
-        return key, 'ok', '', fetch_finish(key, src, refl)
+        return key, 'ok', '', fetch_finish(key, src, limit_finish(key, src, refl))
     if key in xerr or not os.path.exists(os.path.join(w, key + '.spv')): return key, 'translation failed', xerr.get(key, 'no spv'), None
     result = (key,) + finish(key, w, jobs[key], c1s[key])
     if result[1] == 'ok': publish_cache(key, digests[key], rule_fps[key], CODE_FP)
