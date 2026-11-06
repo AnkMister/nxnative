@@ -47,4 +47,6 @@ and selected play-build basis will be recorded after integration.
 The first graphics invocation omitted DM_GAME and failed module loading. The
 corrected full rerun above passes. Historical logs and both invocations remain
 in the external evidence folder. No test was weakened for that setup error.
-Final native graphics results follow when its complete run exits.
+Full native graphics run: PASS, all 127 run targets plus four pull and five
+TBDR-budget tests. Raw-memory scalar/optimized GPU comparisons, marked pools,
+reviewed safety fixtures and all presentation configurations pass.
