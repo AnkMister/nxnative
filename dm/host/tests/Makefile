@@ -31,6 +31,7 @@ run: $(B)/t_net_eventfd $(B)/t_language $(B)/t_motion $(B)/t_heap_size $(B)/t_to
 	$(B)/t_audio_stats
 	$(B)/t_fpslock
 	$(B)/t_uecvar
+	$(B)/t_oot_resolution
 	$(B)/t_ue_heap_span
 	$(B)/t_audren_work
 	$(B)/t_audren_layout
@@ -361,3 +362,10 @@ coverage:
 	rm -rf $(B)/cov/prof
 	LLVM_PROFILE_FILE="$(call cov_profile,$(B)/cov)" $(MAKE) -i B=$(B)/cov SAN="$(COV_FLAGS)" run
 	@$(call cov_export,$(B)/cov)
+
+run: $(B)/t_oot_resolution
+$(B)/t_oot_resolution: t_oot_resolution.c ../hle_oot_resolution.c ../hle.h ../dm.h $(GAME_H) | $(B)
+	$(CLANG) -O1 -g -Wall -Werror -Wno-unused-function -I.. $(GINC) -o $@ t_oot_resolution.c
+.PHONY: oot-resolution
+oot-resolution: $(B)/t_oot_resolution
+	$(B)/t_oot_resolution

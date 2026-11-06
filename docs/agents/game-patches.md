@@ -55,6 +55,8 @@ Every patch bound tighter than it could be: the open gaps, then the blocked, kep
 | `build` → `game` | 60 fps frame step and render scale (ksys::VFR) | frame rate | blocked: frame-step stubs have no function-matched form yet | judgement | 1 | [The Legend of Zelda: Breath of the Wild](../../dm/games/01007EF00011E000/README.md) | the game's own frame code; the frame-step state page is general |
 | `build` → `game` | 60 fps frame step: the KIDS frame task and frame-rate block | frame rate | blocked: frame-step stubs have no function-matched form yet | judgement | 1 | [Hyrule Warriors: Age of Calamity](../../dm/games/01002B00111A2000/README.md) | the game's own frame code; only the host's frame-step state page is shared. Fire Emblem: Three Houses and Taiko Risshiden V DX run on KTGL too, with other frame code |
 | `build` → `game` | frame step floor 2 → 1 vsync, and its frame step | frame rate | blocked: frame-step stubs have no function-matched form yet | judgement | 1 | [Paper Mario: The Thousand-Year Door](../../dm/games/0100ECD018EBE000/README.md) | the game's own clock floor and step |
+| `build` → `game` | Ocarina engine resolution gate validation | rendering | blocked: not matched across builds | judgement | 1 | [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md) | the game owns the parameter layouts and final-size selection |
+| `build` → `game` | opt-in internal render resolution | rendering | blocked: parameter layouts and the final-size selection have not been matched across builds | checked: v131072 main disassembly and shipped ModelSceneExtensionParam; gameplay acceptance open | 1 | [The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md) | the game selects scene and final dimensions and a dynamic palette before the NVN calls |
 | `build` → `game` | screen shape: the sizes, the view, the layouts' projection and their edge widgets (DM_SCREEN_ASPECT) | rendering | blocked: the stubs have no function-matched form yet | judgement | 1 | [Animal Crossing: New Horizons](../../dm/games/01006F8002326000/README.md) | the output size is the host's, but where the game takes its sizes, its cameras and its layouts are this build's code |
 | `build` → `game` | Hagi coroutine stack region 1 GB → 64 MB | memory | kept: 1.1.4 is the last update; a match over Hagi would serve no other build of this game | checked: the final build 1.1.4 (the only one the profile packs), 2026-11-04 | 1 | [Super Mario 3D All-Stars: Super Mario Sunshine](../../dm/games/010049900F546002/README.md) | a size inside Hagi's own code: nothing the host sees tells a 1 GB reservation it can shrink from one it cannot |
 
@@ -87,6 +89,7 @@ Every patch bound tighter than it could be: the open gaps, then the blocked, kep
 | [Taiko Risshiden V DX](#taiko-risshiden-v-dx) | 1 | 0 | 0 | 2 | 0 | `game` |
 | [The Legend of Zelda: Breath of the Wild](#the-legend-of-zelda-breath-of-the-wild) | 7 | 0 | 43 | 0 | 0 | `build` → `game` ×2 |
 | [The Legend of Zelda: Link's Awakening](#the-legend-of-zelda-links-awakening) | 1 | 0 | 0 | 0 | 0 | `build` → `game` |
+| [The Legend of Zelda: Ocarina of Time](#the-legend-of-zelda-ocarina-of-time) | 0 | 3 | 0 | 0 | 1 | `build` → `game` ×2 |
 | [The Legend of Zelda: Tears of the Kingdom](#the-legend-of-zelda-tears-of-the-kingdom) | 0 | 0 | 9 | 0 | 0 | `build` → `game` |
 | [Xenoblade Chronicles 3](#xenoblade-chronicles-3) | 6 | 0 | 0 | 0 | 0 | `build` → `game` |
 
@@ -579,6 +582,19 @@ Every patch bound tighter than it could be: the open gaps, then the blocked, kep
 
 - **1.1.0 `main`** `909e904a…` ([patches.py:12](../../dm/games/01006BB00C6F0000/patches.py#L12))
   - cut `+0x10cd070`: physics completion task release (calls its own destructor): ldr x8,[x0] → ret (no longer destroyed; the step function rebuilds it in place every step)
+
+### The Legend of Zelda: Ocarina of Time
+
+[The Legend of Zelda: Ocarina of Time](../../dm/games/0400486024DEC000/README.md), `0400486024DEC000`, [patches.py](../../dm/games/0400486024DEC000/patches.py).
+
+- **`build` → `game`**, rendering, blocked: parameter layouts and the final-size selection have not been matched across builds, checked: v131072 main disassembly and shipped ModelSceneExtensionParam; gameplay acceptance open: opt-in internal render resolution. The game selects scene and final dimensions and a dynamic palette before the NVN calls
+- **`build` → `game`**, rendering, blocked: not matched across builds, judgement: Ocarina engine resolution gate validation. The game owns the parameter layouts and final-size selection
+
+- **v0 `main`** `e0f3ccfa…` ([patches.py:4](../../dm/games/0400486024DEC000/patches.py#L4))
+  - gate 27 at `+0x31ac7e0`: resolution parameter loaded: x20 owns BaseResolution (+0x38), FinalImageResolution (+0x40), presence flags (+0x4c/0x4d)
+  - gate 28 at `+0x31915ec`: dynamic level loaded: x20 owns ResolutionReduceScale (+0x3c), presence flag (+0x40)
+  - gate 29 at `+0xe83050`: final resolution selected: x19 +0xe54/+0xe58, height cap w21; override the framework clamp and fixed 1080p fallback together
+  - host [hle_oot_resolution.c:44](../../dm/host/hle_oot_resolution.c#L44): build check
 
 ### The Legend of Zelda: Tears of the Kingdom
 
