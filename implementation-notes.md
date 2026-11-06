@@ -681,3 +681,7 @@ game run, shader corpus build, push or PR is authorized here.
 - 8708bcd3 removes the duplicate forced ListVirtualInputDevices takeover.
   h_is_List already implements the same zero-device result, so this is registry
   deduplication with no new behavior or flag. The loader refuses duplicate symbols.
+
+- 8708bcd3's NUP icon validation rejects non-image control data with
+  DM_OOT_BRENT=1. Keep the old extraction policy when disabled. This affects
+  packaging only, not rendered game frames.
