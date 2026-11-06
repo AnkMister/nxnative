@@ -505,6 +505,29 @@ static void guest_helper(void) {
 }
 static void *init_worker(void *arg) { *(uint64_t *)arg = info(I_AliasAddr); return NULL; }
 int main(int argc, char **argv) {
+    if (argc == 2 && !strcmp(argv[1], "--brent-alias-probe")) {
+        mem_init();
+        assert(getenv("DM_OOT_BRENT") && !strcmp(getenv("DM_OOT_BRENT"), "1"));
+        assert((uintptr_t)g_heap == (uintptr_t)g_as + 0x10000000);
+        assert(g_heap_cap == RESERVE - DM_GAME_MEM_ALIAS - DM_GAME_MEM_STACK - 0x10000000);
+        assert(g_stack == g_heap + g_heap_cap && g_alias == g_stack + g_stack_cap);
+        assert(g_alias + g_alias_cap == g_as + g_reserve);
+        size_t want = getenv("DM_ALIAS_SIZE") ? strtoull(getenv("DM_ALIAS_SIZE"), NULL, 0) : UINT64_C(0x1000000000);
+        assert(g_alias_cap == want);
+        alias = (uintptr_t)g_alias; stack = (uintptr_t)g_stack; heap = (uintptr_t)g_heap;
+        assert(!resize(0x800000));
+        assert(!pages(1, alias, (size_t)getpagesize()));
+        *(uint8_t *)alias = 0x37;
+        assert(!map(stack, alias, (size_t)getpagesize()));
+        assert(*(uint8_t *)stack == 0x37);
+        *(uint8_t *)stack = 0x64;
+        assert(!unmap(stack, alias, (size_t)getpagesize()));
+        assert(*(uint8_t *)alias == 0x64);
+        assert(!pages(0, alias, (size_t)getpagesize()));
+        puts("Brent alias layout, heap, physical mapping and stack copyback passed");
+        return 0;
+    }
+
     if (argc == 2 && !strcmp(argv[1], "--heap-probe")) {
         mem_init();
         assert(resize(g_heap_cap + 0x200000) == OOM);

@@ -433,3 +433,16 @@ The guest address space, heaps, pools, virtual address memory and the allocators
 - **Fix:** none in the host, and none needed for a folder on the internal disk. To measure memory without this, put a copy of the archive on the internal disk and point `DM_PSO_ARCHIVE` at it. A game's work folders are on an external drive by rule, so a figure from such a run includes the archive. Closing archives after the prewarm could get the memory back on an external drive; that was not tried, because later draws look their bases up in them and it would help only that setup.
 - **Found on:** [Kirby Star Allies](../../dm/games/01007E3006DDA000/README.md): the same stage route gave a footprint of 5,109 MB with its 1.13 GB archive on the external drive and 4,013 MB on the internal disk. Opening the archive took 858 ms against 1,626 ms, and long frames were the same (30 against 29). iOS was not measured.
 
+
+## Optional Mac alias region from oot-combined
+
+Symptom: a game's address-region layout can exceed an iPhone-sized mem_alias.
+Cause: the Mac previously used the same reservation as iOS.
+Fix: DM_OOT_BRENT=1 reserves at least 64 GB of alias address space on Mac and
+places heap, stacks, then alias in the block (source e9d71e27). Physical memory
+is still bounded by app_pool. DM_ALIAS_SIZE overrides the alias size.
+The heap-check script keeps the profile's alias size when this flag is set.
+The legacy layout remains the default. Guest pointers truncated to 39 bits
+can still fail when macOS places the block high; the host logs this exposure.
+Found on: upstream Trails and Just Dance reports. Ocarina relevance is preventive,
+not reproduced here. See [Ocarina](../../dm/games/0400486024DEC000/README.md).

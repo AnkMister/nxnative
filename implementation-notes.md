@@ -671,3 +671,9 @@ game run, shader corpus build, push or PR is authorized here.
   with DM_OOT_BRENT=1. Keep oot-stack's retained-map completion and safe
   fallback for the disabled case. The pool test places an undersized resident
   log below a suitable one and checks both reuse and residency removal.
+
+- e9d71e27's 64 GB alias reservation and heap/stacks/alias order are Mac-only
+  behind DM_OOT_BRENT=1. The base lacks main's guest-file backing, so this is
+  adapted to its anonymous reservation. DM_ALIAS_SIZE still overrides the size.
+  The cheat base check follows the actual alias range. Dedicated production
+  SVC probes check both 64 GB and explicit-size layouts without game execution.
