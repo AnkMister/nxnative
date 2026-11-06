@@ -110,6 +110,12 @@ For a standard NDSR dispatch of `Gx×Gy×Gz` groups, launched threads are exactl
 The committed tables contain thread-group sizes but no per-frame dispatch dimensions, active shader key or push-constant rectangles. An absolute thread count per frame or an M4 Max GPU saving cannot be recovered from them. MetalFX's internal kernel instruction and thread counts are also unavailable. The replacement removes the eligible guest network dispatch and adds a spatial scaler plus input/output conversion draws where required. The [existing Bananza measurement](../../../docs/reference/rendering.md#a-games-own-upscaler-drawn-by-metalfx) is on an M1 and must not be treated as an Ocarina M4 Max result.
 
 The first runtime check should compare handheld stock, handheld swap and docked stock at the same scene and the game's own cap. Record the actual swap log, dynamic sizes, `DM_NVN_GPUPROF` pass costs and image quality. `DM_NVN_GPU_TS=segment` is an independent optional experiment if the game's dynamic controller is receiving misleading whole-submission timestamps. Keep its value equal across each comparison. No shader-chain change or shader rebuild is required for the existing swap.
+## Static shader audit (v131072)
+
+The [shader waste report](../../../docs/analysis/oot-shader-waste.md) and its [compact census](../../../docs/analysis/oot-shader-waste-summary.json) cover the separate v131072 baseline. This is static evidence, with gameplay and Apple GPU timing still unverified. It includes the top 30 candidates, the top five foliage mesh programs, every failed build candidate, runtime failure behavior and the remaining pipeline compilation paths. The scanner is `scripts/oot_shader_waste.py`.
+
+The [BAHS record-boundary finding](../../../docs/reference/shaders.md#a-bahs-scan-accepts-bytes-inside-a-binary-record) explains one suspicious failure. It remains open. No shader or host behavior changed in this audit.
+
 
 ## Found on this game
 

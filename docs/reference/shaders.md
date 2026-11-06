@@ -66,6 +66,13 @@ Finding, keying and translating shaders (`dm/gfx/tools/shader_split.py`, `dmsh_b
 - **Pairing:** control sections are shared between programs, so pair by entry, never by searching for code near a control.
 - **Found on:** [Super Mario 3D World + Bowser's Fury](../../dm/games/010028600EBDA000/README.md) (BAHS version 9).
 
+### A BAHS scan accepts bytes inside a binary record
+
+- **Symptom:** the build reports `Ampere instruction 481 at 0x0` for a compute candidate whose code starts with graphics SPH word `0x020c0481`.
+- **Cause:** `bahs_shaders` scans every four bytes for a plausible descriptor. Bytes inside a variable-size binary record can satisfy its control-magic and length checks without being the record's actual descriptor at `record+0x10`. The accidental control section can mark graphics code as compute, so the translator treats its SPH as an instruction.
+- **Fix:** open. For a validated BAHS binary array, require descriptor membership in its record entries before accepting the candidate. Preserve a separately validated fallback for other layouts. Do not add an instruction stub or discard arbitrary translation failures. The static audit confirms the record-boundary mismatch; whether the game can request the synthetic key remains unverified.
+- **Found on:** [Ocarina of Time, v131072 static audit](../../dm/games/0400486024DEC000/README.md#static-shader-audit-v131072). The shader key, array offsets and raw header evidence are in the linked audit report.
+
 ### Zstd files recognised by their magic
 
 - **Symptom:** `shader_split.py` finds 0 shaders in a RomFS of zstd files named `.zst`.
