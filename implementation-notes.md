@@ -677,3 +677,7 @@ game run, shader corpus build, push or PR is authorized here.
   adapted to its anonymous reservation. DM_ALIAS_SIZE still overrides the size.
   The cheat base check follows the actual alias range. Dedicated production
   SVC probes check both 64 GB and explicit-size layouts without game execution.
+
+- 8708bcd3 removes the duplicate forced ListVirtualInputDevices takeover.
+  h_is_List already implements the same zero-device result, so this is registry
+  deduplication with no new behavior or flag. The loader refuses duplicate symbols.
