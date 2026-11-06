@@ -154,4 +154,4 @@ source changes.
 
 The later commit-identity instruction is acknowledged. Existing commits were
 left unchanged as requested. Future commits must use AnkMister. Both fix ranges
-were checked and contain no absolute `/Users/` paths in their additions.
+were checked and contain no absolute home-directory paths in their additions.

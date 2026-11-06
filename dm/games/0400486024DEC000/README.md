@@ -426,6 +426,6 @@ in the game on this branch. They add [LDSM shared-memory ordering](../../../docs
 [Mac alias layout](../../../docs/reference/memory.md#optional-mac-alias-region-from-oot-combined)
 and [depth-only mesh pipelines](../../../docs/reference/rendering.md#a-depth-only-native-mesh-pipeline-needs-a-fragment-function).
 The source comparison, activation flags and remaining integration checks are in
-[brent-compare.md](../../../brent-compare.md). Existing open gameplay findings
+[brent-compare.md](../../../docs/oot-notes/brent-compare.md). Existing open gameplay findings
 remain open until a matching shader build and host are tested.
 

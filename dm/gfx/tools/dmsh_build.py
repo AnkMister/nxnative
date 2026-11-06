@@ -389,7 +389,7 @@ def publish_cache(key, digest, rule_fp, code_fp):
         for name in names:
             if name.endswith('.json'):
                 src = os.path.join(out if label == 'mac' else IOSOUT, name)
-                value = json.load(open(src)); value.pop('fetch', None); value.pop('vin', None); value.pop('pull', None); value.pop('alpha', None); value.pop('logic', None); value.pop('limit16', None); value.pop('border', None)   # the side libraries are made again from the restored MSL (fetch_finish, vin_finish, pull_finish, alpha_finish, logic_finish)
+                value = json.load(open(src)); value.pop('fetch', None); value.pop('vin', None); value.pop('pull', None); value.pop('alpha', None); value.pop('logic', None); value.pop('limit16', None); value.pop(abi.KIND_BORDER, None)   # the side libraries are made again from the restored MSL (fetch_finish, vin_finish, pull_finish, alpha_finish, logic_finish)
                 atomic_json(os.path.join(d, name), value)
     atomic_json(cache_meta_path(key), {'digest': digest, 'rule_fp': rule_fp, 'code_fp': code_fp})
 
@@ -585,7 +585,7 @@ def ps_libraries(key, msl, full):
     pm = os.path.join(w, key + '_plain.metal'); open(pm, 'w').write(plain)
     try:
         for t, d in targets: MTL.compile(t, pm, os.path.join(d, key + '_bn.metallib'))
-        result['border'] = {'entries': [m.group(1) for m in re.finditer(r'^\s*fragment\s+\S+\s+(\w+)\s*\(', full, re.M)]}
+        result[abi.KIND_BORDER] = {'entries': [m.group(1) for m in re.finditer(r'^\s*fragment\s+\S+\s+(\w+)\s*\(', full, re.M)]}
         BORDER_STATS['generated'] += 1
     except subprocess.CalledProcessError:
         BORDER_STATS['failed'] += 1
