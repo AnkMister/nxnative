@@ -93,6 +93,22 @@ int main(void) {
     assert(force_lookup(names[0]) == &values[0] && g_force_hits[0] == 2);
     expect_abort(1);
 
+    // SDK 22's new hooks must leave the SDK definitions in place unless explicitly enabled.
+    reset_sections();
+    forces[0].name = "_ZN2nn2pl17RequestLoadNxFontEPvm";
+    forces[1].name = "_ZN2nn3hid29IsOunceVibrationDeviceMountedERKNS0_21VibrationDeviceHandleE";
+    forces[2].name = "nnsocketGetAddrInfoWithOptions";
+    force_init(); unsetenv("DM_SDK22_SERVICES");
+    for (unsigned i = 0; i < 3; i++) assert(!force_lookup(forces[i].name) && !g_force_hits[i]);
+    assert(!force_enabled("_ZN2nn3hid20FinalizeSensorFusionEv"));
+    assert(!force_enabled("_ZN2nn4pctl33CheckAgcPermissionUnderMinimumAgeERKNS_7account3UidE"));
+    setenv("DM_SDK22_SERVICES", "0", 1); assert(!force_lookup(forces[0].name));
+    setenv("DM_SDK22_SERVICES", "1", 1);
+    for (unsigned i = 0; i < 3; i++) assert(force_lookup(forces[i].name) == forces[i].fn && g_force_hits[i] == 1);
+    assert(force_enabled("_ZN2nn3hid20FinalizeSensorFusionEv"));
+    assert(force_enabled("_ZN2nn4pctl33CheckAgcPermissionUnderMinimumAgeERKNS_7account3UidE"));
+    unsetenv("DM_SDK22_SERVICES");
+
     // Fill through every growth boundary, then query in reverse using different pointers to the same names.
     static char missing[MAX_STUB][32];
     for (unsigned i = 0; i < MAX_STUB; i++) {
