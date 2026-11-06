@@ -45,3 +45,36 @@ For a run past the opening, copy the committed save folder to the new run's `DM_
 - The opening scene calls `nvnCommandBufferDrawMeshTasksIndirect`, which the host does not implement. On `v0` the probe caught the return at `main+0x2be2dc0`; the branch builds the command buffer pointer in `x0` and the indirect argument address in `x1`. It does not set `x2` on that path. A separate sample of the first 64 bytes at the indirect address returned zeros after the call; the populated record's layout is still unverified. The title-only run logged 11 keys missing from the map. The expanded run captured seven of them before the memory failure. A byte-for-byte comparison found none of those seven code areas in the extracted shader package.
 - The 3D scene's CPU cost (37–59 ms a frame, with pool walks of about 33,000 descriptors) is [resolved](../../../docs/reference/frame-rate.md#a-bindless-pool-table-rebuilt-for-every-registration). Open: the GPU's 14–21 ms a frame in Kokiri Forest, which still drops frames below 60 fps; TBDR optimizations are off for this bindless game (`DM_NVN_TBDR=1` turns them on), and attachments load and store about 330 MB a frame.
 - The Nov. 4 Lichii branches offer two shader leads. Its [packed conversion lowering](https://github.com/zortos293/Lichii/commit/35c043b3efaa147d1c1afe8a52cdf19fa92b77bf) handles opcode `0x243` with source A set to `RZ` and mode `0x0000c4ff`; both of this game's failed foliage programs use two registers and mode `0x000004ff`, which needs independent verification. Its [floating-point global reduction](https://github.com/zortos293/Lichii/commit/3aa89d1cdbe58a2bd5ded06b9c615c78da2ade70) matches a separate `F32FtzRn` diagnostic in the Mac shader build, where the translator drops that operation. Neither of the two shaders in the sky lookup and draw uses those instructions or the gather opcodes from Lichii's [fog work](https://github.com/zortos293/Lichii/commit/375c4a472bd95fdfaae0de6e3f192499cd14f806).
+
+
+## Border library experiment (current, unmeasured)
+
+The `oot-1203` port of PR #1203 adds `DM_NVN_BORDER_SPLIT=1`. It uses a plain
+pixel library on draws whose samplers need no border correction. Unset or `0`
+retains the correcting library on every ordinary draw. Alpha-test and logic
+entry points keep correcting in either mode.
+
+A read-only snapshot of the existing `b-d1f10abd26a7` cache found 16,947 pixel
+reflections against the profile's 22,356 unique pixel keys (42,851 map rows:
+22,356 pixel, 15,852 vertex, 4,123 compute, 20 task, 500 mesh). Of those
+reflections, 16,574 contain border twins and matching `dm_bs` calls: 97.80% of
+the inspected subset, or a confirmed lower bound of 74.14% of all pixel keys.
+373 inspected shaders have no correction; 5,409 keys lack reflection in this
+snapshot. The subset is ordered by key, not a random sample. Static eligibility
+across the whole map is therefore bounded at 74.14% to 98.33%; 97.80% must not
+be presented as a measured whole-game share or draw-weighted saving.
+
+Sampler reflection contains 140,754 twin bindings, all `samp_tex`, across the
+16,574 shaders. 16,724 inspected shaders have scalar samplers and three have
+sampler arrays. There are 310,780 wrapped sample occurrences, including nested
+copies. The facts table has 4,123 entries containing only `local` and `shared`;
+no pixel entries and no border-colour or wrap-state data. Shader reflection
+shows that correction code is compiled, not whether a draw takes its branch.
+No runtime sampler-state capture was available for this census, so actual
+custom-border use, hot-pass coverage, spills and GPU/energy gains remain open.
+
+The census script and its full key list are under
+`/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-1203/`. The port's
+[implementation notes](../../../implementation-notes.md) contain validation,
+risks and the isolated Mac A/B recipe. No game run or full shader build was
+performed for this port.

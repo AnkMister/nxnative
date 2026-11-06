@@ -1,6 +1,7 @@
 """Border colours Metal has no sampler state for (dmsh_build.py border_emu): the rewrite of a shader's samples, the reflection of the twins and the block, the readable-tile variant
 of a rewritten shader, the compile on both platforms, and with DM_TEST_BORDER (the t_border executable) the samples on the GPU."""
 import ast
+import collections
 import os
 from pathlib import Path
 import re
@@ -9,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import Mock
 
 TOOLS = Path(__file__).resolve().parents[1] / 'tools'
 sys.path.insert(0, str(TOOLS))
@@ -17,12 +19,12 @@ import dmsh_fetch   # noqa: E402
 import dmsh_geometry   # noqa: E402
 
 tree = ast.parse((TOOLS / 'dmsh_build.py').read_text())
-names = {'border_emu', 'reflect', 'decode_tex', 'decode_ubo_tex', 'decode_ubo_img', 'const_sampler', 'c2_array'}
+names = {'border_emu', 'border_plain', 'reflect', 'decode_tex', 'decode_ubo_tex', 'decode_ubo_img', 'const_sampler', 'c2_array'}
 selected = [n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name in names)
             or (isinstance(n, ast.Assign) and any(getattr(e, 'id', None) in ('BORDER_HELPERS', 'SSBO', 'TEX_BASE') for t in n.targets for e in (t.elts if isinstance(t, ast.Tuple) else [t])))]
 scope = {'re': re, 'abi': abi, 'dmsh_geometry': dmsh_geometry}
 exec(compile(ast.Module(body=selected, type_ignores=[]), str(TOOLS / 'dmsh_build.py'), 'exec'), scope)
-border_emu, reflect = scope['border_emu'], scope['reflect']
+border_emu, border_plain, reflect = scope['border_emu'], scope['border_plain'], scope['reflect']
 
 HEAD = '#include <metal_stdlib>\n#include <simd/simd.h>\n\nusing namespace metal;\n\n'
 # Tears of the Kingdom's ff9def5b3c418851 as spirv-cross writes it, cut down: a uniform segment, the bend map and its sampler
@@ -154,6 +156,30 @@ class Rewrite(unittest.TestCase):
         self.assertEqual(meta['mixed_regs'], [])
         self.assertRegex(fv, r'\(FX_0 == 0 \? fb0 : [^;]*FX_0 == 7 \? fb7 : dm_bs\(spvDescriptorSet0\.fp_t_tcb_8\.sample\(', 'a tile read replaces the corrected sample')
 
+    def test_plain_takes_every_sample_back(self):
+        out = border_plain(border_emu(GRASS))
+        self.assertEqual(out.count('dm_bs('), 1, 'only the helper is left: no sample is corrected, the inner one inside another neither')
+        self.assertIn('(spvDescriptorSet0.fp_t_tcb_8.sample(spvDescriptorSet0.fp_t_tcb_8Smplr, select(_182, float2(0.0), isnan(_182)))).xy', out)
+        self.assertNotIn('_w, ', out.split('V dm_bs(')[1].split('}\n', 1)[1], 'no twin is sampled after the helper')
+
+    def test_plain_keeps_the_argument_buffer(self):
+        src = border_emu(GRASS)
+        self.assertEqual(members(border_plain(src)), members(src), 'the twins and the block stay: the host encodes one argument buffer for both libraries')
+        self.assertEqual(reflect('k', 'ps', border_plain(src), {'sbufs': []}), reflect('k', 'ps', src, {'sbufs': []}))
+
+    def test_plain_unchanged_without_corrections(self):
+        src = HEAD + 'struct spvDescriptorSetBuffer0\n{\n    texture2d<float> fp_t_tcb_8 [[id(0)]];\n};\n\nfragment void main0() {}\n'
+        self.assertEqual(border_plain(src), src)
+
+    @unittest.skipUnless(shutil.which('xcrun'), 'requires Metal compilers')
+    def test_plain_compiles(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, src in (('grass', GRASS), ('kernel', KERNEL), ('integer', INTEGER)):
+                msl = root / (name + '.metal'); msl.write_text(border_plain(border_emu(src)))
+                r = subprocess.run(['xcrun', '-sdk', 'macosx', 'metal', '-c', '-fmodules-cache-path=' + str(root / 'm'), str(msl), '-o', str(root / f'{name}.air')], capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stderr)
+
     @unittest.skipUnless(shutil.which('xcrun'), 'requires Metal compilers')
     def test_compiles(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -173,6 +199,51 @@ class Rewrite(unittest.TestCase):
             path = Path(directory) / 'kernel.metal'; path.write_text(out)
             r = subprocess.run([os.environ['DM_TEST_BORDER'], str(path)], capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+
+class Libraries(unittest.TestCase):
+    """Exercise the real library orchestration without running a translator."""
+    def run_libraries(self, source, shared=True, fail=False):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            msl = root / 'k_b.metal'; msl.write_text(source)
+            stale = root / 'k_bb.metallib'; stale.write_bytes(b'stale')
+            compiler = Mock()
+            seen = {}
+            def compile_main(target, path, output): seen[Path(output).name] = Path(path).read_text()
+            compiler.compile.side_effect = [None, subprocess.CalledProcessError(1, 'metal')] if fail else compile_main
+            side = Mock(); side.unit.return_value = ('shared unit', {'alpha': ['at'], 'logic': []}) if shared else (None, {})
+            scope = dict(os=os, re=re, subprocess=subprocess, border_plain=border_plain,
+                         out=directory, IOSOUT=None, TARGETS={'mac'}, w=directory,
+                         MTL=compiler, dmsh_side=side, SIDE_STATS=collections.Counter(), BORDER_STATS=collections.Counter())
+            fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'ps_libraries')
+            exec(compile(ast.Module(body=[fn], type_ignores=[]), str(TOOLS / 'dmsh_build.py'), 'exec'), scope)
+            result = scope['ps_libraries']('k', str(msl), source)
+            return result, compiler, seen, stale.exists()
+
+    def test_correcting_shared_unit_and_plain_main(self):
+        result, compiler, seen, _ = self.run_libraries(border_emu(GRASS))
+        self.assertIn('border', result)
+        self.assertEqual(seen['k_b.metallib'], border_plain(border_emu(GRASS)))
+        args = compiler.compile_split.call_args.args
+        self.assertTrue(args[2].endswith('k_bb.metallib'))
+        self.assertTrue(args[3].endswith('k_bx.metallib'))
+
+    def test_no_corrections_removes_stale_border_on_shared_success(self):
+        result, compiler, _, stale = self.run_libraries(GRASS)
+        self.assertNotIn('border', result)
+        self.assertFalse(stale)
+        self.assertTrue(compiler.compile_split.call_args.args[2].endswith('k_b.metallib'))
+
+    def test_missing_correcting_library_fails_build(self):
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.run_libraries(border_emu(GRASS), shared=False, fail=True)
+
+    def test_fallback_compiles_both_libraries(self):
+        result, _, seen, _ = self.run_libraries(border_emu(GRASS), shared=False)
+        self.assertIn('border', result)
+        self.assertEqual(seen['k_bb.metallib'], border_emu(GRASS))
+        self.assertEqual(seen['k_b.metallib'], border_plain(border_emu(GRASS)))
 
 
 if __name__ == '__main__':
