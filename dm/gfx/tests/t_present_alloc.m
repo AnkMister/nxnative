@@ -111,7 +111,7 @@ int main(void) { @autoreleasepool {
     bad = bad_pixels(fifth.texture, 50, 150); printf("ticket 5 drawable: %d of 64 pixels wrong\n", bad);
     CHECK("ticket 5 shows its own picture", bad == 0);
     for (uint64_t ticket = 9; ticket <= 11; ticket++) {
-        CHECK("absolute direct present submits", present_now(&a, 1. / 30, ticket, ticket, NULL, drawable(), 0));
+        CHECK("absolute direct present submits", present_now(&a, 1. / 30, ticket, ticket, NULL, drawable(), 0, atomic_load(&g_eco_work), 1));
         pthread_mutex_lock(&g_pq_mu);
         struct timespec deadline; clock_gettime(CLOCK_REALTIME, &deadline); deadline.tv_sec += 5;
         while (g_present_alloc_done[ticket % 3] < ticket && pthread_cond_timedwait(&g_pq_cv, &g_pq_mu, &deadline) != ETIMEDOUT) {}

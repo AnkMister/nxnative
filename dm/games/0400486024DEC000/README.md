@@ -130,6 +130,108 @@ The first runtime check should compare handheld stock, handheld swap and docked 
 - Mesh-shaded models were missing, among them the door of Link's house: the split read six stage slots of each BNSH program, and NVN2 keeps [task and mesh shaders in slots 7 and 8](../../../docs/reference/shaders.md#task-and-mesh-shaders-in-nvn2-bnsh-program-slots-7-and-8) (resolved). The new split adds 491 mesh and 17 task shaders to the map, 53 of the 54 keys the Kokiri Forest scene had asked for. 511 of their 520 build; the door renders.
 - Kokiri Forest ran at about 20 fps with the GPU two-thirds idle: the [bindless pool table was rebuilt for every registration](../../../docs/reference/frame-rate.md#a-bindless-pool-table-rebuilt-for-every-registration), and about 12,000 descriptors of finalized texture objects churned the ghost ring (resolved). The frame is now 16–21 ms at the median on an Apple M5, submit 5–8 ms, and the GPU (14–21 ms) is the limit.
 - The first 3D scene exhausted Metal memory when [bindless pool walks churned finalized textures](../../../docs/reference/nvn-objects.md#a-bindless-pool-churns-finalized-textures-within-a-submission). On the Apple M5, the failing run reached 18,930 MiB of residency. With submission-local backing, residency was 7,946 MiB about ten seconds after the movie and 7,871 MiB at 35 seconds. The opening 3D scene and its subtitles presented, and the test host exited normally.
+- [Opt-in filtering and supersampled presentation](../../../docs/reference/rendering.md#opt-in-filtering-and-supersampled-presentation) supplies the quality preset below. Synthetic GPU checks pass; gameplay acceptance is open.
+
+## Quality mode (current, opt-in, gameplay acceptance open)
+
+`DM_QUALITY=max` selects anisotropy 16, trilinear filtering, MetalFX spatial presentation at 1.5 times the native viewport, and sharpening 0.2. `DM_QUALITY=off` is the default. Individual feature variables override either preset, including explicit zero/off values. Restart between comparisons because the settings and sampler objects are cached. This is an opt-in candidate for better texture detail and presentation. No console comparison or gameplay test establishes that it looks better than Switch 2 yet.
+
+The implementation follows [the shared sampler and presentation mechanism](../../../docs/reference/rendering.md#opt-in-filtering-and-supersampled-presentation). Comparison, reduction, nearest and non-mipmapped samplers keep their original filtering. Linearly filtered UI textures can still be affected. The preset preserves the game's own NDSR, scene dimensions and frame cadence. Interpolation is absent.
+
+All costs below are **planning estimates**, additional GPU work on an M4 Max for roughly 1440p to 4K presentation. They are not measurements and are not additive guarantees. The profile's 14 to 21 ms GPU numbers came from an M5, so they do not establish this Mac's spare capacity inside a 33.3 ms frame budget.
+
+| Feature and flag | Expected visual gain | Extra GPU cost estimate | Risk and status |
+|---|---|---|---|
+| `DM_ANISO=16` (`0` keeps game) | More distant ground and wall detail at glancing angles | 0.1 to 2 ms, depending on texture sampling and bandwidth | Implemented, including bindless pools. Does not generate new texture detail. More texture traffic and possible shimmer. |
+| `DM_TRILINEAR=1` (`0` keeps game) | Softer transitions between mip levels | 0 to 0.5 ms | Implemented on ordinary linear mip samplers. Slightly softer transitions. |
+| `DM_PRESENT_UPSCALE=metalfx` (`off` default) | Alternative spatial reconstruction at the display's backing resolution | 0.5 to 3 ms when enlargement is needed | Existing option. Changes reconstructed edges and HUD. No motion history. |
+| `DM_PRESENT_UPSCALE_OUT=1.5` (`1` default, up to `4`) | Reconstructs 2.25 times as many presentation pixels, then averages down | 0.5 to 4 ms including spatial reconstruction and reduction | Implemented from PR #345 with corrected filter composition. This is presentation supersampling, not new scene samples. Can soften detail; output allocation grows quadratically. |
+| `DM_SHARPEN=0.2` (`0` default, up to `1`) | More local contrast in the finished picture | 0.1 to 1 ms; more when combined with the grid filter | Implemented in the existing present pass. Neighbourhood clamping prevents overshoot but cannot prevent extra shimmer or enhancement of existing artifacts. Affects HUD too. |
+| `DM_QUALITY=max` | Combines the above; preserves NDSR and 30 game fps | Budget roughly 1 to 7 ms extra, then measure | Implemented. Explicit feature settings win. Not gameplay approved. |
+| Scene scale 1.5 or 2 | More geometry samples, less geometric aliasing | Pixel work grows 2.25 or 4 times; if all of the quoted GPU work scaled, totals would be 31.5 to 47.3 or 56 to 84 ms | **Not implemented.** The game allocation sizes, compute coordinates, depth, shadows and NDSR resolve need coordinated validation. These totals are scaling illustrations, not M4 Max predictions. |
+| `DM_UPSCALER=metalfx` (`game` default) | Optional replacement of eligible NDSR dispatches by the existing spatial scaler | Could save work; no quality or cost measurement here | Existing option, deliberately outside max. It changes the game's reconstruction. Check the first-dispatch log before assuming it applied. |
+| Temporal MetalFX | Could reduce edge shimmer using motion history | Unestimated until motion, jitter and reset contracts are known | **Not implemented for NDSR.** Its audited standard kernels expose one sampled colour input and no motion texture. |
+| Frame interpolation | Could show 60 pictures from 30 game frames | PR #301 quotes 7.7 ms per generated frame on M1 Pro; no transferable M4 Max estimate | **Not ported.** Needs this game's camera, scene/UI split and cut detection. Moving actors, particles and HUD can ghost. PR #301 estimates half a game frame of extra latency, about 16.7 ms at 30 fps. |
+
+### Scene size investigation (open)
+
+`DM_RENDER_SCALE` has no effect on this profile because there is no `patches.py` render-scale stub or loader state page. PR #354's higher ceiling only helps games with those stubs. Neither `DM_RESCALE` from PR #491 nor `DM_UPSCALE` from PR #405 exists in this base host. They have not been added as ineffective settings.
+
+Read-only inspection of the supplied v131072 RomFS found `System/GameGraphics/ModelSceneExtensionParam/Default.game__gfx__ModelSceneExtensionParam.bgyml` in Bootup. Its docked resolution entries `d30fdb96` and `eeb1db9f` both declare base/final size 2560x1440 and use palette `2ebeca77`, whose top `ResolutionReduceScale` is 0.75. That gives a configured top scene size of 1920x1080. The handheld entry `0b46e9da` declares 1920x1080 with the same top fraction, giving 1440x810. Actual dynamic levels and runtime attachment sizes were not observed here.
+
+The palette exposes a plausible engine-side control. Raising 0.75 to 1.125 or 1.5 would nominally request 2880x1620 or 3840x2160 docked scenes. Those exceed the declared base/final size. It is unknown whether the engine sizes its pools, history, dispatches and post-processing from that fraction or assumes a fraction at most 1. There is no sound address-only patch yet. Even raising it to 1.0 requires proving the allocations and all dependent passes.
+
+PR #491 scales screen-like attachments while excluding images written by compute. Its binding correction does not cover this game's dynamic bindless texture pools. PR #405 is more complete, but conservatively demotes textures written as images and its generic upscaler bypass decodes FSR constants, not NDSR rectangles and colour transforms. Scaling only the raster targets can therefore be undone or give incorrect integer reads and compute footprints. NDSR's constants and the existing MetalFX swap describe enlargement, not a tested resolve of a scene larger than its output. A full port is not justified without gameplay and frame-capture validation.
+
+The re-run NDSR audit verified all 22 standard compute kernels against their package hashes and resource reports. Each has one sampled texture at handle 8, one image at handle 74, read-only storage resources and push bank 24. Eleven have the half-float sRGB decode accepted by the existing spatial swap. VR and NDVE variants are different contracts. This does not identify any temporal input, jitter sequence or history reset. The host already implements NVN2 DLSS through temporal MetalFX when the game explicitly supplies depth, motion, jitter and reset data, which is a separate path from these NDSR kernels.
+
+PR #301 derives camera motion for static world pixels and requires a build-specific camera block, scene-end marker and complete HUD separation. None is established for this profile. NDSR's lack of an exposed motion texture does not prove the game never makes motion data, but it prevents a correct temporal or interpolation port based on NDSR alone.
+
+### Kokiri Forest comparison recipe
+
+Run this only in the parent's gameplay pass. This task did not run it. The save source must be the parent's **Kokiri Forest Autosave** checkpoint containing `slot_00/progress.sav` and `slot_00/caption.sav`. Do not copy a save while the baseline host is writing it. Supply `SAVE_REF` and `FONT_DIR` from the parent's working baseline launch. The remaining paths match the shared extraction.
+
+```sh
+export REPO=/Users/ankur/.t3/worktrees/nxnative-oot/t3-ff09367e
+export BUILD=/Users/ankur/Documents/Crypt/Gaming-rea/_work/games/oot/0400486024DEC000_build
+export COMPARE=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/oot-quality/compare
+export TMPDIR=/Users/ankur/Documents/Crypt/Gaming-rea/_work/nxnative/setup/scratch
+# Set these to the parent's known baseline paths before continuing.
+: "${SAVE_REF:?Set SAVE_REF to the Kokiri Forest checkpoint directory}"
+: "${FONT_DIR:?Set FONT_DIR to the working baseline font directory}"
+test -f "$SAVE_REF/slot_00/progress.sav" && test -f "$SAVE_REF/slot_00/caption.sav"
+mkdir -p "$COMPARE"
+```
+
+Define the following shell function. It starts a fresh process with an independent save, temp directory and pipeline cache. It reads the existing rewritten game and shader libraries. It does not change the launcher or the user's `env.txt`. Tags must be new so each run starts from the same checkpoint.
+
+```sh
+quality_run() {
+    tag="$1"; shift
+    run="$COMPARE/$tag"
+    test ! -e "$run" || return 1
+    mkdir -p "$run/temp" "$run/root"
+    cp -cR "$SAVE_REF" "$run/save"
+    : > "$run/control.txt"
+    (
+        cd "$run" || exit 1
+        env -u DM_QUALITY -u DM_ANISO -u DM_TRILINEAR -u DM_SHARPEN \
+            -u DM_PRESENT_UPSCALE -u DM_PRESENT_UPSCALE_OUT \
+            -u DM_RENDER_SCALE -u DM_RESCALE -u DM_UPSCALE \
+            -u DM_FPS -u DM_FPS_TARGET -u DM_FPS_HOLD \
+            -u DM_KEYS -u DM_REC -u DM_NVN_SHOT \
+            DM_QUALITY=off DM_UPSCALER=game DM_OPMODE=1 \
+            DM_WINDOW=1 DM_FULLSCREEN=1 DM_FOCUS_KEEP=1 DM_AUDIO=1 \
+            DM_ROOT="$run/root" DM_SAVE="$run/save" DM_TEMP="$run/temp" \
+            DM_ROMFS="$BUILD/extract/v131072/RomFS.img" \
+            DM_MSL_DIR="$BUILD/shader/cache" DM_FONT_DIR="$FONT_DIR" \
+            DM_NVN_SHMAP="$REPO/dm/games/0400486024DEC000/shader_map.tsv" \
+            DM_PSO_USER="$run/pso_user.tsv" DM_PSO_ARCHIVE="$run/pso_archive" \
+            DM_CTL="$run/control.txt" DM_NVN_SHOT_OUT=3840x2160 \
+            "$@" "$REPO/dm/host/dmhost" "$BUILD/patched_v131072" \
+            > "$run/log.txt" 2>&1
+    )
+}
+```
+
+`3840x2160` gives a fixed 4K comparison artifact even on a differently sized screen. To capture exactly the displayed pixels instead, replace it in **every** run with the `front end: drawable WxH` size logged in fullscreen. The front end already sizes the drawable in native backing pixels. Never compare a raw swapchain `shot` against a presentation-filtered `shot`.
+
+Start each case in the first terminal, load slot 00, and leave the camera at the same reload position. In a second terminal set `COMPARE` to the same path and append the screenshot request for its tag, for example `printf 'shot %s\n' "$COMPARE/stock/still.png" >> "$COMPARE/stock/control.txt"`. Capture another frame after the scene settles. Quit normally before starting the next case. Use a recorded, identical camera pan for moving comparisons rather than claiming pixel identity from two live frames.
+
+```sh
+quality_run stock
+quality_run aniso DM_ANISO=16
+quality_run trilinear DM_TRILINEAR=1
+quality_run present DM_PRESENT_UPSCALE=metalfx
+quality_run supersampled DM_PRESENT_UPSCALE=metalfx DM_PRESENT_UPSCALE_OUT=1.5
+quality_run sharp DM_SHARPEN=0.2
+quality_run max DM_QUALITY=max
+quality_run swap DM_UPSCALER=metalfx
+```
+
+These are separate sequential launches, not one automatic batch. Use stock versus aniso for distant ground, stock versus trilinear for mip transitions, present versus supersampled for reconstruction footprint, stock versus sharp for edge contrast, and stock versus max for the preset. `swap` tests the existing game-upscaler replacement separately. Its log must contain `upscaler: first dispatch` before attributing a result to MetalFX. No such replacement log is expected for max.
+
+Check Link, thin branches, the house door, ground at a shallow angle, fog, shadow edges and cascade joins, the horizon, subtitles and HUD text. Reject new flicker, bright dots, missing foliage, shifted UI, halos or colour changes. Pre-existing missing foliage shaders and the open fog issue above remain baseline defects. Sharpening can make either more obvious. Compare motion as well as stills. Record steady GPU medians and tails for both game submissions and `present command buffer GPU time`; presentation work is separate from the game's quoted GPU time. Discard first-use pipeline creation and screenshot-readback spikes. Acceptance requires the total to fit the 33.3 ms game budget without a worse image.
 
 ## MSL mining experiment (open)
 
