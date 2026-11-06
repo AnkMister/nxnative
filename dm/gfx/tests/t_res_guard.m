@@ -35,7 +35,9 @@ static void commits(void) {
     id<MTLBuffer> a = [g_dev newBufferWithLength:64 << 20 options:MTLResourceStorageModePrivate], b = [g_dev newBufferWithLength:64 << 20 options:MTLResourceStorageModePrivate];
     res_add(a); res_commit();
     uint64_t now = g_dev.currentAllocatedSize, set = g_res.allocatedSize;
+    uint64_t pending = atomic_load(&g_res_bytes);
     res_add(b);
+    CHECK(atomic_load(&g_res_bytes) >= pending + b.allocatedSize, "pending additions are already counted");
     CHECK(g_res.allocatedSize == set, "an addition is not in the set's size before its commit");
     CHECK(guard_used(g_res.allocatedSize) >= now, "the device's size counts it already");
     g_guard.evict = 1; g_guard.stop = 2; g_guard.wall = 3;   // anything is past these
@@ -94,6 +96,21 @@ static void stop(void) {
     atomic_store(&g_guard_lv, GUARD_STOP); guard_act(g_fence); guard_tick();
     CHECK(stops == 1, "once");
 }
+// A game out of focus submits nothing while its threads remake virtual pool runs: each old buffer goes with no fence to wait for, and the timer drains them. With a submission open it waits for it
+static void idle_pool_buffers(void) {
+    static uint8_t mem[1 << 16] __attribute__((aligned(16384))); settle();
+    mtl_pool_add(mem, sizeof mem);
+    __weak id<MTLBuffer> w; pthread_mutex_lock(&g_mu); for (int i = 0; i < g_npool; i++) if (g_pools[i].key == mem) w = g_pools[i].buf; pthread_mutex_unlock(&g_mu);
+    CHECK(w != nil, "the pool has its buffer");
+    mtl_pool_del(mem); guard_tick();
+    CHECK(!w, "between submissions a retired pool buffer goes at the next tick");
+    mtl_pool_add(mem, sizeof mem);
+    pthread_mutex_lock(&g_mu); for (int i = 0; i < g_npool; i++) if (g_pools[i].key == mem) w = g_pools[i].buf; pthread_mutex_unlock(&g_mu);
+    mtl_sub_begin(); mtl_pool_del(mem); guard_tick();
+    CHECK(w != nil, "with a submission open it stays");
+    mtl_sub_commit(); mtl_drain(); defer_drain();
+    CHECK(!w, "and goes behind that submission");
+}
 // A submit thread stuck in the driver holds the residency lock: the timer takes the game down without it. Run in a process of its own, as the stop happens once
 static void stuck(void) {
     g_guard.evict = 1; g_guard.stop = 2; g_guard.wall = UINT64_MAX;
@@ -108,9 +125,10 @@ static void stuck(void) {
 int main(int argc, char **argv) { @autoreleasepool {
     (void)argv; signal(SIGTERM, on_term);
     setenv("DM_NVN_RES_LIMIT_MB", "0", 1);   // this test sets the levels itself
+    setenv("DM_NVN_IDLE_RETIRE", "1", 1);
     setenv("DM_SAFE_GPU", "0", 1); mtl_init();
     if (argc > 1) stuck();
-    else { levels(); commits(); eviction(); stop(); }
+    else { levels(); commits(); eviction(); idle_pool_buffers(); stop(); }
     printf("t_res_guard: %d checks, %d failed\n", checks, failed);
     return failed != 0;
 } }
