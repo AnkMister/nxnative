@@ -42,3 +42,8 @@ only the vendor README differs. Both use the same final audited source-built
 bundle, with no additional restore/publication and no third-party artifacts.
 Each branch regenerates its own chain header. Main source fingerprints are
 recorded separately. Existing commits and all feature merge history are kept.
+
+The full main graphics suite exposed the miner's folder-reader dependency on the
+older cache API. Its explicit read-only folder adapter now supplies STORE.names
+without opening or migrating a cache database. The existing incomplete/current
+publication regression covers the repair. Python graphics is rerun after it.

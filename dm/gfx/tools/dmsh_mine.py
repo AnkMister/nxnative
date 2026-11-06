@@ -103,7 +103,11 @@ def folder_entries(path):
     # Load only the repo's read-only cache inspection functions, never its build.
     tree = ast.parse(Path(dmsh_wide.__file__).with_name('dmsh_build.py').read_text())
     tree.body = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in ('cache_path', 'cache_outputs')]
-    reader = {'os': os, 'CAS': str(path), 'out': str(path), 'IOSOUT': None, 'TARGETS': {'mac'}}
+    class Folder:
+        @staticmethod
+        def names(prefix):
+            return {p.relative_to(path).as_posix() for p in (path / prefix).glob('*') if p.is_file()}
+    reader = {'os': os, 'CAS': str(path), 'STORE': Folder(), 'out': str(path), 'IOSOUT': None, 'TARGETS': {'mac'}}
     exec(compile(tree, 'dmsh_build.py (cache reader only)', 'exec'), reader)
     # publish_cache writes this index atomically LAST, after all immutable outputs.
     for index in sorted((path / 'index').glob('*.json')):
