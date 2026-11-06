@@ -31,6 +31,7 @@ except ValueError: sys.exit('[RED] DM_REWRITE_J must be a positive integer')
 if WORKERS < 1: sys.exit('[RED] DM_REWRITE_J must be a positive integer')
 
 src, outdir, NAME = sys.argv[1], sys.argv[2], sys.argv[3]
+FAST_CLOCK = os.environ.get('DM_FAST_CLOCK') == '1'
 # An NSO, or an NRO (a module the game loads at run time with nn::ro, Super Smash Bros. Ultimate's fighter code), rewritten as an NSO of the same layout would be. nso.py checks the file
 # against its header before anything is allocated (a damaged module stops here with a [RED] line)
 MOD = nso.cli_read(src)
@@ -425,6 +426,24 @@ def site_gate(ins, kind, arg):
     gates.append((ret, kind, arg, ins.address))
     return start
 
+def site_clock(ins, kind, arg):
+    """Integer-only clock entry; its refusal returns 12 bytes past the success return point, to the ordinary gate. x18 keeps the conservative gate."""
+    if arg == 18: return site_gate(ins, 'clock_' + kind, arg)
+    start = here()
+    emit(STP_PRE(29, 30, 31, -16))
+    emit_gate_call()
+    emit(ADDI(30, 30, 4, 1))   # dm_clock_stubs is exactly 16 KB after dm_gate_stubs (entry.S)
+    emit(BLR(30))
+    if arg in (29, 30): emit(STRX(29, 31, arg - 29))
+    elif arg == 31: emit(NOP)
+    else: emit(0xAA0003E0 | (29 << 16) | arg)   # mov xN,x29 (the clock result)
+    emit(LDP_POST(29, 30, 31, 16))
+    emit(B(here(), ins.address + 4))
+    emit(LDP_POST(29, 30, 31, 16))
+    # Refusal has restored all registers; fall through into the unchanged, registered gate.
+    site_gate(ins, 'clock_' + kind, arg)
+    return start
+
 def site_obs(off, oid, word):
     """Observation gate: original entry instruction → enter the host gate (arg = observation number) → restore x29/x30 → execute the original instruction → jump back to off+4.
         The first half of the gate block is word-for-word isomorphic with site_gate; dm_gate saves x0–x28 and the flags in its frame and restores them, so a register keeps its value unless the callback writes it
@@ -699,6 +718,7 @@ for o in (o for s, e in CODE_RANGES for o in range(s, e, 4)):
     if w & 0xFFFFFFE0 == 0xD53BD060: kinds[o] = ('tpidrro_r', None); continue
     if w & 0xFFFFFFE0 == 0xD53BE020: kinds[o] = ('cntpct', w & 31); continue
     if w & 0xFFFFFFE0 == 0xD53BE040: kinds[o] = ('cntvct', w & 31); continue
+    if FAST_CLOCK and w & 0xFFFFFFE0 == 0xD53BE000: kinds[o] = ('cntfrq', w & 31); continue
     # mrs xN, ctr_el0 (cache type): the Apple kernel does not expose it to user mode (SIGILL); SDK 16's nn::os::FlushDataCache reads it for the cache line size
     if w & 0xFFFFFFE0 == 0xD53B0020: kinds[o] = ('ctr', w & 31); continue
     # sub sp, sp, xN (extended register, LSL #0): sp may end up misaligned, which Horizon allows and Apple's kernel does not (site_sp_align); with x18 it is an x18 site (site_sp)
@@ -1336,7 +1356,8 @@ for a in sorted(kinds):
     elif k == 'tpidrro_r': st = site_sysreg_read(ins, 'KTLR'); stat(k)
     elif k == 'tpidr_w': st = site_tpidr_write(ins); stat(k)
     elif k == 'svc': st = site_gate(ins, 'svc', arg); stat(k)
-    elif k in ('cntpct', 'cntvct'): st = site_gate(ins, k, arg); stat(k)
+    elif k in ('cntpct', 'cntvct'): st = site_clock(ins, k, arg) if FAST_CLOCK else site_gate(ins, k, arg); stat(k)
+    elif k == 'cntfrq': st = site_gate(ins, 'clock_' + k, arg); stat(k)
     elif k == 'sp_align': st = site_sp_align(ins, arg); stat(k)
     elif k == 'ctr':   # replaced in place by a constant: DminLine = 4 (64-byte lines); movz xN, #4, lsl #16
         assert arg != 18, f'{a:x} mrs x18, ctr_el0'

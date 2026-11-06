@@ -1,5 +1,6 @@
 // Import resolution (implemented ones go to the host, the rest go to named stubs) and host gate dispatch.
 #include "hle.h"
+#include "clock_state.h"
 #include <mach-o/getsect.h>
 #include <mach-o/ldsyms.h>
 #include <dlfcn.h>
@@ -86,7 +87,7 @@ void stubs_report(void) { LOG("stubs=%u", g_nstub); }
 // ---------- Host gate dispatch ----------
 // The rewriter replaces every svc #n / mrs cntpct with a call to dm_gate; here we remember, by gate block return point (absolute address), what it originally was.
 // Lookup: open-addressing hash, one hit (it used to do module_of + a linear compare over 110 entries on every gate call, keyed by in-module offset, which would collide across modules).
-enum { G_SVC, G_CNTPCT, G_CNTVCT, G_OBS, G_SPIN };
+enum { G_SVC, G_CNTPCT, G_CNTVCT, G_OBS, G_SPIN, G_CNTFRQ };
 // Observation gates (inserted offline from the rewriter's OBS table): number → read-only callback; with no callback attached the gate returns after one pass in and out
 static void (*g_obs_fn[OBS_MAX])(uint64_t *regs, int param); static int g_obs_have[OBS_MAX];
 void gate_obs_set(int id, void (*fn)(uint64_t *regs, int param)) { if (id <= 0 || id >= OBS_MAX) die("observation gate number out of range %d", id); g_obs_fn[id] = fn; }
@@ -98,7 +99,10 @@ static int g_ngate;
 static inline unsigned gate_h(uint64_t a) { return (unsigned)(((a >> 2) * 0x9E3779B97F4A7C15ull) >> (64 - GATE_BITS)); }
 
 void gate_register(uint64_t ret_abs, const char *kind, int arg, uint64_t orig) {
-    int k = !strcmp(kind, "svc") ? G_SVC : !strcmp(kind, "cntpct") ? G_CNTPCT : !strcmp(kind, "cntvct") ? G_CNTVCT : !strcmp(kind, "obs") ? G_OBS : !strcmp(kind, "spin") ? G_SPIN : -1;
+    // A distinct kind makes an older host reject opt-in modules before executing their new entry ABI.
+    int clock_entry = !strncmp(kind, "clock_", 6);
+    if (clock_entry) { kind += 6; arg |= 0x100; }
+    int k = !strcmp(kind, "svc") ? G_SVC : !strcmp(kind, "cntpct") ? G_CNTPCT : !strcmp(kind, "cntvct") ? G_CNTVCT : !strcmp(kind, "obs") ? G_OBS : !strcmp(kind, "spin") ? G_SPIN : !strcmp(kind, "cntfrq") ? G_CNTFRQ : -1;
     if (k < 0) die("unknown gate kind %s", kind);
     if (k == G_OBS) { if ((arg & 0xff) <= 0 || (arg & 0xff) >= OBS_MAX) die("observation gate number out of range %d", arg & 0xff); g_obs_have[arg & 0xff] = 1; }
     if (++g_ngate > (1 << GATE_BITS) / 4) die("gate overflow");
@@ -113,10 +117,15 @@ uint64_t gate_dispatch(uint64_t ret_addr, uint64_t *regs) {
     for (unsigned i = gate_h(ret_addr);; i = (i + 1) & ((1u << GATE_BITS) - 1)) {
         const gate_t *g = &g_gate[i];
         if (g->ret == ret_addr) switch (g->kind) {
-            case G_CNTPCT: case G_CNTVCT: {
-                guest_clock_read_wait();
-                uint64_t t = guest_ticks();    // the system counter (19.2 / 31.25 MHz); original instruction mrs xN, cntpct_el0, arg = N
-                regs[g->arg] = t;
+            case G_CNTPCT: case G_CNTVCT: case G_CNTFRQ: {
+                dm_clock_count(g->kind == G_CNTFRQ ? 2 : g->kind == G_CNTVCT);
+                if (g->kind != G_CNTFRQ) guest_clock_read_wait();
+                uint64_t t = g->kind == G_CNTFRQ ? (dm_sdk_ounce() ? 31250000 : 19200000) : guest_ticks();
+                unsigned n = g->arg & 31;
+                // Opt-in clock blocks mark extended destinations: x29/x30 live on the guest stack, x18 in TSD, and xzr discards the value.
+                if ((g->arg & 0x100) && n >= 29 && n <= 30) ((uint64_t *)(uintptr_t)regs[99])[n - 29] = t;
+                else if ((g->arg & 0x100) && n == 18) pthread_setspecific(g_key18, (void *)(uintptr_t)t);
+                else if (n != 31) regs[n] = t;
                 return t;
             }
             case G_OBS: if (g_obs_fn[g->arg & 0xff]) g_obs_fn[g->arg & 0xff](regs, g->arg >> 8); return 0;   // dm_gate writes x0–x29 back: the original values, unless the callback changed one (OBS_STDALLOC_INIT)

@@ -49,6 +49,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 
 ## Rewriter
 
+- every rewritten system-counter read saves and restores 1,024 bytes of SIMD state even when it only needs an integer timestamp. → [Counter reads save a full SIMD context](../reference/rewriter.md#counter-reads-save-a-full-simd-context)
 - `NameError: name 'CS_ARCH_ARM64' is not defined` at the start of `patch_nso.py`; now `[RED] Capstone 6.… is unsupported` from the NSP script or `patch_nso.py`. → [Capstone API version](../reference/rewriter.md#capstone-api-version)
 - an updated game loses a needed cut because its NSO build ID changed, although the relevant code still matches a verified version; the rewriter reports `[RED] function patch ... skipped` when that match cannot be established, and the NSP script ends with `[RED] main: no function patch carries the registered builds' fixes to this build` or `[RED] main: function patches not applied` (Super Smash Bros. Ultimate 13.0.1: a static-initialiser abort in `nninitStartup`, GitHub issue #375). → [Function-matched cuts for unregistered builds](../reference/rewriter.md#function-matched-cuts-for-unregistered-builds)
 - after a game update, the Cheats menu lists only `Cheats for build … (another version of the game)`, and nothing runs. Or a cheat file converted to the new build by hand writes into the wrong place: a table instead of a variable, or code that moved. → [Cheats carried across game updates](../reference/rewriter.md#cheats-carried-across-game-updates)

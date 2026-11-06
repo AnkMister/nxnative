@@ -237,6 +237,18 @@ Check Link, thin branches, the house door, ground at a shallow angle, fog, shado
 
 A stage-stratified sample of the in-progress Mac build is recorded in [implementation-notes.md](../../../implementation-notes.md), with source hashes, stage coverage, the pattern table, four compiler comparisons, and the parent's A/B recipe. The [experimental passes](../../../docs/reference/shaders.md#experimental-constant-word-reuse-and-storage-runs-between-grid-points) default off. Compute constant-word reuse is the first GPU A/B candidate; the pixel compiler example has no instruction reduction. Storage grouping adds wrap-fallback branches and needs a separate test. No M4 Max frame-time, energy or image-equivalence result is claimed.
 
+## Counter read census, v131072
+
+Current static measurement on the supplied update, independent of the v0 profile addresses. The original ExeFS text words were checked against `patched_v131072/*.sites.tsv`, `*.gates.tsv` and the rewrite logs. No game files or rewritten outputs were modified.
+
+| Module | NSO build ID, first 16 bytes | CNTPCT sites | CNTVCT sites | CNTFRQ sites |
+|---|---|---:|---:|---:|
+| main | `e0f3ccfaf50065ae4ea01eb5aeb13b1a` | 0 | 0 | 0 |
+| subsdk0 | `b0110087a7b339ef74588d3bd0b4dd5d` | 0 | 0 | 0 |
+| sdk | `1643a838814f9c10c696f930ed681e7f` | 45 | 0 | 0 |
+
+The SDK destinations are x0 (14), x8 (11), x11 (1), x20 (7), x21 (9) and x22 (3). Every measured site can use the optional [integer-only counter entry](../../../docs/reference/rewriter.md#counter-reads-save-a-full-simd-context). The update's SDK uses the Switch 2 frequency of 31.25 MHz. Static sites do not establish dynamic read frequency or total CPU saving. Runtime counts, gameplay A/B, audio/pacing checks and machine sleep/wake validation remain open. TLS specialization was deferred to keep executable offset fixups outside the clock change.
+
 ## Open
 
 - The opt-in [idle and hidden-window host policies](../../../docs/reference/frame-rate.md#repeated-scan-out-and-unwatched-window-work) have unit and offscreen Metal coverage only. Ocarina skip rates, energy, wakeups and real focus/occlusion transitions remain unvalidated. The detector skips repeat scan-out without intervening submissions; it never omits the game's draw/compute work.

@@ -48,6 +48,97 @@ _dm_gate_stubs:
     .set k, k + 1
     .endr
 
+// Keep these immediately after dm_gate_stubs: the opt-in rewriter adds 16 KB to KGATE.
+    .globl _dm_clock_stubs
+_dm_clock_stubs:
+    .set k, 0
+    .rept 1024
+    mov x29, x30
+    adrp x30, _dm_gate_top@PAGE
+    ldr x30, [x30, #(8 * k)]
+    b _dm_clock
+    .set k, k + 1
+    .endr
+
+// No C call, SIMD, flags or guest-stack spill. Only x0-x5 and x7 are scratch registers.
+// On refusal, return to the block's ordinary gate, not its result-copy instruction.
+    .globl _dm_clock
+_dm_clock:
+    sub x30, x30, #64
+    stp x0, x1, [x30]
+    stp x2, x3, [x30, #16]
+    stp x4, x5, [x30, #32]
+    str x7, [x30, #48]
+    str x29, [x30, #56]
+    adrp x0, _dm_clock_state@PAGE
+    add x0, x0, _dm_clock_state@PAGEOFF
+    ldar x1, [x0]                   // sequence; odd while freeze/lag changes
+    tbnz x1, #0, Lclock_slow
+    ldr x2, [x0, #8]                // enabled after lazy preparation; off for stats/determinism/freeze
+    cbz x2, Lclock_slow
+    // Darwin's legacy arm64 commpage ABI (xnu osfmk/arm/cpu_capabilities.h).
+    // As in mach_absolute_time, bracket the counter with offset reads across sleep/wake.
+    movz x2, #0xc088
+    movk x2, #0xffff, lsl #16
+    movk x2, #0xf, lsl #32
+    ldrb w3, [x2, #8]
+    sub w4, w3, #1
+    cbz w4, Lclock_spec
+    sub w4, w3, #2
+    cbz w4, Lclock_nospec
+    sub w4, w3, #3
+    cbnz w4, Lclock_slow           // unknown or kernel-only clock
+    ldr x3, [x2]
+    mrs x4, S3_4_c15_c10_6         // Apple's non-speculative virtual counter
+    b Lclock_offset
+Lclock_nospec:
+    ldr x3, [x2]
+    mrs x4, S3_3_c14_c0_6
+    b Lclock_offset
+Lclock_spec:
+    isb
+    ldr x3, [x2]
+    mrs x4, cntvct_el0
+Lclock_offset:
+    ldr x5, [x2]
+    eor x5, x5, x3
+    cbnz x5, Lclock_slow
+    add x4, x4, x3
+    ldp x2, x3, [x0, #16]          // Mach numer, denom; same wrap/truncation as now_ns()
+    mul x4, x4, x2
+    udiv x4, x4, x3
+    ldr x2, [x0, #32]              // lag
+    sub x4, x4, x2
+    ldr x2, [x0, #40]              // Ounce
+    cbnz x2, Lclock_ounce
+    mov x2, #12
+    mul x4, x4, x2
+    mov x2, #625
+    udiv x4, x4, x2
+    b Lclock_check
+Lclock_ounce:
+    lsr x4, x4, #5
+Lclock_check:
+    dmb ishld                      // read snapshot before rechecking its generation
+    ldar x2, [x0]
+    eor x2, x2, x1
+    cbnz x2, Lclock_slow
+    mov x29, x4
+    mov x7, x30
+    ldr x30, [x30, #56]
+    b Lclock_restore
+Lclock_slow:
+    mov x7, x30
+    ldr x29, [x30, #56]
+    add x29, x29, #12
+    mov x30, x29
+Lclock_restore:
+    ldp x0, x1, [x7]
+    ldp x2, x3, [x7, #16]
+    ldp x4, x5, [x7, #32]
+    ldr x7, [x7, #48]
+    ret
+
     .globl _dm_gate
     .p2align 2
 _dm_gate:
