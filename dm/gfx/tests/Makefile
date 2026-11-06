@@ -516,6 +516,7 @@ check_t_upgrade_alias: t_upgrade_alias
 check_t_alias_takeover: t_alias_takeover
 	DM_NVN_SERIAL_HELD=0 ./t_alias_takeover
 	DM_NVN_SERIAL_HELD=1 DM_NVN_SERIAL_HELD_CHECK=1 ./t_alias_takeover
+	DM_NVN_SERIAL_HELD=1 DM_NVN_SERIAL_HELD_CHECK=0 MTL_DEBUG_LAYER=1 ./t_alias_takeover
 check_t_pool_heap: t_pool_heap
 	MTL_DEBUG_LAYER=1 ./t_pool_heap
 	MTL_DEBUG_LAYER=1 ./t_pool_heap off

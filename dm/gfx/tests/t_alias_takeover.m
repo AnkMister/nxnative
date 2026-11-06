@@ -66,7 +66,7 @@ int main(void) { @autoreleasepool {
         pthread_mutex_unlock(&g_smu);
         printf("a takeover past %d held entries with %u serials in the table: %.3f ms\n", NA, g_by_serial.n, ms);
         CHECK(after == before, "held entries are kept");
-        if (serial_held_fast()) CHECK(ms < 1, "the counted path asks each entry in one lookup (under 1 ms)");
+        if (serial_held_fast() && !serial_held_check()) CHECK(ms < 1, "the counted path asks each entry in one lookup (under 1 ms)");
         for (int i = 0; i < NS; i++) serial_del((1ull << 62) + 100 + i);
     }
     mtl_tex_release(&b); mtl_tex_release(&c);
