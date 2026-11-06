@@ -1082,6 +1082,15 @@ def load_pairs(game, package):
         with open(path) as f:
             for ln in f:
                 if ln.strip() and not ln.startswith('#'): v, p = ln.split(); pairs[v].add(p)
+    if os.environ.get('DMSH_OOT_VISUAL') == '1':
+        # The same source-variation evidence used by pso_aot's native mesh bases.
+        groups = collections.defaultdict(lambda: collections.defaultdict(set))
+        for line in game.table('shader_map.tsv').read_text().splitlines():
+            c = line.split('\t')
+            if len(c) >= 5 and c[2] in ('mesh', 'pixel'): groups[c[4]][c[2]].add(c[3])
+        for stages in groups.values():
+            if len(stages['mesh']) == len(stages['pixel']) == 1:
+                pairs[next(iter(stages['mesh']))].update(stages['pixel'])
     return pairs
 
 PAIRS = load_pairs(GAME, dm_dir)
@@ -1100,7 +1109,7 @@ def vs_pad(key, src):
         fn = os.path.join(out, ps + '_b.metal')
         if os.path.exists(fn):
             with open(fn) as f: want |= {int(x) for x in re.findall(r'\[\[user\(locn(\d+)\)', f.read())}
-    return stage_pass(pad_locations, src, sorted(want))
+    return stage_pass(dmsh_meshstage.pad_locations if 'struct dm_vertex_t {' in src else pad_locations, src, sorted(want))
 
 def pad_locations(src, want):
     miss = sorted(set(want) - {int(x) for x in re.findall(r'\[\[user\(locn(\d+)\)', src)})
@@ -1530,7 +1539,7 @@ def finish(key, w, j, c1):
     pad = []
     if j['stage'] == 'vs':   # outputs start as (0,0,0,1) (see vs_init); no point size beside a layer output (see vs_layer); the base instance from Metal (see vs_base_instance)
         src = stage_pass(vs_base_instance, stage_pass(vs_layer, stage_pass(vs_init, src))); open(msl, 'w').write(src)
-    if j['stage'] == 'vs' and PAIRS.get(key):   # outputs the pixel shader reads but the vertex shader does not write get (0,0,0,1) (see vs_pad)
+    if (j['stage'] == 'vs' or mesh and mesh['kind'] == 'ms') and PAIRS.get(key):   # outputs the pixel shader reads but the vertex shader does not write get (0,0,0,1) (see vs_pad)
         src, pad = vs_pad(key, src)
         if pad: open(msl, 'w').write(src)
     lay = None; discard = False

@@ -159,3 +159,17 @@ def to_stage(msl, i):
                 (f'    for (uint n = {lid}; n < np; n += {thr}u)\n    {{\n        uint b = {block("n")};\n        dm_prim_t p;\n{psets}        dm_out.set_primitive(n, p);\n    }}\n' if pm else '') +
                 f'    for (uint n = {lid}; n < np * 3u; n += {thr}u)\n    {{\n        uint at = {prim + 4}u + n;\n        dm_out.set_index(n, ({mem}[at >> 2] >> ((at & 3u) * 8u)) & 0xffu);\n    }}\n}}\n')
     return src + '\n' + head + entry('main0', True) + '\n' + entry('main0_z', False)
+
+
+def pad_locations(src, want):
+    """Supply unwritten generic outputs with the linked-stage (0,0,0,1) default.
+
+    Match vs_pad's NVN rule without changing the packed stage-memory layout.
+    Existing per-vertex and per-primitive outputs retain their original values.
+    """
+    miss = sorted(set(want) - {int(x) for x in re.findall(r'\[\[user\(locn(\d+)\)', src)})
+    start = src.find('struct dm_vertex_t {')
+    end = src.find('\n};', start)
+    if not miss or start < 0 or end < 0 or 'dm_vertex_t v;' not in src: return src, []
+    src = src[:end] + ''.join(f'\n    float4 dm_pad{n} [[user(locn{n})]];' for n in miss) + src[end:]
+    return src.replace('dm_vertex_t v;', 'dm_vertex_t v;' + ''.join(f'\n        v.dm_pad{n} = float4(0.0, 0.0, 0.0, 1.0);' for n in miss)), miss

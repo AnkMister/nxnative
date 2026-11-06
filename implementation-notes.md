@@ -70,3 +70,11 @@ User requested full build speed: J=16 and make -j16. The offline planner now
 accepts opt-in DM_PSO_J and DM_METAL_PACK_THREADS (both default 1), enabling
 independent cached archive batches and the final merge to use 16 workers.
 No shader semantics or runtime settings change.
+
+The first complete shader pass produced 42,853 successes / one known false BAHS
+translation candidate. Archive batch 38 exposed three real foliage mesh links
+missing fragment varyings. Applied the existing NVN vertex default-output rule
+to source-paired native meshes, gated by DMSH_OOT_VISUAL. Real offline compilation
+of all three formerly failing pipelines passes; 28 padding/cache tests pass.
+Rebuild the matching chain and host; unchanged Metal source binaries remain
+cached by compiler and source content, and completed archive batches are cached.
