@@ -53,6 +53,10 @@ static void screen_refresh(NSScreen *screen) {   // main thread: refresh capabil
     g_screen_fps = (int)screen.maximumFramesPerSecond;
     g_screen_id = [screen.deviceDescription[@"NSScreenNumber"] unsignedIntValue];
     g_screen_variable_refresh = screen.minimumRefreshInterval > 0 && screen.maximumRefreshInterval > screen.minimumRefreshInterval;
+    const char *vqa = getenv("DM_NVN_VQA");
+    if (getenv("DM_PRESENT_COLORSPACE") || (vqa && atoi(vqa)))
+        LOG("[vqa] display colour: %s; EDR headroom %.3f, potential %.3f", screen.colorSpace.localizedName.UTF8String,
+            screen.maximumExtendedDynamicRangeColorComponentValue, screen.maximumPotentialExtendedDynamicRangeColorComponentValue);
 }
 static _Atomic int g_fullscreen;   // the window is in fullscreen (set when it has entered and when it has left)
 // The software keyboard input box is up (front_text_input). The game window is not key then, which is not a focus change the game should see: on hardware the inline keyboard is drawn inside
@@ -1357,6 +1361,16 @@ void front_run(void (*guest)(void)) {
         g_layer = [CAMetalLayer layer];
         g_layer.device = MTLCreateSystemDefaultDevice();
         g_layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+        // Opt-in source colour contract. Auto means the SDR game's sRGB gamut,
+        // independent of the display's gamut; ColorSync handles the display.
+        const char *cs = getenv("DM_PRESENT_COLORSPACE");
+        if (cs && (!strcmp(cs, "srgb") || !strcmp(cs, "p3") || !strcmp(cs, "auto"))) {
+            CGColorSpaceRef space = CGColorSpaceCreateWithName(!strcmp(cs, "p3") ? kCGColorSpaceDisplayP3 : kCGColorSpaceSRGB);
+            g_layer.colorspace = space; CGColorSpaceRelease(space);
+            g_layer.wantsExtendedDynamicRangeContent = NO;
+            LOG("present colour: %s, BGRA8Unorm, SDR full range; %s", cs,
+                !strcmp(cs, "p3") ? "sRGB to Display P3 in present shader" : "sRGB source tagged for ColorSync");
+        } else if (cs) LOG("[RED] DM_PRESENT_COLORSPACE=%s: expected srgb, p3 or auto; legacy output kept", cs);
         g_layer.contentsScale = win.backingScaleFactor;
         // Apple's HUD over the game (frame rate, frame and GPU time, memory): front_hud_env turns it on before the first device. The layer's developerHUDProperties
         // stay unset: mode=default forces this layer's HUD on, so the Metal HUD menu's Hide HUD left it on screen

@@ -545,3 +545,12 @@ check_t_safe_gpu: t_safe_gpu
 	./t_safe_gpu legacy
 	./t_safe_gpu hook
 	./t_safe_gpu off
+t_nanscan: t_nanscan.m ../nvn/host_msl.m $(MSL_H)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_nanscan.m ../nvn/host_msl.m -framework Metal -framework Foundation
+t_present_color: t_present_color.m ../nvn/host_msl.m $(MSL_H)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_present_color.m ../nvn/host_msl.m -framework Metal -framework Foundation -framework CoreGraphics
+t_nanscan_pass: t_nanscan_pass.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_nanscan_pass.m $(MTL_T_SRC) $(FW)
+.PHONY: check_t_nanscan_pass
+check_t_nanscan_pass: t_nanscan_pass
+	python3 test_nanscan_pass.py ./t_nanscan_pass
