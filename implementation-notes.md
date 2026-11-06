@@ -429,3 +429,13 @@ with a regression fixture. Expected improvement is recovery of d17eefaff4f0bc23
 (SMAA weights), reducing stair-stepped foliage/prop edges. A targeted extraction
 will verify its update-build presence; the repository map is not regenerated.
 The shader must be added to the parent's map and rebuilt before gameplay.
+
+## #1357: adapted
+
+Head `072f8674caf07ac45067393004399efc97754b60`. Imported the Mac
+compiler-depth change and BracketDepth tests. `DMSH_OOT_VISUAL=1` enables
+-fbracket-depth=1024. Per the Mac-only context, no iOS source was changed and
+the new iOS test was omitted. The fixture compiles 300 nested parentheses and
+checks unchanged byte output within the old limit. Expected improvement is
+restoring compute work from 1f78730053feb036 and e172bd7ec218ab8e. No semantics
+change is intended. Full generated expressions will be compiled when extractable.
