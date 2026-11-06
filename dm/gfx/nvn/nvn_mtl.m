@@ -6957,6 +6957,8 @@ static uint32_t lim_key(NvShader *fs, const uint32_t cfmt[8], const uint8_t *lma
     if (!nvn_visual_on() || !fs || !fs->limit_colors) return 0;
     int f16 = 0, f32 = 0;
     for (int i = 0; i < 8; i++) { int c = lmap ? lmap[i] : i; if (!cfmt[i] || c >= 8 || !(fs->limit_colors >> c & 1)) continue;
+        // The side library clamps these outputs in every entry, including integer bitcasts.
+        if (pf_int_kind((MTLPixelFormat)cfmt[i])) return 0;
         switch ((MTLPixelFormat)cfmt[i]) {
             case MTLPixelFormatR16Float: case MTLPixelFormatRG16Float: case MTLPixelFormatRGBA16Float: f16 = 1; break;
             case MTLPixelFormatR32Float: case MTLPixelFormatRG32Float: case MTLPixelFormatRGBA32Float: f32 = 1; break;

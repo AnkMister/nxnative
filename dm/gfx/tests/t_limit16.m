@@ -9,6 +9,33 @@ void svc_thread_dump(void) {}
 uint64_t now_ns(void) { return bp_now(); }
 static int checks, failed;
 #define CHECK(c) do { checks++; if (!(c)) { failed++; fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #c); } } while (0)
+static uint32_t mixed_word(id<MTLLibrary> lib) {
+    NSError *error = nil;
+    id<MTLFunction> fs = [lib newFunctionWithName:@"main0_m"];
+    MTLRenderPipelineDescriptor *pd = [MTLRenderPipelineDescriptor new];
+    pd.vertexFunction = [lib newFunctionWithName:@"triangle"]; pd.fragmentFunction = fs;
+    pd.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA16Float; pd.colorAttachments[1].pixelFormat = MTLPixelFormatRGBA32Uint;
+    id<MTLRenderPipelineState> pso = [g_dev newRenderPipelineStateWithDescriptor:pd error:&error]; CHECK(pso != nil);
+    if (!pso) { fprintf(stderr, "%s\n", error.localizedDescription.UTF8String); return 0; }
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA16Float width:1 height:1 mipmapped:NO];
+    td.usage = MTLTextureUsageRenderTarget; td.storageMode = MTLStorageModeShared;
+    id<MTLTexture> f16 = [g_dev newTextureWithDescriptor:td]; td.pixelFormat = MTLPixelFormatRGBA32Uint;
+    id<MTLTexture> ui = [g_dev newTextureWithDescriptor:td];
+    id<MTLBuffer> cb = [g_dev newBufferWithLength:64 options:MTLResourceStorageModeShared];
+    ((float *)cb.contents)[0] = ((float *)cb.contents)[4] = 65536.0f;
+    id<MTLArgumentEncoder> ae = [fs newArgumentEncoderWithBufferIndex:0];
+    id<MTLBuffer> args = [g_dev newBufferWithLength:ae.encodedLength options:MTLResourceStorageModeShared];
+    [ae setArgumentBuffer:args offset:0]; [ae setBuffer:cb offset:0 atIndex:0];
+    MTLRenderPassDescriptor *pass = [MTLRenderPassDescriptor renderPassDescriptor];
+    pass.colorAttachments[0].texture = f16; pass.colorAttachments[1].texture = ui;
+    for (int i = 0; i < 2; i++) { pass.colorAttachments[i].loadAction = MTLLoadActionClear; pass.colorAttachments[i].storeAction = MTLStoreActionStore; }
+    id<MTLCommandBuffer> cmd = [g_q commandBuffer]; id<MTLRenderCommandEncoder> enc = [cmd renderCommandEncoderWithDescriptor:pass];
+    [enc setRenderPipelineState:pso]; [enc setFragmentBuffer:args offset:0 atIndex:0]; [enc useResource:cb usage:MTLResourceUsageRead];
+    [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3]; [enc endEncoding]; [cmd commit]; [cmd waitUntilCompleted];
+    CHECK(cmd.status == MTLCommandBufferStatusCompleted);
+    uint32_t words[4]; [ui getBytes:words bytesPerRow:sizeof words fromRegion:MTLRegionMake2D(0, 0, 1, 1) mipmapLevel:0];
+    CHECK(words[1] == 123u); return words[0];
+}
 int main(int argc, char **argv) { @autoreleasepool {
     setenv("DM_NVN_VISUAL", "1", 1);
     if (argc != 2) return 2;
@@ -33,6 +60,18 @@ int main(int argc, char **argv) { @autoreleasepool {
     id<MTLFunction> f = lim_fn(ps, ps->fn), u = lim_fn(ps, ps->fn_u);
     CHECK(ps->sfn_state == 1); CHECK([f.name isEqualToString:@"main0"]); CHECK([u.name isEqualToString:@"main0_u"]);
     CHECK(f != ps->fn); CHECK(lim_fn(ps, lib ? nil : ps->fn) == nil);
+    ps->limit_colors = 3; cf[0] = MTLPixelFormatRGBA16Float; cf[1] = MTLPixelFormatRGBA32Uint; cf[2] = 0;
+    CHECK(lim_key(ps, cf, NULL) == 0);
+    uint8_t mixed_map[8] = {1, 0, 255, 255, 255, 255, 255, 255};
+    CHECK(lim_key(ps, cf, mixed_map) == 0);
+    cf[1] = MTLPixelFormatRGBA32Sint; CHECK(lim_key(ps, cf, NULL) == 0);
+    cf[1] = MTLPixelFormatRGBA32Float; CHECK(lim_key(ps, cf, NULL) == 0);
+    cf[1] = MTLPixelFormatRGBA32Uint; ps->limit_colors = 1; CHECK(lim_key(ps, cf, NULL) == 2); ps->limit_colors = 3;
+    id<MTLLibrary> mixed = [g_dev newLibraryWithURL:[NSURL fileURLWithPath:[g_msl_dir stringByAppendingPathComponent:@"mixed.metallib"]] error:&error];
+    id<MTLLibrary> limited = [g_dev newLibraryWithURL:[NSURL fileURLWithPath:[g_msl_dir stringByAppendingPathComponent:@"mixed_limited.metallib"]] error:&error];
+    CHECK(mixed != nil && limited != nil);
+    CHECK(mixed_word(lim_key(ps, cf, NULL) ? limited : mixed) == 0x47800000u);
+    CHECK(mixed_word(limited) == 0x477fe000u);   // The review's corruption, retained as a sensitivity check.
     printf("float16 limit: %d checks, %d failed\n", checks, failed);
     return failed != 0;
 } }
