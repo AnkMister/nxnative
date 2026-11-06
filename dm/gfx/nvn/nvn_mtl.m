@@ -338,7 +338,7 @@ static void defer_drain(void) { @autoreleasepool {
             if (d->fence <= g_done) { [ready addObject:d]; [g_deferred removeObjectAtIndex:(NSUInteger)i]; }
         }
     }
-    NSMutableArray<NvDeferredRelease *> *pending = [NSMutableArray array];
+    NSMutableArray<NvDeferredRelease *> *pending = nvn_visual_on() ? [NSMutableArray array] : nil;
     uint64_t done = g_done;
     if (nvn_visual_on()) for (NvDeferredRelease *d in g_deferred) {
         [(d->fence <= done ? ready : pending) addObject:d];
@@ -5550,7 +5550,7 @@ static id<MTLTexture> img_fit(int tid, id<MTLTexture> t, int dpf, uint64_t *rid)
     MTLPixelFormat pf = !cls ? t.pixelFormat : n == 1 ? (u ? MTLPixelFormatR8Uint : MTLPixelFormatR8Sint) : n == 2 ? (u ? MTLPixelFormatR16Uint : MTLPixelFormatR16Sint) : n == 4 ? (u ? MTLPixelFormatR32Uint : MTLPixelFormatR32Sint)
                       : n == 8 ? (u ? MTLPixelFormatRG32Uint : MTLPixelFormatRG32Sint) : n == 16 ? (u ? MTLPixelFormatRGBA32Uint : MTLPixelFormatRGBA32Sint) : MTLPixelFormatInvalid;
     id<MTLTexture> base = t; NSUInteger l0 = 0, s0 = 0;
-    while (base.parentTexture) { l0 += base.parentRelativeLevel; s0 += base.parentRelativeSlice; base = base.parentTexture; }
+    while (base.parentTexture) { l0 += base.parentRelativeLevel; s0 += base.parentRelativeSlice; base = base.parentTexture; if (!nvn_visual_on()) break; }
     if (pf == MTLPixelFormatInvalid || tid <= 0 || tid >= g_ntreg) {
         RED_ONCE(106, "image read as %s in the shader, texture of Metal format %lu (texture ID %d): no view of that class, bound as is (reads undefined)", u ? "uint" : "int", (unsigned long)t.pixelFormat, tid); return nil; }
     if (cls && !(base.usage & MTLTextureUsagePixelFormatView)) {   // made without the format-view usage (it costs lossless compression, so textures get it only when needed): upgraded before the next
@@ -8192,7 +8192,7 @@ static id<MTLTexture> dummy_img_atomic(int dtt, int dpf) {
     cache[dtt & 7][s] = t; res_add(t); return t;
 }
 static int img_atomic_ok(id<MTLTexture> t, const nvn_rbind *b) {
-    id<MTLTexture> base = t; while (base.parentTexture) base = base.parentTexture;
+    id<MTLTexture> base = t; while (base.parentTexture) { base = base.parentTexture; if (!nvn_visual_on()) break; }
     return pf_r32i(t.pixelFormat) && tex_atomic_capable(base) && t.textureType == (MTLTextureType)b->dtt && t.sampleCount == 1;
 }
 // Snapshot substitution for same-pass feedback sampling (registered by fb_prepare, used by encode_args; see the notes before draw)
@@ -10628,9 +10628,10 @@ static void ixc_run(const p_draw *dw, const p_draw_idx *di) {
         if (!at) { failed = 1; MLOG("[RED] indirect draw conversion: cannot create the compute pipeline %s (indirect draws of quads / fans / 8-bit indices are skipped)", e.localizedDescription.UTF8String); return; } }
     // Ending a pass and landing deferred inline writes can advance the
     // epoch. Snapshot it after both, before this compute encoder opens.
-    if (g_enc) { g_ixc_splits++; PD("M %llu indirect draw conversion: render pass split here", g_stat_pass); rp_end(); }
-    ubd_land_compute();
-    if (g_blit) { enc_b_end(g_blit); g_blit = nil; }
+    int visual = nvn_visual_on() || mesh_indirect_on();
+    if (visual && g_enc) { g_ixc_splits++; PD("M %llu indirect draw conversion: render pass split here", g_stat_pass); rp_end(); }
+    if (visual) ubd_land_compute();
+    if (visual && g_blit) { enc_b_end(g_blit); g_blit = nil; }
     if (g_ixc_epoch != g_wr_epoch || g_ixc_sub != g_sub_serial || g_ixc_n > IXC_MAX - 8) { g_ixc_n = 0; g_ixc_epoch = g_wr_epoch; g_ixc_sub = g_sub_serial; }
     int n0 = g_ixc_n; ixc_take(dw, di);
     if (g_exec_next && g_ret_n <= 8) {   // Later draws in replay order (current list → callers → the rest of this submission), up to the next buffer write
@@ -10642,6 +10643,10 @@ static void ixc_run(const p_draw *dw, const p_draw_idx *di) {
             if (d && ixc_wanted(d, NULL)) ixc_take(d, NULL);
             else if (x && ixc_wanted(NULL, x)) ixc_take(NULL, x);
         }
+    }
+    if (!visual) {
+        if (g_enc) { g_ixc_splits++; PD("M %llu indirect draw conversion: render pass split here", g_stat_pass); rp_end(); }
+        if (g_blit) { enc_b_end(g_blit); g_blit = nil; }
     }
     int n = g_ixc_n - n0, na = 0; if (n <= 0) return;
     typedef struct { uint64_t rec, args; uint32_t prim, cap; } ajob;

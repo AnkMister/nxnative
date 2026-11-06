@@ -1,5 +1,9 @@
 # Ocarina Mac stack implementation notes
 
+Current branch: `oot-visual`. The visual-port results and activation flags are in
+[Ocarina visual correctness ports](#ocarina-visual-correctness-ports) below.
+The original `oot-stack` report is retained as provenance.
+
 ## Result and scope
 
 `oot-stack` now contains the source changes from #1360, locally compiled translator
@@ -328,9 +332,9 @@ or game speed regresses. No M4 Max gameplay, latency or energy claim is made her
 
 # Ocarina visual correctness ports
 
-Branch `oot-visual` starts at `oot-stack` (`e7c50787`). Source ports follow the
+Branch `oot-visual` starts at `oot-stack` (`8284776d08b215e56c67acbcd5f54d1abacb71e3`). Source ports follow the
 requested PR order. No PR binaries, locks or generated headers are imported.
-The translator will be rebuilt once after all source changes. New translator
+The translator was rebuilt once after all C# source changes. New translator
 paths require `DMSH_OOT_VISUAL=1`; its value is part of the shader chain stamp.
 Host and splitter gates are described below. No game run or full shader build
 is allowed in this task. Tests on the rebuilt translator follow at the end.
@@ -370,8 +374,7 @@ Found and fixed two source issues: FlushDenormal loses negative zero's sign;
 the initial ordinary load races with atomic writes. The adapted helper flushes
 by exponent/magnitude bits and keeps the sign. The initial read uses CAS(0,0).
 Expected symptom improvement is the washed-out outdoor scene from missing sky,
-probe and shadow accumulation. Numeric/concurrency GPU checks are pending the
-single translator rebuild. Risks include CAS contention and console NaN payload
+probe and shadow accumulation. Numeric/concurrency GPU results are recorded in the final verification below. Risks include CAS contention and console NaN payload
 parity; gameplay remains unverified.
 
 ## #1312: adapted
@@ -426,8 +429,8 @@ walk; off retains the 16-byte walk. Fixed a source edge case: the entry-offset
 score used iter_unpack on a potentially incomplete slice, which throws for a
 short pack at candidate offset 0x14. It now inspects only complete entries,
 with a regression fixture. Expected improvement is recovery of d17eefaff4f0bc23
-(SMAA weights), reducing stair-stepped foliage/prop edges. A targeted extraction
-will verify its update-build presence; the repository map is not regenerated.
+(SMAA weights), reducing stair-stepped foliage/prop edges. The targeted extraction
+verified its update-build presence; the repository map is not regenerated.
 The shader must be added to the parent's map and rebuilt before gameplay.
 
 ## #1357: adapted
@@ -464,6 +467,9 @@ keys. Generation requires `DMSH_OOT_VISUAL=1`; selection requires
 `DM_NVN_VISUAL=1`. Mac only. Float32 attachments retain the original values.
 Reviewed closed #1149 at `fa565c1c2f3257dd820ea670ab5ab29182d5fe15` only as
 a reference. Its global NaN/Inf-to-zero and varying changes are not imported.
+Found and fixed a numeric source issue in #1128: precise::clamp turned NaN
+into a finite bound on the M4 Max. The helper now preserves NaN using a bit
+test. A GPU regression failed before the change and passes after it.
 The #1128 patch clamps only outputs copied from constant buffers, to +/-65504.
 It deliberately leaves computed overflow, mixed limited Float16/Float32
 outputs, alpha-tested draws and specialized tile fragments outside coverage.
@@ -508,3 +514,121 @@ non-PT predicate results instead of silently dropping that output. Only the
 32-bit non-uniform form is accepted. A fixture uses the exact issue encoding.
 This closes a further foliage translation gap. Console parity and ordering
 beyond the translator's existing relaxed atomic model remain unverified.
+
+## Final source build and verification
+
+All nine requested PRs were adapted, not rejected. Their semantic source changes
+were preserved except for the corrections and default-off gates described above.
+No stability PR was imported. No push, PR or GitHub comment was made.
+
+The translator was published once after the C# source ports, from source at
+`afcd2b35`. The later changes affect tests, host gates, documentation and the
+MSL Float16 helper, not the C# translator. The exact NuGet procedure in the
+original stack report was reused with AUDIT set to
+`/Users/ankur/Documents/Crypt/Projects/_work/nxnative/oot-visual`. Every one
+of 57 versions was rechecked against nuget.org publication dates before its
+nupkg was downloaded. All four restored project.assets.json manifests were
+checked against that allowlist. Restore had only the isolated local feed,
+NuGetAudit=false, RestoreDisableParallel=true, and -m:4. Publish used Release,
+--self-contained false, --no-restore, -m:4 and no runtime ID. No dependency
+version changed, no package manager install ran, and no cooldown exception
+was needed. SDK 10.0.403 / runtime 10.0.14 were already installed.
+
+Managed publish files replaced the bundle's managed files. The original
+universal launcher was preserved. tool_lock.py --update-lock and --check-tools
+measured the new assemblies and checked the source digest; dmsh_chain.py
+--header regenerated the default header. Fingerprints are 9b609a2568155e59
+(dmsh_xlate), 66d4494b62bda954 (Shader), and 344250bc9832022b (Common).
+The embedded source digest remains 71adcdd020e03a64.
+
+- Full tools suite: **1,223 tests, OK, 23 skips**.
+- Final chain/cache/docs/compiler-depth/Makefile checks after the Float16
+  helper correction: **57 tests, OK**.
+- Ampere translator suites, with the installed rebuilt translator: **90 tests, OK**.
+  Feature-specific tests set their own opt-in flag.
+- Numeric Metal execution: **3 tests, OK**, containing 64 packed F2IP cases
+  across all four rounding modes, 10 RED cases including signed input/result
+  FTZ, RN tie, infinity, NaN and a contended 128-thread add, and 7 Float16
+  clamp cases including NaN and negative zero. Numeric fixtures use the Mac
+  build's -O1 and -fpreserve-invariance flags.
+- Float16 rewrite/compile suite: **3 tests, OK**, Mac only.
+- Host fixtures: indirect mesh GPU conversion and disabled-path gate; integer
+  image aliasing (**50 checks**); deferred release order/retention; CPU storage
+  (**32 checks**); CPU texture ranges and inherited finalized pool tests
+  (**71 checks**); serialized PSO keys; native mesh warm/load/claim/draw
+  (**114 checks on each of MTLDevice and Metal 4**); Float16 selection/loading
+  (**15 checks**). All pass.
+- The disabled translator matches oot-stack on four existing fixtures: all
+  four SPIR-V files and all four reflection files are byte-identical.
+- Added source-cache and environment-switch declarations. The two old doc-only
+  switches DM_NVN_CUT_FIRST and DM_NVN_HANGLOG still produce informational
+  warnings from the inherited notes; they are not implemented here.
+
+The first tools run exposed missing cache/switch declarations; these were fixed.
+A subsequent run saw the numeric helper before it was excluded from make run;
+NOT_RUN now names it because the Python test builds and drives it.
+The imported prewarm fixture hardcoded /tmp. Its first run removed its folder
+on completion; it was changed to require TMPDIR and subsequent runs used the
+authorized scratch directory.
+
+Python lint has no findings in changed code. It still fails overall on three
+pre-existing findings in unchanged test_nsp_mac.py (two) and test_tree_tar.py
+(one). C compile-database generation succeeds (239 sources). clang-tidy is
+not installed, and the no-install rule prevented running C lint. No baseline
+was raised to hide findings. Existing Objective-C compiler warnings remain.
+
+## Extracted game fixtures
+
+Read only the v131072 extract named in the task. Used shader_split's RomFS
+image reader and zstd dictionaries to scan three relevant archives, retaining
+only the ten requested target programs. The package/map in the running game
+workspace was not written. Records, jobs, SPIR-V, MSL, AIR and diagnostics are
+in the audit folder's `fixtures/`. No raw game bytes are committed.
+
+| Key | Coverage | Rebuilt translation / Mac Metal compile |
+| --- | --- | --- |
+| 604134a5262ff670 | Kokiri foliage mesh, F2IP truncate | PASS / PASS |
+| ecead5cd0569091f | Kokiri foliage mesh, F2IP truncate | PASS / PASS |
+| fed302d791a4ba43 | Kokiri foliage mesh, F2IP truncate | PASS / PASS |
+| 8692b34b521225be | foliage compute, two-source F2IP | PASS / PASS |
+| 83df46a0b1b379b4 | foliage compute, two-source F2IP | PASS / PASS |
+| 5d3a096025e375a1 | ISBERD b8 task payload | PASS / PASS |
+| 21d9f83e6027c565 | sky analysis RED.F32.FTZ.RN | PASS / PASS |
+| d17eefaff4f0bc23 | recovered NDSR SMAA weights | PASS / PASS |
+| 1f78730053feb036 | deep compute expression | PASS / PASS |
+| e172bd7ec218ab8e | deep compute expression | PASS / PASS |
+
+The oot-stack translator produced 4 SPIR-V files and rejected 6 of those jobs
+(5 F2IP programs and the b8 task shader). The new translator produces all 10.
+The sky analysis shader previously logged 12 dropped F32FtzRn operations;
+its rebuilt reflection has no translator notes. Both deep compute MSL files
+(about 3.53 MB each) fail at the default bracket limit and compile with 1024.
+The fixture pipeline uses the repo's set flattening, SPIRV-Cross, precise
+float rewrite, HMMA rewrite where applicable and task/mesh wrapper, followed
+by xcrun metal for macosx. No full shader build or game was run.
+
+## Activation and remaining gates
+
+The committed default chain is **88f31285d646**. With DMSH_OOT_VISUAL=1 and
+raw-load quads off, it is **b79eeb29fe00**. The parent must set the desired
+flags consistently, regenerate the header, and build matching shader libraries
+and host. An enabled translator experiment with a disabled-chain host is not
+a valid comparison. The existing DMSH_RAW_LOAD_QUADS option is preserved.
+
+- Build/split opt-in: `DMSH_OOT_VISUAL=1`.
+- Host visual ports: `DM_NVN_VISUAL=1`.
+- Provisional indirect mesh layout: `DM_NVN_MESH_INDIRECT=1`, separately.
+
+Regenerate the parent's shader map to include d17eefaff4f0bc23, using the
+entry-wise splitter. No profile shader map was rewritten here.
+Default behavior remains opt-in; four disabled shader fixtures prove only
+those fixtures' equivalence, not the whole corpus.
+The parent still owns independent code review, NVN2 record-layout validation,
+full shader/host rebuild, and Kokiri Forest visual/gameplay acceptance.
+No FPS, memory, energy or image-correctness claim is made from compilation.
+
+The installed local translator and its lock/header are committed in the final
+verification commit. Isolated NuGet feed/cache, publish output, baseline bundle
+and the C# build intermediates were removed after verification. Audit dates,
+scripts, logs and the requested small shader fixtures remain in the audit folder.
+Rebuilding requires rerunning its audit_nuget.py to recreate the cooled feed.

@@ -3,6 +3,7 @@
 append counter with; shared memory's scaled address, IMAD.HI and ATOMS.CAS; and the instructions tested on the atomic's result below. Needs DMSH_TEST_XLATE (the translator) like the other translator tests."""
 import json, os, re, struct, subprocess, sys, tempfile, unittest
 from pathlib import Path
+from unittest.mock import patch
 
 TOOLS = Path(__file__).resolve().parents[1] / 'tools'
 EXIT = (0x000fea0003800000, 0x000000000000794d)   # hi, lo: EXIT
@@ -32,6 +33,7 @@ class Translated(unittest.TestCase):
             return r.stdout
 
 
+@patch.dict(os.environ, DMSH_OOT_VISUAL="1")
 class SurfaceLoadLiveness(Translated):
     # S2R R4, SR_TID.X and S2R R5, SR_TID.Y; SULD.2D RGBA R8, [R4], image slot 0.
     COORDS = inst(0x000fe20000002100, 0x0000000000047919) + inst(0x000fe20000002200, 0x0000000000057919)
@@ -64,6 +66,7 @@ class SurfaceLoadLiveness(Translated):
         self.assertIn('gl_LocalInvocationID.x', msl)
 
 
+@patch.dict(os.environ, DMSH_OOT_VISUAL="1")
 class GuardedWrites(Translated):
     P0 = (0x000fda0003f06070, 0x00c0060005007a0c)   # P0 = R5 >= c3[0x18], R5 an instruction's own
     MOV_R5 = (0x000fe20000000f00, 0x0100000000057a02)   # R5 = c4[0]
@@ -249,6 +252,7 @@ class Sured(Translated):
         self.assertIn('SURED form', str(e.exception))
 
 
+@patch.dict(os.environ, DMSH_OOT_VISUAL="1")
 class StageMemory(Translated):
     """A task or mesh shader's stage memory in shared memory, on the game's encodings (job stage_memory: workgroup 0, input 0x10, outputs 0x120, primitives 0x400)"""
     MEMORY = dict(stage_memory=[0, 0x10, 0x120, 0x400], shared=0x800)
@@ -384,6 +388,7 @@ def raw_fixture(out):
     subprocess.run(['xcrun', '-sdk', 'macosx', 'metallib', str(air), '-o', str(Path(out) / 'raw.metallib')], check=True)
 
 
+@patch.dict(os.environ, DMSH_OOT_VISUAL="1")
 class GlobalCas(Translated):
     def test_foliage_cas_keeps_the_global_update(self):
         # Issue #1347's 0x3a9 encoding, Ra/Rd=R36, expected R38, new R39.
@@ -391,6 +396,7 @@ class GlobalCas(Translated):
         self.assertIn('atomic_compare_exchange_weak_explicit', self.translate(code))
 
 
+@patch.dict(os.environ, DMSH_OOT_VISUAL="1")
 class RedF32(Translated):
     """RED.E.ADD.F32.FTZ.RN (0x98e, type 3 at 73..76), in Ocarina of Time's encoding (agl's sky_analyze 21d9f83e6027c565 at +0xa70, there on UR4 and R9): the IR has no float atomic, so
     the add retries a compare-and-swap of the word. The translator used to log `Invalid reduction type: F32FtzRn` and drop the instruction"""
@@ -411,7 +417,7 @@ class RedF32(Translated):
 
     def test_the_sum_flushes_denormals(self):
         self.assertIn('8388608u', self.msl())   # exponent zero, sign retained as bits
-        self.assertIn('2147483648u', self.msl())
+        self.assertIn('0x80000000', self.msl())
 
 
 class Shared(Translated):

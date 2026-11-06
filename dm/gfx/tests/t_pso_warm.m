@@ -291,10 +291,14 @@ static void native_mesh(NSString *dir) {
 }
 
 int main(void) { @autoreleasepool {
+    setenv("DM_NVN_VISUAL", "1", 1);
     alarm(60);   // A regression in owner/waiter progress must fail rather than hang the suite.
     setenv("DM_PSO_ARCHIVE", "off", 1); setenv("DM_NVN_PREDICT", "0", 1);
     unsetenv("DM_NVN_HILITE"); unsetenv("DM_NVN_MAGSCAN"); unsetenv("DM_PSO_RECORD"); unsetenv("DM_PSO_USER"); unsetenv("DM_SAVE");
-    char dir[] = "/tmp/t_pso_warm.XXXXXX"; if (!mkdtemp(dir)) return 1;
+    const char *scratch = getenv("TMPDIR");
+    if (!scratch || !*scratch) { fprintf(stderr, "set TMPDIR to a persistent scratch folder\n"); return 1; }
+    char dir[4096];
+    if (snprintf(dir, sizeof dir, "%s/t_pso_warm.XXXXXX", scratch) >= (int)sizeof dir || !mkdtemp(dir)) return 1;
     mtl_init();
     if (!fixtures(@(dir))) { fprintf(stderr, "failed to compile synthetic shader fixtures\n"); [NSFileManager.defaultManager removeItemAtPath:@(dir) error:nil]; return 1; }
     singleflight(@(dir));

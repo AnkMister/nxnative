@@ -8,6 +8,11 @@ void svc_thread_dump(void) {}
 uint64_t now_ns(void) { return bp_now(); }
 
 int main(void) { @autoreleasepool {
+    setenv("DM_NVN_MESH_INDIRECT", "0", 1);
+    p_draw disabled = {.prim=DM_PRIM_MESH_TASKS, .ind=16};
+    assert(!ixc_wanted(&disabled, NULL));
+    setenv("DM_NVN_MESH_INDIRECT", "1", 1);
+    assert(ixc_wanted(&disabled, NULL));
     mtl_init(); size_t bytes = (size_t)getpagesize();
     uint32_t *guest = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
     assert(guest != MAP_FAILED); mtl_pool_add(guest, bytes);

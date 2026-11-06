@@ -109,6 +109,7 @@ static void atomic_alias_case(void) { @autoreleasepool {
     CHECK(cb.status == MTLCommandBufferStatusCompleted && *(uint32_t *)result.contents == 0x11223344u, "RGBA8 read sees preserved clear bits and the atomic OR");
 } }
 int main(void) { @autoreleasepool {
+    setenv("DM_NVN_VISUAL", "1", 1);
     mtl_init(); image_case(0); image_case(1); atomic_alias_case();
     printf("explicit image usage: %d checks, %d failed\n", checks, failed);
     return failed != 0;

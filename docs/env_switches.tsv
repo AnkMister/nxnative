@@ -157,6 +157,7 @@ DM_NVN_LAZY_CLEAR	switch	`0` makes clears with no draw after them open a pass of
 DM_NVN_LOADPROBE	diagnostic	`=1`, `2` or `3`: attachments whose load is skipped are cleared to a sentinel colour (`3` NaN; `1` NaN for float formats) and the sentinel pixels left at pass end are counted (should be 0)
 DM_NVN_LOG	diagnostic	`=1` logs the creation of NVN objects
 DM_NVN_MAGSCAN	diagnostic	`=<fs key>[:every[:phase]]`: device self-check that reads each pass's colour attachments every `every` frames (default 30) and logs `[mag]` lines for solid magenta 16×16 blocks or non-finite pixels
+DM_NVN_MESH_INDIRECT	switch	`1` enables provisional NVN2 indirect mesh draws using {count, first}; logs the first eight records after completion; off by default because the NVN2 layout is unverified
 DM_NVN_PASSDUMP	diagnostic	`=<f>`, `<f1>-<f2>` or `every:<n>`: logs every render pass of those frames (attachments, clears, shader keys, bindings, draw state, presents) for the `tbdr_*.py` tools
 DM_NVN_PASSDUMP_ALL	diagnostic	`=1` makes `DM_NVN_PASSDUMP` record every draw and binding change, not only the first per pass and stage, including copies and inline uniform updates
 DM_NVN_PASSGPU	diagnostic	`=<file>` writes the GPU time of each render and compute pass from stage-boundary timestamp counters (off under Metal 4); also gives each dispatch its own encoder
@@ -208,6 +209,7 @@ DM_NVN_VBUF_CACHE	switch	`0` turns off the cache of resolved vertex stream addre
 DM_NVN_VCONV_CHECK	diagnostic	`=1` scans the indices again at every reuse of a cached vertex conversion range (`vconv_range`) and reports differences
 DM_NVN_VCONV_CPU	switch	`=1` converts integer vertex inputs fed formats of another class on the CPU, as before, instead of through the shader's shadow inputs (`<key>_bv`)
 DM_NVN_VCONV_RANGE	switch	`0` / `1` overrides the profile's `vconv_range`: CPU vertex conversion only over the vertices each draw reads instead of the whole bound range
+DM_NVN_VISUAL	switch	`1` enables the Ocarina visual source ports: texture write ranges, integer image aliases, native mesh prewarm and Float16 constant-output limits; off by default
 DM_NVN_VLOG	diagnostic	Set: logs each NVN memory pool as it is created (address, memory, size, flags) with a backtrace
 DM_NVN_VSDUMP	path	Output file for post-vertex captures; used with DM_NVN_VSDUMP_KEY and the frame/count bounds
 DM_NVN_VSDUMP_FROM	diagnostic	First presented frame eligible for a post-vertex capture (default 0)
@@ -229,6 +231,7 @@ DM_PHONE_MOTION	switch	On iOS, whether the phone's own device motion drives play
 DM_PICTURE_FIT	player	`fill` scales the 16:9 picture on the iPhone and iPad until it covers the screen in landscape and crops the edges (a portrait or tabletop split and a TV stay fitted); `fit` or unset, the largest 16:9 rectangle with black bars. Launcher and in-game menu setting
 DM_PREEMPT	switch	`0` / `1` overrides the profile's `core_preempt`: also check already-runnable higher-priority peers on the caller's core after every thread SVC
 DM_PRELOAD	diagnostic	Set: on the Mac, runs the host's early background loading (`dm_host_preload_start`) as the iOS app does, to exercise that path
+DM_PRESENT_ABSOLUTE	switch	`1` enables the Mac absolute direct-present cadence experiment inherited from oot-stack; off by default; gameplay latency remains unverified
 DM_PRESENT_FIFO	switch	`0` makes the display link take the newest queued frame each tick, as before; by default it shows frames in order, at most one tick behind
 DM_PRESENT_HZ	switch	`=<N>`: the frequency of presentation pacing (default 60); `0` means no frame limit and is for performance profiling only
 DM_PRESENT_INTERVAL	switch	`display` presents one frame per display-link tick whatever interval the game sets; `game` follows the game's present interval (default: the profile's `present_interval`)

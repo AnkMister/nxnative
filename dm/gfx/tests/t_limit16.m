@@ -10,6 +10,7 @@ uint64_t now_ns(void) { return bp_now(); }
 static int checks, failed;
 #define CHECK(c) do { checks++; if (!(c)) { failed++; fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #c); } } while (0)
 int main(int argc, char **argv) { @autoreleasepool {
+    setenv("DM_NVN_VISUAL", "1", 1);
     if (argc != 2) return 2;
     setenv("DM_MSL_DIR", argv[1], 1);
     mtl_init(); g_msl_dir = @(argv[1]);

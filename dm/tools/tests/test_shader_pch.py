@@ -157,6 +157,7 @@ class BracketDepth(Tmp):
     def test_the_build_and_ios_take_the_same_depth(self):   # dmsh_build.py is a script, so its value is read from its source
         tree = ast.parse((REPO / 'dm/gfx/tools/dmsh_build.py').read_text())
         mac = next(n.value for n in ast.walk(tree) if isinstance(n, ast.Assign) and [getattr(t, 'id', None) for t in n.targets] == ['METAL_DEPTH'])
+        assert isinstance(mac, ast.IfExp)
         self.assertEqual(ast.literal_eval(mac.body), ['-fbracket-depth=1024'])
         self.assertEqual(ast.literal_eval(mac.orelse), [])
         self.assertNotIn('bracket', ios_metal.RECORD)

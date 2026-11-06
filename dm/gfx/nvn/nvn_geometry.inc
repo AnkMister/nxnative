@@ -651,7 +651,7 @@ static void mesh_tasks_draw(const p_draw *dw) {
     if (!ms || ms->mesh_kind != 2 || !ms->fn || (ts ? !ts->fn : !ms->mesh_notask)) {
         RED_ONCE(150, "DrawMeshTasks without its task and mesh shaders (task %s mesh %s): draw skipped", ts ? ts->key : "-", ms ? ms->key : "-"); return; }
     image_prepare(pr, 1u << 3 | 1u << 4);
-    if (g_nubd && ((dw->ind && ubd_hits(dw->ind, dw->ind + 8)) || (ts && ubd_conflict_sh(ts, 3)) || ubd_conflict_sh(ms, 4))) {
+    if (g_nubd && (nvn_visual_on() || mesh_indirect_on() || g_enc || ubd_lazy()) && ((dw->ind && ubd_hits(dw->ind, dw->ind + 8)) || (ts && ubd_conflict_sh(ts, 3)) || ubd_conflict_sh(ms, 4))) {
         g_ubd_conflicts++; rp_end(); ubd_land();
     }
     uint64_t indirect = 0;
@@ -680,7 +680,7 @@ static void mesh_tasks_draw(const p_draw *dw) {
     draw_(&triangle, NULL);
     g_geo_program = nil; g_mtk.on = 0; args_dirty_all();
     if (g_mtk.miss) return;
-    swrite_note(pr); if (prog_swrites(pr)) g_wr_epoch++;
+    swrite_note(pr); if ((!nvn_visual_on() && !mesh_indirect_on()) || prog_swrites(pr)) g_wr_epoch++;
     if (!g_mtk_n++) MLOG("task / mesh: first %s draw, task %s mesh %s fragment %s", indirect ? "indirect" : "direct", ts ? ts->key : "-", ms->key, pr->sh[1] ? pr->sh[1]->key : "-");
 
 }

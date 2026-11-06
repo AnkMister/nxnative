@@ -2,7 +2,8 @@
 """Ampere ALU instructions through the offline translator (dmsh_xlate, arch sm86), on registers the translator cannot fold, their result stored to shared memory so
 that it is kept: BREV, BMSK, F2IP, UIMAD with an immediate in C, and HADD2 / HMUL2 with an immediate (test_dmsh_ampere_mem.py's Pokopia class has those two on constants, a negative immediate's sign, F2FP.MERGE_C,
 F2I from a half, UP2UR, MEMBAR and ERRBAR). Needs DMSH_TEST_XLATE (the translator) like the other translator tests."""
-import re, sys, unittest
+import os, re, sys, unittest
+from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_dmsh_ampere_mem import EXIT, Translated, inst
@@ -72,6 +73,7 @@ class CompareFtz(Alu):
 def s2r(rd, sr): return (0x000e260000000000 | sr << 8, 0x0000000000007919 | rd << 16)   # S2R Rd, SR (0x21 SR_TID.X, 0x25 SR_CTAID.X)
 
 
+@patch.dict(os.environ, DMSH_OOT_VISUAL="1")
 class F2ip(Alu):
     """F2IP.U8.F32.NTZ Rd, a, b, RZ (0x243): each float rounded to the nearest integer, saturated to a byte and NaN to 0, b in byte 0 and a in byte 1. The Legend of Zelda:
     Ocarina of Time's colour converter 99951da6e5cd38f5 has F2IP R22, R13, R12, RZ at +0x530; here it is on R6, R4, R5"""
@@ -103,6 +105,7 @@ class F2ip(Alu):
                 self.kept(s2r(4, 0x21), (hi, self.F2IP[1]))
 
 
+@patch.dict(os.environ, DMSH_OOT_VISUAL="1")
 class F2ipTruncate(Alu):
     """F2IP.U8.F32.NTZ.TRUNC Rd, RZ, b, RZ (78..79 = 3, F2I's rounding field): Ocarina of Time's foliage mesh shader 740e2b04db624fb1 has F2IP R5, RZ, R5, RZ at +0x370, a
     colour channel times 255 that it then shifts by 16 into an RGBA8 word; here it is on R6 and R5. The other rounding modes are the same field (no game encoding met)"""
@@ -137,6 +140,7 @@ class UimadImmediateC(Alu):
     def test_adds_the_immediate(self):
         msl = self.kept(uldc(4, 0, 0x40), uldc(6, 0, 0x44), self.UIMAD, self.MOV)
         self.assertRegex(msl, r'\* as_type<int>\([^;]*\);\s*int _\d+ = _\d+ \+ 10;')
+@patch.dict(os.environ, DMSH_OOT_VISUAL="1")
 class Vote(Alu):
     """VOTEU (0x886) writes the uniform predicate UPd and leaves the lane predicate of that number alone; VOTE (0x806) writes the lane predicate. nvdisasm reads 0x886 as
     VOTEU.ANY UP0, P0 (CuAssembler's sm_86 records) and NAK encodes it with a uniform destination at 81..84. Yoshi and the Mysterious Book's cbd80cb96ad38a61 votes P0 into

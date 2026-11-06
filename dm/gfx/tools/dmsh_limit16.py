@@ -8,7 +8,7 @@
 import re
 
 MAX = '65504.0f'
-HELPER = f'static inline float dm_limit16(float v) {{ return precise::clamp(v, -{MAX}, {MAX}); }}   // dmsh_limit16.py\n'
+HELPER = f'static inline float dm_limit16(float v) {{ return (as_type<uint>(v) & 0x7fffffffu) > 0x7f800000u ? v : precise::clamp(v, -{MAX}, {MAX}); }}   // dmsh_limit16.py\n'
 ENTRY = re.compile(r'^[^\n]*?\bfragment\s+\w+\s+(\w+)\s*\(', re.M)
 UNIFORM = r'\(\*spvDescriptorSet0\.\w+\)\._m0\[\d+\]\.[xyzw]'
 ALIAS = re.compile(rf'^\s*float (_\d+) = ({UNIFORM});$', re.M)   # the SSA form of a read that SPIR-V Cross did not inline

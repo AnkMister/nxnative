@@ -170,6 +170,7 @@ static void finalized_bindless_pool(void) {
     defer_drain(); munmap(mem, len);
 }
 int main(int argc, const char **argv) { @autoreleasepool {
+    setenv("DM_NVN_VISUAL", "1", 1);
     enum { N = 6442, BASE = 1000 };
     static tex_t t[N];
     for (int i = 0; i < N; i++) { t[i].serial = BASE + i; t[i].d.width = t[i].d.height = 4; t[i].d.depth = 1; t[i].d.format = 0x25; mtl_tex_init(&t[i]); }

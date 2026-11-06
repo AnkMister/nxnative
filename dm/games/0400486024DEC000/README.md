@@ -28,6 +28,8 @@ For a run past the opening, copy the committed save folder to the new run's `DM_
 
 ## Found on this game
 
+- Open experiment: [visual source ports](../../../docs/reference/shaders.md#ocarina-visual-source-ports-experimental) are default-off on `oot-visual`. Ten extracted v131072 targets now translate and compile on the M4 Max, including the foliage, output-payload task, float-reduction, SMAA and deep-expression compute targets. Numeric GPU and focused host fixtures pass. The Open entries below describe the earlier runtime findings; visual/gameplay acceptance remains open.
+
 - Open experiment: [absolute direct-present cadence](../../../docs/reference/frame-rate.md#absolute-cadence-experiment-for-direct-presentation) is available with `DM_PRESENT_ABSOLUTE=1` on the Mac. It is off by default and has no gameplay latency result yet.
 
 - The online library's [eventfd for its poller](../../../docs/reference/services.md#eventfds-served-offline) and the [virtual audio input list](../../../docs/reference/audio.md#no-virtual-audio-input-devices-sdk-22) blocked startup.

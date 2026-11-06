@@ -42,6 +42,7 @@ static const uint32_t CACHED = NVN_MEMORY_POOL_FLAGS_CPU_CACHED | NVN_MEMORY_POO
 
 int main(void) {
     @autoreleasepool {
+    setenv("DM_NVN_VISUAL", "1", 1);
         mtl_init();
         fixture f;
         setup(&f, 7001, CACHED, NVN_FORMAT_RGBA8, 0);
