@@ -599,8 +599,13 @@ static id<MTLRenderPipelineState> mtk_pso_legacy(NvProg *raster) {
     m.rasterSampleCount = d.rasterSampleCount; m.alphaToCoverageEnabled = d.alphaToCoverageEnabled;
     for (int i = 0; i < 8; i++) m.colorAttachments[i] = d.colorAttachments[i];
     m.depthAttachmentPixelFormat = d.depthAttachmentPixelFormat; m.stencilAttachmentPixelFormat = d.stencilAttachmentPixelFormat;
-    if (dm_aot_on()) { NSDictionary *j = aot_render_row(m, 1); aot_record(j); id loaded = aot_lookup(j, 1, nil);
-        if (loaded) { os_unfair_lock_lock(&g_pso_mtk_lock); hm_put_id(&g_pso_mtk, &k, loaded); os_unfair_lock_unlock(&g_pso_mtk_lock); return loaded; } }
+    if (dm_aot_on()) {
+        id loaded = aot_mesh(m, nil);
+        os_unfair_lock_lock(&g_pso_mtk_legacy_lock);
+        hm_put_id(&g_pso_mtk_legacy, &k, loaded ?: NSNull.null);
+        os_unfair_lock_unlock(&g_pso_mtk_legacy_lock);
+        return loaded;
+    }
     const char *tk = ts ? ts->key : "-", *mk = ms->key, *fk = fs ? fs->key : "-"; pso_key kk = k;
     dispatch_async(pp_bg_queue(), ^{
         NSError *e = nil; uint64_t t0 = bp_now();

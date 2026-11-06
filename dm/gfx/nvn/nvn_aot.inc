@@ -70,7 +70,6 @@ static MTL4PipelineDescriptor *aot_descriptor(NSDictionary *j) {
                 vd.layouts[i].stride = [l[0] unsignedIntegerValue]; vd.layouts[i].stepFunction = [l[1] unsignedIntegerValue]; vd.layouts[i].stepRate = [l[2] unsignedIntegerValue]; }
             r.vertexDescriptor = vd; }
     }
-    [d setDepthAttachmentPixelFormat:[j[@"depth"] unsignedIntegerValue]]; [d setStencilAttachmentPixelFormat:[j[@"stencil"] unsignedIntegerValue]];
     [d setRasterSampleCount:[j[@"samples"] unsignedIntegerValue]]; [d setRasterizationEnabled:[j[@"raster"] boolValue]];
     [d setAlphaToCoverageState:[j[@"a2c"] boolValue] ? MTL4AlphaToCoverageStateEnabled : MTL4AlphaToCoverageStateDisabled];
     NSArray *colors = j[@"colors"]; if (colors.count != 8) return nil;

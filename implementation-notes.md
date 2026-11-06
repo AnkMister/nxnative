@@ -23,5 +23,7 @@ Lazy shaders stay off. Final tests and branch selection are recorded separately.
 
 Merge review found that Brent's synchronous visual mesh builder bypassed AOT;
 it now uses aot_mesh. Its depth-only fragment is a compiled host library rather
-than runtime source. Exact AOT keys and offline/runtime descriptors now retain
-depth and stencil formats; tests distinguish those states and check round trips.
+than runtime source. Exact AOT keys conservatively retain depth/stencil formats from the legacy
+descriptor. Metal 4 has no depth/stencil format setters, so those fields are
+not sent to its compiler descriptors. The native fixture checks key separation
+and valid replay through the actual Metal 4 API.

@@ -55,8 +55,6 @@ def configuration(row, fd, enum):
                                     'Enabled' if c[2] else 'Disabled', en('BlendFactor', c[3]), en('BlendFactor', c[4]), en('BlendOperation', c[5]),
                                     en('BlendFactor', c[6]), en('BlendFactor', c[7]), en('BlendOperation', c[8])))))
     out['color_attachments'] = colors
-    out['depth_attachment_pixel_format'] = en('PixelFormat', row.get('depth', 0))
-    out['stencil_attachment_pixel_format'] = en('PixelFormat', row.get('stencil', 0))
     if kind == 'mesh':
         for key, field in (('mesh_threads', 'max_total_threads_per_mesh_threadgroup'), ('object_threads', 'max_total_threads_per_object_threadgroup'),
                            ('payload', 'payload_memory_length'), ('mesh_grid', 'max_total_threadgroups_per_mesh_grid'),

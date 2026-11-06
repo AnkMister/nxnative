@@ -15,7 +15,7 @@ import pso_aot
 
 
 def render(chain, kind='render'):
-    row = dict(version=1, chain=chain, **{'class': kind}, samples=1, a2c=False, raster=True,
+    row = dict(version=1, chain=chain, **{'class': kind}, samples=1, a2c=False, raster=True, depth=0, stencil=0,
                colors=[[70, 15, False, 1, 0, 0, 1, 0, 0]] + [[0, 15, False, 1, 0, 0, 1, 0, 0]] * 7,
                fragment=['f_b', 'main0'])
     if kind == 'render': row.update(vertex=['v_b', 'main0'], topology=0, amp=1, attrs=[[0, 0, 0]] * 31, layouts=[[0, 1, 1]] * 31)
@@ -29,15 +29,6 @@ class Planning(unittest.TestCase):
         with self.assertRaises(ValueError): pso_aot.validate(row, 'old')
         row['vertex'] = ['/private/library', 'main0']
         with self.assertRaises(ValueError): pso_aot.validate(row, 'x')
-
-    def test_depth_stencil_are_offline_descriptor_inputs(self):
-        row = render('x', 'mesh')
-        row.update(depth=252, stencil=253)
-        enum = pso_aot.enums('macos')
-        kind, descriptor = pso_aot.configuration(row, lambda *x: x, enum)
-        self.assertEqual(kind, 'mesh_render_pipeline_descriptors')
-        self.assertEqual(descriptor['depth_attachment_pixel_format'], 'Depth32Float')
-        self.assertEqual(descriptor['stencil_attachment_pixel_format'], 'Stencil8')
 
     def test_preflight_never_claims_completeness(self):
         spec = importlib.util.spec_from_file_location('aot_preflight', ROOT / 'scripts/aot_preflight.py')
