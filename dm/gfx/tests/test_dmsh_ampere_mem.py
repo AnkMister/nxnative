@@ -275,6 +275,20 @@ class RawGlobal(Translated):
         self.has(msl, r'\bdo\s*\{[^}]*>> uint\(1\)[^}]*\} while \(')
         self.assertFalse(re.search(r'\b2048u?\b', msl), 'an unrolled search over 4,096 entries')
 
+    def test_wide_raw_load_shares_the_growing_table_search(self):
+        from dmsh_wide import raw_load_quads
+        wide = (ctrl(wb=3, wait=4) | 0x1e1d00, 0x0000000004087381)
+        store = (ctrl(wait=8, stall=4) | 0xd00, 0x0000100802007386)
+        code = b''.join(inst(*op) for op in (self.ULDC, self.ADDR_LO, self.ADDR_HI, self.LDG_PTR, wide, store)) + inst(*EXIT)
+        msl = self.translate(code, nvn2_cs=[3, 1, 0, 0x50, 0])
+        result = raw_load_quads(msl, 1, 4096, 32)
+        self.assertEqual(result.count('_words = dm_raw_load4'), 1)
+        self.assertIn('index + 1u < table._m0[4] ?', result)
+        with tempfile.TemporaryDirectory(prefix='raw_quad_') as d:
+            source = Path(d) / 'quad.metal'; source.write_text(result)
+            compile = subprocess.run(['xcrun', '-sdk', 'macosx', 'metal', '-c', '-O1', '-fpreserve-invariance', str(source), '-o', str(Path(d) / 'quad.air')], capture_output=True, text=True)
+            self.assertEqual(compile.returncode, 0, compile.stderr)
+
     def test_the_bindings_are_the_ones_t_gmem_raw_fills(self):   # storage slot 0 written at word 2 [[id(0)]], the pool table [[id(1)]]
         msl = self.msl()
         self.has(msl, r'device _\d+\* cp_s0 \[\[id\(0\)\]\];\s*(const )?device _\d+\* cp_s1 \[\[id\(1\)\]\];')
