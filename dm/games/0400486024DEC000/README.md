@@ -119,6 +119,8 @@ The [BAHS record-boundary finding](../../../docs/reference/shaders.md#a-bahs-sca
 
 ## Found on this game
 
+- Resolved in the opt-in idle-retirement path: [retired large-pool buffer ownership](../../../docs/reference/memory.md#retired-large-pool-buffers-still-owned-after-their-fence). The native fixture exposed stale strong and autoreleased array ownership; gameplay acceptance remains open.
+
 - Current, opt-in: [storage takeover serial lookup cost](../../../docs/reference/rendering.md#storage-takeover-serial-lookup-cost). PR #1439's count lookup is ported with texture-view ancestor protection. `DM_NVN_SERIAL_HELD=1` enables it; visual and cutscene performance acceptance are open. No gameplay was run for the port.
 
 - [Unverified NVN2 indirect mesh records](../../../docs/reference/rendering.md#unverified-nvn2-indirect-mesh-records). Current: two-word SDK consumption proven; producer and field order remain open. Keep the experimental flag off for play.

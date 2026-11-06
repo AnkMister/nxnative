@@ -523,3 +523,11 @@ without a second gated copy.
 - **Fix:** Opt-in `DM_NVN_IDLE_RETIRE=1` retires a pool buffer against the last committed fence when no submission is open. The existing 100 ms guard timer schedules a separate worker to drain completed retirements even with the ordinary guard disabled. The timer never waits on the residency lock. A submission reserves its retirement fence under the pool lock before encoding and keeps that reservation through commit. An open submission still pins its retired buffers through its own fence. Pending residency additions are counted before committing; existing safe GPU checks and retired texture-ID policy stay in force. The default keeps the previous behavior for A/B testing. Ported from upstream `8cf26912`; Mac gameplay validation remains open.
 
 - **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md).
+
+### Retired large-pool buffers still owned after their fence
+
+- **Symptom:** the idle-retirement fixture removes a pool and drains its completed fence, but a superseded chunk buffer stays alive.
+- **Cause:** the large-pool table's vacated slot still owns its old-buffer array. Even after clearing that slot, an autoreleased array can retain its elements until the guest thread's outer pool drains.
+- **Fix:** with `DM_NVN_IDLE_RETIRE=1`, queue each old buffer behind the reserved retirement fence, remove the array's elements and clear the vacated strong table slot. The deferred queue owns the buffers until completion. The default-off path is preserved.
+- **Check:** `t_res_guard` checks weak ownership after idle deletion and fence completion; `t_pool_retire` checks whole-map consolidation and GPU-visible contents.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md), integrated native fixtures. Gameplay focus/resume remains unverified.

@@ -165,9 +165,9 @@ def plan(root, chain, seen, functions, host_dir, shader_map=None, zero=False):
                 add({'class': 'compute', 'compute': ['host:' + path.stem, name]})
             if path.stem == 'present':
                 entries = functions(path)
+                if any(entries.get(entry, True) for entry in ('vs', 'fs', 'sharp', 'fs_p3', 'sharp_p3', 'fs_linear', 'sharp_linear')):
+                    raise ValueError('present library is missing an AOT entry or requires constants')
                 for row in present_rows():
-                    if any(entries.get(row[k][1], True) for k in ('vertex', 'fragment')):
-                        raise ValueError('present library is missing an AOT entry or requires constants')
                     add(row)
     # shader_map records the first source of each key. Only a source with one
     # unambiguous mesh, fragment, and (if required) task is evidence of a combination.

@@ -193,3 +193,5 @@ int main(void) {
     }
     return failed;
 }
+
+void nvn_eco_wait(uint64_t *next) { (void)next; }

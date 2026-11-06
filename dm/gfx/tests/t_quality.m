@@ -124,7 +124,7 @@ int main(int argc, char **argv) { @autoreleasepool {
     if (argc != 6) return 2;
     const quality_config *c = quality();
     CHECK(c->aniso == atof(argv[1]) && c->trilinear == atoi(argv[2]) && fabs(c->output-atof(argv[3]))<1e-6 && fabs(c->sharpen-atof(argv[4]))<1e-6 && c->present == atoi(argv[5]), "preset defaults and explicit overrides");
-    mtl_init(); samplers();
+    mtl_init(); mtl_present_layer(1, 1); samplers();
     float uv[12] = {0}; present_quality_constants(uv, 48, 48, 24, 24, (MTLViewport){0,0,16,16,0,1});
     CHECK(uv[8] == (c->output > 1 ? 2 : 1), "fractional reduction covers the footprint only when opted in");
     CHECK(fabsf(uv[9]-1.f/32)<1e-6 && fabsf(uv[10]-1.f/32)<1e-6, "filter spacing follows the crop and destination size");

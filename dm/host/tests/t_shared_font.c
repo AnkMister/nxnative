@@ -83,3 +83,5 @@ int main(void) {
     printf("shared font: %d checks, %d failed\n", checks, fails);
     return fails != 0;
 }
+
+void nvn_eco_wait(uint64_t *next) { (void)next; }

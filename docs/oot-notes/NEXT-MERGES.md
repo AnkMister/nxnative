@@ -6,7 +6,7 @@
 | --- | --- |
 | `oot-1439`, `575f834e` | The reviewed `oot-hyper-main` stack, review 3 fixes and serial-held lookup from #1439. |
 | `origin/main`, `c83c48f2` | Includes present crop `2202d610` and cube-array texture fitting. |
-| `oot-play-fixes`, `7eed3b00` | Regenerated profile inputs and optional offline archive parallelism. |
+| `oot-play-fixes`, `71b8bec4` | Regenerated inputs, offline archive parallelism and refusal isolation. The final head is merged after the other inputs. |
 | `oot-brent2`, `0a0dfeca` | Depth feedback, raw commit words, live shared textures, tensor HMMA, diagnostics and NDSR keys. |
 | `ankmister/oot-brent2-cloud`, `cd2d7b89` | Unique #1434, #1332, #1417 and #1428 ports, plus corrected disabled-hook accounting. |
 | `ankmister/oot-brent2-movie`, `b6d5f6c4` | Optional parallel AV1 decoding and movie clock, with cloud reset/finalize serialization follow-up. |
@@ -25,7 +25,9 @@ The final source publish regenerates the distribution, lock and chain header.
 The full shader build, gameplay, display colour comparison and zero-play-compile
 acceptance remain separate work. The protected existing play package is untouched.
 
-Keep mesh indirect, HDR, resolution override and performance experiments off.
+The user selected SDK22 services, commit-time raw words, GPU-lost handling and
+serial-held lookup for play. Fresh builds use noindex. Keep mesh indirect, HDR,
+resolution override and the remaining performance experiments off.
 The [play recipe](PLAY-BUILD.md) is the source for recommended settings.
 Future AOT changes must preserve final render state, packed-library loading and
 visible geometry. No lazy shader path is selected.

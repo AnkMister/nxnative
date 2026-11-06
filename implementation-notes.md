@@ -344,3 +344,24 @@ Reverted the mesh-output padding commit before rebuilding; chain is again
 successes/refusals, filters the packed prewarm inventory, and records the exact
 refusals. Non-AOT and infrastructure failures remain fatal. All 42 archive tests
 pass. Run at J=16, 16 archive workers, 16 merge threads, make -j16.
+
+## Final play-fixes and integrated acceptance
+
+Merged final oot-play-fixes 71b8bec4. Refused-descriptor isolation is retained;
+its temporary mesh-padding experiment was reverted and is absent. Mesh inference
+also rejects missing or mismatched generated interfaces before Metal compilation.
+
+Integrated crop semantics required explicit layer shapes in the HDR and quality
+fixtures. Loader fixtures gained screen-shape stubs. All SDK service fixtures
+that include the vsync hooks gained the unused eco-wait stub. The native suite
+then exposed real opt-in idle-retirement ownership: old arrays retain buffers
+after the fence, both through autorelease and the vacated table slot. The flag's
+retirement path clears the array after deferral and zeros the unused strong slot.
+The lifetime and blocked-watchdog fixture now passes. The reference memory entry
+records the mechanism once. Idle retirement remains off for play.
+
+The final translator source and chain tools are unchanged by the final archive
+follow-up; no second translator publish was needed or run. Required suites are
+rerun against the final combined source. Four native make jobs are allowed for
+the final rebuild, with nice 19; restore/publish used two. No full game shader
+build, launch, user settings write, push or PR was performed by this task.

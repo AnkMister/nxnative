@@ -861,7 +861,14 @@ void mtl_pool_del(const void *mem) {
             i--; }
     if (bg >= 0) {
         for (id<MTLBuffer> b in g_big[bg].old) defer_obj_at(b, 0, retire);
-        free(g_big[bg].chunk); g_big[bg] = g_big[--g_nbig]; g_pidx_ok = 0; g_plast = -1; atomic_fetch_add(&g_pool_gen, 1); atomic_fetch_sub(&g_big_n, 1);
+        // An autoreleased array can outlive its table entry on a guest thread.
+        // The deferred queue now owns these buffers until their fence completes.
+        if (idle_retire_on()) [g_big[bg].old removeAllObjects];
+        free(g_big[bg].chunk); g_big[bg] = g_big[--g_nbig];
+        // The unused tail still owns its strong old-buffer array after the move.
+        // Idle retirement must drop that owner too, after queuing every buffer.
+        if (idle_retire_on()) g_big[g_nbig] = (big_pool){0};
+        g_pidx_ok = 0; g_plast = -1; atomic_fetch_add(&g_pool_gen, 1); atomic_fetch_sub(&g_big_n, 1);
     }
     }
     pthread_mutex_unlock(&g_mu);

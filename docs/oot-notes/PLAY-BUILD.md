@@ -171,7 +171,7 @@ Keep `DM_OOT_RENDER_RES=off`. The optional `observe` mode records the game's
 resolution calls. Numeric modes require the matching rewritten main module and
 separate image validation. See [resolution controls](oot-res.md).
 
-Keep the remaining Brent experiments off. Parallel AV1 decoding and the movie
+Keep the remaining Brent performance experiments off. Parallel AV1 decoding and the movie
 clock need cutscene checks. `DM_CV_LATE=1` may skip overdue movie pictures.
 Tensor HMMA requires a different shader build and Apple10 hardware. The M4 Max
 uses the existing matrix path. No NDVE bilinear replacement is included.

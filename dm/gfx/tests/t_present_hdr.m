@@ -87,6 +87,7 @@ static int near(double a, double b, double rel, double abs_) { return fabs(a - b
 // Match the onscreen caller: pass the original sRGB texture to the common
 // encoder, rather than normalizing it in present_offscreen_m4 first.
 static void srgb_metalfx_hdr(void) {
+    mtl_present_layer(16, 9);
     MTLTextureDescriptor *d = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm_sRGB width:32 height:18 mipmapped:NO];
     d.storageMode = MTLStorageModeShared; d.usage = MTLTextureUsageShaderRead | MTLTextureUsagePixelFormatView;
     id<MTLTexture> src = [g_dev newTextureWithDescriptor:d];
@@ -113,6 +114,7 @@ static void srgb_metalfx_hdr(void) {
         CHECK("sRGB MetalFX HDR submission completes", !dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC)) && ok);
         mtl_drain(); res_remove(src); res_remove(dst); res_remove(uv); res_remove(fx.in); res_remove(fx.out);
     }
+    mtl_present_layer(N, 1);
 }
 
 int main(int argc, char **argv) { @autoreleasepool {
@@ -121,7 +123,7 @@ int main(int argc, char **argv) { @autoreleasepool {
     if (!sdr) setenv("DM_HDR", "1", 1);
     unsetenv("DM_HDR_PAPER_WHITE"); unsetenv("DM_HDR_PEAK");
     if (combined) { setenv("DM_QUALITY", "max", 1); setenv("DM_PRESENT_COLORSPACE", "p3", 1); setenv("DM_PRESENT_UPSCALE", "metalfx", 1); }
-    mtl_init();
+    mtl_init(); mtl_present_layer(N, 1);
     status_fn status = (status_fn)hle_fn("_ZN2nn2vi21QueryDisplayHdrStatusEPbPNS0_15HdrOutputFormatEPtPKNS0_7DisplayE");
     paper_fn paper = (paper_fn)hle_fn("_ZN2nn2vi25QueryDisplayHdrPaperWhiteEPtPKNS0_7DisplayE");
     range_fn range = (range_fn)hle_fn("_ZN2nn2vi52SetLayerNextHdrExtendedContentLuminanceRangeMetadataEPNS0_5LayerEtt");

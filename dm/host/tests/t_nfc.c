@@ -84,3 +84,5 @@ int main(void) {
 
 void dm_applet_enter(const char *name) { (void)name; }
 void dm_applet_leave(void) {}
+
+void nvn_eco_wait(uint64_t *next) { (void)next; }
