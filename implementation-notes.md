@@ -435,3 +435,13 @@ No game, full shader build, settings write, push or remote branch change ran.
 - Replaced the older gated audio-lock port with 52190603's merged scanner. It reads Update, then UpdateImpl for every SDK and reports a miss. The lock is a merged correctness fix, so DM_OOT_BRENT no longer gates it. Replaced the earlier synthetic fixture with upstream's broader lock and PLT cases.
 - Adopted a2d39a26's merged RomFS identity. Device numbers are always excluded. Removed the old stamp-compatibility branch; the packer's source hash already invalidates old stamps. Kept upstream's device-number fixture.
 - Source comparison completed. Tests are pending the game-stop gate.
+
+## Harvest 3: general fixes from 8feddfee and 3e193e07
+
+- Ported host-built uniform-buffer handle tables end to end, including translator array lengths, buffer/image array caps, MSL pointers, reflection, c2 sampler selection and framebuffer feedback detection. These are merged upstream correctness fixes and are enabled.
+- Ported sparse vertex ID capture compaction and helper-function topology reads. Kept existing geometry index caches and indirect mesh safeguards. p1444-stutter only adds an indirect-record diagnostic in this file.
+- Ported PMAP/NDSR shader discovery, guard-band instruction recognition, bindless TMML, distinct Opus decoder keys and missing extended NFC entry points. Included 3e193e07's decode assertion.
+- The existing Ounce vibration hook reports Switch 1 actuators. Kept that established behavior rather than adopting upstream's different mounted-device answer; no duplicate hook.
+- No upstream executables, DLLs or lock fingerprints were copied. The translator must be rebuilt from these sources, its lock refreshed, the chain header regenerated and Ocarina shaders rebuilt before use. Chain source hashing now includes BindlessToArray.cs.
+- p1444-xlate touches different functions in the same translator files and dmsh_build.py. Keep both diffs and regenerate the integrated chain. No profile/shader tables from Kirby were imported.
+- Builds, translator execution and tests remain blocked by the active dmhost process.
