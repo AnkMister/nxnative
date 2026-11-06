@@ -409,3 +409,9 @@ No game, full shader build, settings write, push or remote branch change ran.
 - Ported f956ffb0's per-command-buffer shader list and late-resource retirement diagnostic. Preserved the existing cbn log, GPU-loss handling and linear deferred-release partition.
 - Shader collection is opt-in with DM_NVN_CBS_FAULT=1; the late-release check uses the existing DM_RES_CHECK=1.
 - Static port only. Builds and tests are blocked while pgrep -f MacOS/dmhost finds the user's game.
+
+## Harvest 3: PR 1453 placement heaps
+
+- Ported 3d700bb7's pool-owned placement heap, covered-range initialization and GPU readback fixture. DM_NVN_POOL_HEAP=1 opts in; upstream enables it by default.
+- Usage upgrades keep the placement heap and skip self-copies. The same two changes occur inside p1444-tex's gated tex_upgrade work. Keep this owner-aware path when resolving that merge.
+- Upstream's 3 GB to 0.7 GB claim is not measured here. Visual aliasing and stability need gameplay validation. No builds or tests ran while dmhost was active.
