@@ -757,7 +757,7 @@ class Script(unittest.TestCase):
         with mock.patch.object(nsp, 'run', fake_run), mock.patch.object(nsp, 'PROG', self.prog), mock.patch.object(nsp, 'chain_of', lambda repo: '0123456789ab'), \
              mock.patch.object(nsp, 'mac_gpu_arch', lambda *a: 'applegpu_g14s'), mock.patch.object(nsp, 'say', self.said.append):
             nsp.mac_app(sys.executable, REPO, out, 0x01008CF01BAAC000, tmp, tmp / 'ex', tmp / 'patched', tmp / 'dmhost', tmp / 'font', tmp / 'shader/cache' if gfx == 'nvn' else tmp / 'shader',
-                        kw.get('aoc'), gfx, 'en-US', g, 'Game', '1.0.0', 'org.nxnative.01008cf01baac000', None, kw.get('sign', ''), {}, tmp, gpus=kw.get('gpus', ''))
+                        kw.get('aoc'), gfx, 'en-US', g, 'Game', '1.0.0', 'org.nxnative.01008cf01baac000', None, kw.get('sign', ''), kw.get('env', {}), tmp, gpus=kw.get('gpus', ''))
         self.pso_cmd = next((c for c in ran if c[1].endswith('pso_offline.py')), None)   # before the packer
         self.settings_cmd = next(c for c in ran if c[1].endswith('dm/games/settings.py'))
         c = ran[-1]; return {c[i]: c[i + 1] for i in range(3, len(c) - 1) if c[i].startswith('--')}, tmp
@@ -808,6 +808,19 @@ class Script(unittest.TestCase):
         self.assertNotIn(mock.call(ok=False), self.prog.end.call_args_list)
         self.assertTrue(any(m.startswith('[RED] pipeline archive: pso_offline.py failed') for m in self.said))
         self.assertFalse((tmp / 'pso/mac').exists())   # no half archive left to be picked up
+
+    def test_aot_archive_consumes_both_censuses_and_failure_stops_pack(self):
+        tmp = Path(tempfile.mkdtemp(dir=TEST_ROOT)); self.addCleanup(shutil.rmtree, tmp)
+        (tmp / 'profile').mkdir(); (tmp / 'profile/shader_pairs.tsv').write_text('v\tf\n')
+        seen, user = tmp / 'seen.jsonl', tmp / 'user.tsv'; seen.write_text('{}\n'); user.write_text('C\tc_b\n')
+        env = {'DM_AOT': '1', 'DM_AOT_STRICT': '1', 'DM_PSO_SEEN': str(seen), 'DM_PSO_USER': str(user), 'DM_AOT_REBASE_SEEN': '1'}
+        self.pack_cmd('nvn', work=tmp, env=env)
+        p = self.pso_cmd
+        for flag, value in (('--seen', seen), ('--user', user), ('--host', tmp / 'dmhost')):
+            self.assertEqual(p[p.index(flag) + 1], str(value))
+        self.assertIn('--aot', p); self.assertIn('--rebase-seen', p)
+        with self.assertRaisesRegex(nsp.BuildError, 'strict AOT pipeline archive failed'):
+            self.pack_cmd('nvn', work=tmp, env=env, pso_fail=True)
 
     def test_ipa_build_says_its_archive_failed(self):   # build_ipa.sh's output goes to a log: the console shows this line, which the build going on would otherwise hide
         tmp = Path(tempfile.mkdtemp(dir=TEST_ROOT)); self.addCleanup(shutil.rmtree, tmp); said = []

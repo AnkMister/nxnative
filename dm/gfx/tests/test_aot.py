@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'dm/gfx/tools'))
 import pso_offline as po
 import pso_aot
+import shader_lib
 
 
 def render(chain, kind='render'):
@@ -24,6 +25,17 @@ def render(chain, kind='render'):
 
 
 class Planning(unittest.TestCase):
+    def test_explicit_constant_values_and_rebase(self):
+        row = render('old'); row['fragment'].append([[0, 'int', -2], [32, 'bool', True]])
+        self.assertEqual(pso_aot.validate(row, 'new', rebase=True)['fragment'][2], [[0, 'int', -2], [32, 'bool', True]])
+        row['fragment'][2].append([0, 'int', 3])
+        with self.assertRaisesRegex(ValueError, 'duplicate'): pso_aot.validate(row, 'old')
+
+    def test_startup_manifest_keeps_profile_and_all_user_rows(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td); (p / 'seed').write_text('# seed\nS\tv_b\t0\n')
+            (p / 'user').write_text('S\tv_b\t0\nC\tc_b\nM\t-\t0102\nR\t0304\n')
+            self.assertEqual(pso_aot.manifest(p / 'seed', [p / 'user']).splitlines()[1:], ['S\tv_b\t0', 'C\tc_b', 'M\t-\t0102', 'R\t0304'])
     def test_validate_stale_chain_and_paths(self):
         row = render('x'); self.assertEqual(pso_aot.validate(row, 'x'), row)
         with self.assertRaises(ValueError): pso_aot.validate(row, 'old')
@@ -45,6 +57,7 @@ class Planning(unittest.TestCase):
             shaders = {
                 'v': 'struct V {float4 p [[position]];}; vertex V main0(uint i [[vertex_id]]) { return {float4(float(i),0,0,1)}; }',
                 'f': 'fragment float4 main0() {return float4(1);}',
+                'q': 'constant int v [[function_constant(0)]]; constant bool enabled [[function_constant(32)]]; fragment float4 main0() {return float4(enabled ? float(v)/16.0 : 0.0);}',
                 'l': 'struct V {float4 p [[position]]; uint layer [[render_target_array_index]];}; vertex V main0(uint i [[vertex_id]]) {return {float4(float(i),0,0,1),0};}',
                 'c': 'kernel void main0(device uint *p [[buffer(0)]], uint i [[thread_position_in_grid]]) {p[i]=i;}',
                 'm': 'struct V {float4 p [[position]];}; [[mesh]] void main0(metal::mesh<V,void,3,1,metal::topology::triangle> o) {o.set_vertex(0,{float4(0,0,0,1)}); o.set_vertex(1,{float4(1,0,0,1)}); o.set_vertex(2,{float4(0,1,0,1)}); o.set_index(0,0); o.set_index(1,1); o.set_index(2,2); o.set_primitive_count(1);}',
@@ -54,14 +67,15 @@ class Planning(unittest.TestCase):
                 metal = lib / (key + '_b.metal'); metal.write_text('#include <metal_stdlib>\nusing namespace metal;\n' + src)
                 subprocess.run(['xcrun', 'metal', '-std=metal3.0', str(metal), '-o', str(lib / (key + '_b.metallib'))], check=True, capture_output=True)
                 (lib / (key + '_b.json')).write_text(json.dumps(dict(chain=chain, stage={'c': 'cs', 'm': 'ms', 't': 'ts'}.get(key, key), entry='main0', **({'mesh_stage': {'threads': 1, 'payload': 16, 'task': True}} if key in ('m', 't') else {}))))
-            seen = root / 'seen.jsonl'; seen.write_text('\n'.join(json.dumps(render(chain, k)) for k in ('render', 'mesh')) + '\n')
+            constant = render(chain); constant['fragment'] = ['q_b', 'main0', [[0, 'int', 7], [32, 'bool', True]]]
+            seen = root / 'seen.jsonl'; seen.write_text('\n'.join(json.dumps(r) for r in [render(chain), render(chain, 'mesh'), constant]) + '\n')
             pairs = root / 'pairs.tsv'; pairs.write_text('v\tf\nl\tf\n')
-            shader_map = root / 'shader_map.tsv'; shader_map.write_text('pkg\t0\tmesh\tm\tprogram#var0\npkg\t0\ttask\tt\tprogram#var0\npkg\t0\tpixel\tf\tprogram#var0\n')
+            shader_map = root / 'shader_map.tsv'; shader_map.write_text('pkg\t0\tmesh\tm\tprogram#var0\npkg\t0\ttask\tt\tprogram#var0\npkg\t0\tpixel\tf\tprogram#var0\npkg\t0\tvertex\tv\tother\npkg\t0\tcompute\tc\tcompute\n')
             # Probe device architecture without launching the host or a game.
             arch_src = root / 'arch.m'; arch_src.write_text('#import <Metal/Metal.h>\nint main(){@autoreleasepool{puts(MTLCreateSystemDefaultDevice().architecture.name.UTF8String);}}')
             subprocess.run(['xcrun', 'clang', '-fobjc-arc', '-framework', 'Metal', '-framework', 'Foundation', str(arch_src), '-o', str(root / 'arch')], check=True, capture_output=True)
             arch = subprocess.check_output([str(root / 'arch')], text=True).strip()
-            args = ['--platform', 'macos', '--gpu', arch, '--msl', str(lib), '--pairs', str(pairs), '--out', str(root / 'out'), '--work', str(root / 'work'), '--aot', '--shader-map', str(shader_map), '--seen', str(seen), '--batch-size', '8']
+            args = ['--platform', 'macos', '--gpu', arch, '--msl', str(lib), '--pairs', str(pairs), '--out', str(root / 'out'), '--work', str(root / 'work'), '--aot', '--shader-map', str(shader_map), '--seen', str(seen), '--batch-size', '8', '--host', os.environ['DM_TEST_AOT']]
             self.assertEqual(po.main(args), 0)
             preflight = json.loads((root / 'out/aot-preflight.json').read_text())
             self.assertEqual(preflight['layer_bases'], 1)
@@ -76,10 +90,22 @@ class Planning(unittest.TestCase):
             again = subprocess.run([os.environ['DM_TEST_AOT'], str(lib), str(root / 'out'), str(learned)], capture_output=True, text=True)
             self.assertEqual(again.returncode, 0, again.stderr)
             self.assertEqual(learned.read_bytes(), first, 'repeat launches must not append duplicate descriptors')
+            # The live failure used a packed image. Replay exactly that library
+            # path, including host library identities and descriptor recording.
+            shader_lib.pack(lib)
+            packed = root / 'packed-seen.jsonl'
+            packed_run = subprocess.run([os.environ['DM_TEST_AOT'], str(lib), str(root / 'out'), str(packed)], capture_output=True, text=True)
+            self.assertEqual(packed_run.returncode, 0, packed_run.stderr)
+            packed_rows = [json.loads(line) for line in packed.read_text().splitlines()]
+            self.assertTrue(any(r.get('vertex', [''])[0] == 'v_b' for r in packed_rows))
+            self.assertTrue(any(r.get('mesh', [''])[0] == 'm_b' for r in packed_rows))
             # Feed real producer output back to the planner. Dedup and new state survive.
-            rows, _ = pso_aot.plan(lib, chain, [learned], po.functions, pso_aot.HOST_DIR)
+            rows, _ = pso_aot.plan(shader_lib.view(lib), chain, [learned], po.functions, pso_aot.HOST_DIR)
             self.assertTrue(any(r.get('colors', [[0]])[0][0] == 115 for r in rows))
-            self.assertEqual(po.main(args + ['--seen', str(learned)]), 0)
+            self.assertEqual(po.main(args + ['--seen', str(learned), '--user', str(learned) + '.tsv']), 0)
+            imported = [json.loads(line) for line in (root / 'work/pso-import-0.jsonl').read_text().splitlines()]
+            self.assertEqual({row['class'] for row in imported}, {'render', 'mesh', 'compute'})
+            self.assertIn('R\t', (root / 'out/pso_manifest.tsv').read_text())
 
 
 if __name__ == '__main__': unittest.main()

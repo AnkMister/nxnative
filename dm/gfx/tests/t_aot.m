@@ -14,6 +14,7 @@ uint64_t now_ns(void) { return bp_now(); }
 - (MTL4PipelineDescriptor *)newRenderPipelineDescriptorForSpecialization { return desc; }
 @end
 int main(int argc, char **argv) { @autoreleasepool {
+    int tool = mtl_pso_aot_tool(); if (tool) return tool < 0;
     if (argc != 4) { fprintf(stderr, "usage: t_aot <libraries> <archive> <seen>\n"); return 2; }
     setenv("DM_AOT", "1", 1); setenv("DM_AOT_STRICT", "1", 1); setenv("DM_PSO_BUNDLE", argv[2], 1);
     setenv("DM_PSO_ARCHIVE", "off", 1); setenv("DM_PSO_SEEN", argv[3], 1);
@@ -36,6 +37,16 @@ int main(int argc, char **argv) { @autoreleasepool {
     dm_aot_gameplay();
     for (NSDictionary *row in rows) { CHECK(aot_lookup(row, 0, nil)); aot_record(row); }
     CHECK(dm_aot_compiler_count(1) == 0);
+    // Produce the real native TSV ABI for build-time import, including the
+    // mesh/object relationship. The importer must use the live producers.
+    NSString *tsv = [@(argv[3]) stringByAppendingString:@".tsv"];
+    FILE *manifest = fopen(tsv.fileSystemRepresentation, "w"); CHECK(manifest);
+    NvShader *vkey = [NvShader new], *fkey = [NvShader new]; strcpy(vkey->key, "v_b"); strcpy(fkey->key, "f_b"); fkey->stage = 1;
+    pso_key native = {0}; native.cfmt[0] = MTLPixelFormatRGBA8Unorm; native.samples = 1; native.chmask = 15;
+    pso_skey sk; char hex[sizeof sk * 2 + 1]; pso_skey_from(&native, vkey, fkey, 0, NULL, &sk); pso_skey_hex(&sk, hex);
+    fprintf(manifest, "R\t%s\nC\tc_b\n", hex);
+    strcpy(vkey->key, "m_b"); vkey->stage = 4; pso_skey_from(&native, vkey, fkey, 0, NULL, &sk); pso_skey_hex(&sk, hex);
+    fprintf(manifest, "M\tt_b\t%s\n", hex); CHECK(!fclose(manifest));
     // The real helper descriptors, including HDR and sharpening, hit the
     // inventory loaded at startup without entering a compiler during gameplay.
     const MTLPixelFormat present_formats[] = {MTLPixelFormatRGBA8Unorm, MTLPixelFormatBGRA8Unorm, MTLPixelFormatRGB10A2Unorm, MTLPixelFormatRGBA16Float};
@@ -43,6 +54,18 @@ int main(int argc, char **argv) { @autoreleasepool {
         present_pipeline(present_formats[i]); CHECK(g_blit_pso && g_sharp_pso);
     }
     CHECK(dm_aot_compiler_count(1) == 0);
+
+    // Constants are part of the portable identity; an archive lookup cannot
+    // silently substitute another value or enter a synchronous compiler.
+    id<MTLLibrary> qlib = lib_from_file([g_msl_dir stringByAppendingPathComponent:@"q_b.metallib"], nil);
+    MTLFunctionConstantValues *cv = [MTLFunctionConstantValues new]; int value = 7; bool enabled = true;
+    [cv setConstantValue:&value type:MTLDataTypeInt atIndex:0]; [cv setConstantValue:&enabled type:MTLDataTypeBool atIndex:32];
+    MTLRenderPipelineDescriptor *qd = [MTLRenderPipelineDescriptor new]; qd.vertexFunction = ds.vertexFunction;
+    qd.fragmentFunction = fn4_values(fn_spec(qlib, @"main0", cv, nil), @[@[@0,@"int",@7], @[@32,@"bool",@YES]]);
+    qd.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA8Unorm; qd.vertexDescriptor = [MTLVertexDescriptor new];
+    CHECK(aot_lookup(aot_render_row(qd, 0), 0, nil));
+    fn4_values(qd.fragmentFunction, @[@[@0,@"int",@8], @[@32,@"bool",@YES]]);
+    CHECK(!aot_lookup(aot_render_row(qd, 0), 1, nil)); CHECK(dm_aot_compiler_count(1) == 0);
 
     MTLMeshRenderPipelineDescriptor *mesh = [MTLMeshRenderPipelineDescriptor new];
     id<MTLLibrary> ml = lib_from_file([g_msl_dir stringByAppendingPathComponent:@"m_b.metallib"], nil);
@@ -67,7 +90,9 @@ int main(int argc, char **argv) { @autoreleasepool {
     CHECK(aot_lookup(aot_render_row(d, 0), 0, nil));
     d.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA16Float;
     CHECK(!aot_lookup(aot_render_row(d, 0), 0, nil));
-    CHECK(aot_lookup(aot_render_row(d, 0), 1, &e)); CHECK(dm_aot_compiler_count(1) == 1);
+    // Even a legacy compile=1 caller must never compile inside exact lookup.
+    CHECK(!aot_lookup(aot_render_row(d, 0), 1, &e)); CHECK(dm_aot_compiler_count(1) == 0);
+    CHECK(aot_render(d, &e)); CHECK(dm_aot_compiler_count(1) == 1);
     // A mesh or stripped descriptor from a base must never enter vertex specialization.
     d.colorAttachments[0].pixelFormat = MTLPixelFormatRG8Unorm;
     pbase_key key; pbase_key_of(d, &key);
