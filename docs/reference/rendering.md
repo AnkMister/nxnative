@@ -1428,6 +1428,14 @@ Digimon Story Cyber Sleuth: Complete Edition (Media.Vision's MVGL engine, SDK 6.
 - **Check:** the [Duo harness](../../dm/ios/tests/duo/README.md) tests layout, hit targets, touches, the in-game menu's live settings and the drawable cap in the Simulator with synthetic host state. A physical Duo was tested by the PR #683 author on their fork; full-game tests on a physical iPad and a Duo with this repository's build are open.
 - **Found on:** [Pokémon Brilliant Diamond](../../dm/games/0100000011D90000/README.md).
 
+### Opt-in filtering and supersampled presentation
+
+- **Symptom:** ground textures blur at oblique angles, mip boundaries remain visible, or reconstructing a larger presentation image loses its benefit when sharpening is enabled.
+- **Cause:** the host normally follows the game's sampler choices. A single bilinear tap cannot integrate a large reconstruction footprint. PR #345's separate sharpening shader also bypassed its box filter.
+- **Fix:** `nvn_mtl.m` reads `DM_QUALITY=off|max` once. The max preset supplies anisotropy 16, trilinear filtering, MetalFX spatial presentation at 1.5 times the native viewport and sharpening 0.2. Each feature has its own override. `quality_sampler` protects comparison, reduction, nearest and non-mipmapped samplers. All sampler binding routes, including `pool_gpu`'s bindless pools, use the same cached sampler. `present.metal` averages a grid across the source footprint, capped at 4 by 4, and applies optional sharpening to that filtered result in the same pass. Both present APIs fill the same constants. Raw sRGB scan-out, crop, letterboxing and origin handling keep their existing paths. The drawable remains at the front end's native backing size. This changes reconstruction and filtering, not scene resolution or frame rate.
+- **Check:** `make -C dm/gfx/tests GAME=0400486024DEC000 check_t_quality` checks preset overrides, protected samplers, bindless pool registration, fractional footprints, filtered sharpening, raw sRGB colour and crop/letterbox behaviour on both present APIs. Existing present-crop and upscaler tests cover the default paths. Gameplay acceptance remains open.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#quality-mode-current-opt-in-gameplay-acceptance-open).
+
 ### The picture laid out in the shape the game presents
 
 - **Symptom:** with *Picture shape* at 1.43:1 (`DM_SCREEN_ASPECT`) the game renders 1920x1344, but on an iPhone Duo in Fit (the default) the picture comes out smaller than the 16:9 one, with black bars on all four sides; it fills the screen only in Fill. On the Mac a click lands off the point under the pointer (it was mapped on a 16:9 rectangle of the window).

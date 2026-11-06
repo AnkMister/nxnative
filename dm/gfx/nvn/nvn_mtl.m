@@ -490,7 +490,7 @@ void mtl_init(void) {
     g_present_args = [g_dev newArgumentTableWithDescriptor:pad error:&ate];
     if (!g_present_args) MDIE("failed to create the present argument table: %s", ate.localizedDescription.UTF8String);
     for (int i = 0; i < 3; i++) {
-        g_present_uv[i] = [g_dev newBufferWithLength:sizeof(float) * 8 options:MTLResourceStorageModeShared];
+        g_present_uv[i] = [g_dev newBufferWithLength:sizeof(float) * 12 options:MTLResourceStorageModeShared];
         if (!g_present_uv[i]) MDIE("failed to create present UV buffer[%d]", i);
         res_add(g_present_uv[i]);
     }
@@ -5487,6 +5487,41 @@ static MTLSamplerAddressMode wrapm(int w) {
         case 6: return MTLSamplerAddressModeMirrorRepeat; }
     return MTLSamplerAddressModeRepeat;
 }
+typedef struct { float aniso, output, sharpen; int trilinear, present; } quality_config;
+static float quality_number(const char *key, float def, float lo, float hi) {
+    const char *e = getenv(key); if (!e) return def;
+    char *end; float v = strtof(e, &end);
+    if (end != e && !*end && isfinite(v) && v >= lo && v <= hi) return v;
+    MLOG("[RED] %s=%s: expected %g to %g; keeping %g", key, e, lo, hi, def); return def;
+}
+static const quality_config *quality(void) {
+    static quality_config c; static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        const char *e = getenv("DM_QUALITY"); int max = e && !strcmp(e, "max");
+        if (e && strcmp(e, "off") && !max) MLOG("[RED] DM_QUALITY=%s: off or max; keeping off", e);
+        c.aniso = quality_number("DM_ANISO", max ? 16 : 0, 0, 16);
+        if (floorf(c.aniso) != c.aniso) { MLOG("[RED] DM_ANISO must be a whole number; keeping the game's anisotropy"); c.aniso = 0; }
+        float tri = quality_number("DM_TRILINEAR", max ? 1 : 0, 0, 1);
+        c.trilinear = tri == 1;
+        if (tri != 0 && tri != 1) MLOG("[RED] DM_TRILINEAR must be 0 or 1; keeping the game's mip filter");
+        c.output = quality_number("DM_PRESENT_UPSCALE_OUT", max ? 1.5f : 1, 1, 4);
+        c.sharpen = quality_number("DM_SHARPEN", max ? 0.2f : 0, 0, 1);
+        e = getenv("DM_PRESENT_UPSCALE"); c.present = max;
+        if (e && (!strcmp(e, "metalfx") || !strcmp(e, "1"))) c.present = 1;
+        else if (e && (!strcmp(e, "off") || !strcmp(e, "0"))) c.present = 0;
+        else if (e) MLOG("[RED] DM_PRESENT_UPSCALE=%s: metalfx or off; keeping %s", e, c.present ? "metalfx" : "off");
+        if (max || c.aniso || c.trilinear || c.sharpen || c.output != 1)
+            MLOG("quality: aniso floor %g, trilinear %d, present %s, output %.2fx, sharpen %.2f; scene size and game frame rate unchanged",
+                 c.aniso, c.trilinear, c.present ? "metalfx" : "off", c.output, c.sharpen);
+    });
+    return &c;
+}
+static void quality_sampler(MTLSamplerDescriptor *d, const samp_par *p) {
+    // Comparison and reduction samplers implement shadow and depth tests. Nearest art and non-mipmapped lookups also keep the game's filtering.
+    if (p->cmp_mode || p->reduction || d.minFilter != MTLSamplerMinMagFilterLinear || d.magFilter != MTLSamplerMinMagFilterLinear || d.mipFilter == MTLSamplerMipFilterNotMipmapped) return;
+    if (quality()->trilinear && d.mipFilter == MTLSamplerMipFilterNearest) d.mipFilter = MTLSamplerMipFilterLinear;
+    if (quality()->aniso > d.maxAnisotropy) d.maxAnisotropy = (NSUInteger)quality()->aniso;
+}
 static id<MTLSamplerState> samp_by_id(int sid) {   // Caller holds g_rmu
     if (sid < 0 || sid >= g_nsreg || !g_sreg_ok[sid]) { RED_ONCE(12, "sampler ID %d not registered", sid); return nil; }
     if (g_sview[sid]) return (__bridge id<MTLSamplerState>)g_sview[sid];
@@ -5499,6 +5534,7 @@ static id<MTLSamplerState> samp_by_id(int sid) {   // Caller holds g_rmu
     d.lodMinClamp = p.lod_min < 0 ? 0 : p.lod_min; d.lodMaxClamp = p.lod_max;
     d.lodBias = p.lod_bias < -16 ? -16 : p.lod_bias > 15.99f ? 15.99f : p.lod_bias;   // SetLodBias: Maxwell's sampler bias, Metal 26's range [-16, 15.99]
     d.maxAnisotropy = p.aniso < 1 ? 1 : p.aniso > 16 ? 16 : (NSUInteger)p.aniso;
+    quality_sampler(d, &p);
     if (p.cmp_mode) d.compareFunction = (MTLCompareFunction)(p.cmp_func - 1);
     // Reduction (NVN 1 min / 2 max): the minimum or maximum of the texels a filtered sample covers, per channel (Metal 26). Pokémon Legends: Z-A builds its depth pyramid with a min sampler
     // (151607c7a92386cc reads the level above at an explicit LOD) and tests occlusion boxes against it; averaged, the pyramid is nearer than the scene at depth edges. Metal ignores the reduction
@@ -12458,7 +12494,7 @@ void mtl_exec(const uint8_t *p) {
 }
 
 // ---------- Present: draw the swapchain texture to the CAMetalLayer; optional screenshot ----------
-static id<MTLRenderPipelineState> g_blit_pso; static MTLPixelFormat g_blit_fmt;
+static id<MTLRenderPipelineState> g_blit_pso, g_sharp_pso; static MTLPixelFormat g_blit_fmt;
 static id<MTLSamplerState> g_blit_samp;
 static uint64_t g_present_n;
 uint64_t mtl_present_count(void) { return g_present_n; }   // Actual present count (heat attribution DM_HEAT computes the present frame rate)
@@ -12810,6 +12846,12 @@ static void present_pipeline(MTLPixelFormat format) {
         pd.colorAttachments[0].pixelFormat = format;
         g_blit_pso = [g_dev newRenderPipelineStateWithDescriptor:pd error:&e];
         if (!g_blit_pso) MDIE("present pipeline failed %s", e.localizedDescription.UTF8String);
+        g_sharp_pso = nil;
+        if (quality()->sharpen > 0) {
+            pd.fragmentFunction = [lib newFunctionWithName:@"sharp"];
+            g_sharp_pso = [g_dev newRenderPipelineStateWithDescriptor:pd error:&e];
+            if (!g_sharp_pso) MLOG("[RED] present sharpening pipeline failed (%s); keeping the filtered present", e.localizedDescription.UTF8String);
+        }
         g_blit_fmt = format;
         MTLSamplerDescriptor *sd = [MTLSamplerDescriptor new]; sd.minFilter = sd.magFilter = MTLSamplerMinMagFilterLinear; sd.supportArgumentBuffers = YES;
         g_blit_samp = [g_dev newSamplerStateWithDescriptor:sd];
@@ -12850,6 +12892,12 @@ static int present_crop_rect(id<MTLTexture> src, const int crop[4], NSUInteger r
     }
     r[0] = crop[0]; r[1] = crop[1]; r[2] = crop[2]; r[3] = crop[3]; return 1;
 }
+static void present_quality_constants(float uv[12], NSUInteger tw, NSUInteger th, NSUInteger cw, NSUInteger ch, MTLViewport vp) {
+    double reduction = fmax((double)cw / vp.width, (double)ch / vp.height);
+    uv[8] = quality()->output > 1 ? fmax(1, fmin(4, ceil(reduction))) : 1;
+    uv[9] = (float)((double)cw / tw / vp.width); uv[10] = (float)((double)ch / th / vp.height);
+    uv[11] = quality()->sharpen;
+}
 static int present_encode(id<MTLCommandBuffer> cb, id<MTLTexture> src, id<MTLTexture> dst, const int crop[4]) {
     NSUInteger r[4]; if (!present_crop_rect(src, crop, r)) return 0;
     NSUInteger cx = r[0], cy = r[1], cw = r[2], ch = r[3];
@@ -12870,9 +12918,10 @@ static int present_encode(id<MTLCommandBuffer> cb, id<MTLTexture> src, id<MTLTex
     rp.colorAttachments[0].storeAction = MTLStoreActionStore;
     id<MTLRenderCommandEncoder> en = [cb renderCommandEncoderWithDescriptor:rp];
     [en setViewport:vp];
-    [en setRenderPipelineState:g_blit_pso]; [en setFragmentTexture:present_raw_src(src) atIndex:0]; [en setFragmentSamplerState:g_blit_samp atIndex:0];
-    float uv[8] = {(float)cx / src.width, (float)cy / src.height, (float)cw / src.width, (float)ch / src.height,
+    [en setRenderPipelineState:g_sharp_pso ?: g_blit_pso]; [en setFragmentTexture:present_raw_src(src) atIndex:0]; [en setFragmentSamplerState:g_blit_samp atIndex:0];
+    float uv[12] = {(float)cx / src.width, (float)cy / src.height, (float)cw / src.width, (float)ch / src.height,
                    (cx + 0.5f) / src.width, (cy + 0.5f) / src.height, (cx + cw - 0.5f) / src.width, (cy + ch - 0.5f) / src.height};
+    present_quality_constants(uv, src.width, src.height, cw, ch, vp);
     if (atomic_load_explicit(&g_origin_ll, memory_order_relaxed)) { uv[1] += uv[3]; uv[3] = -uv[3]; }   // lower-left origin: the window image is stored bottom-up
     [en setFragmentBytes:uv length:sizeof uv atIndex:0];
     [en drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
@@ -12890,10 +12939,7 @@ static id<MTL4Compiler> g_fx_comp;
 static int g_fx_mode = -1;   // 1 = metalfx, 0 = off
 static int fx_mode(void) {
     if (g_fx_mode >= 0) return g_fx_mode;
-    const char *e = getenv("DM_PRESENT_UPSCALE"); int v = 0;
-    if (e && (!strcmp(e, "metalfx") || !strcmp(e, "1"))) v = 1;
-    else if (e && (!strcmp(e, "off") || !strcmp(e, "0"))) v = 0;
-    else if (e && *e) MLOG("[RED] DM_PRESENT_UPSCALE=%s: metalfx or off; keeping %s", e, v ? "metalfx" : "off");
+    int v = quality()->present;
     if (v && !(g_q4 && [MTLFXSpatialScalerDescriptor supportsMetal4FX:g_dev])) { MLOG("present upscaling: this GPU has no Metal 4 MetalFX spatial scaler; the present scales bilinearly"); v = 0; }
     MLOG("present upscaling (DM_PRESENT_UPSCALE): %s", v ? "metalfx, MetalFX's spatial scaler where the picture is shown larger than the game renders it" : "off, bilinear");
     return g_fx_mode = v;
@@ -12907,7 +12953,12 @@ static int fx_wanted(MTLViewport vp, NSUInteger cw, NSUInteger ch) {
 // remake_wait: fx is the present thread's, whose textures presents still on the GPU may read: a new scaler waits for them and for FX_REMAKE_PRESENTS presents since the last
 static id<MTLTexture> fx_encode(fx_state *fx, id<MTL4CommandBuffer> cb, id<MTLTexture> raw, const NSUInteger r[4], MTLViewport vp, MTLPixelFormat out_pf, int remake_wait) {
     NSUInteger cw = r[2], ch = r[3], ow = (NSUInteger)vp.width, oh = (NSUInteger)vp.height;
-    if (fx_mode() != 1 || !fx_wanted(vp, cw, ch)) return nil;
+    if (quality()->output > 1) {
+        NSUInteger w = (NSUInteger)llround(vp.width * quality()->output), h = (NSUInteger)llround(vp.height * quality()->output);
+        if (w <= 16384 && h <= 16384) { ow = w; oh = h; }
+    }
+    MTLViewport target = vp; target.width = ow; target.height = oh;
+    if (fx_mode() != 1 || !fx_wanted(target, cw, ch)) return nil;
     if (!fx->sc || fx->in.width != cw || fx->in.height != ch || fx->in.pixelFormat != raw.pixelFormat || fx->out.width != ow || fx->out.height != oh || fx->out.pixelFormat != out_pf) {
         NSUInteger key[6] = {cw, ch, raw.pixelFormat, ow, oh, out_pf};
         if (!memcmp(key, fx->refused, sizeof key)) return nil;
@@ -13122,9 +13173,10 @@ static int present_encode_m4(id<MTL4CommandBuffer> cb, id<MTLTexture> src, id<MT
     float *uv = uvb.contents; NSUInteger tw = tex.width, th = tex.height, cx = r[0], cy = r[1], cw = r[2], ch = r[3];
     uv[0] = (float)cx / tw; uv[1] = (float)cy / th; uv[2] = (float)cw / tw; uv[3] = (float)ch / th;
     uv[4] = (cx + 0.5f) / tw; uv[5] = (cy + 0.5f) / th; uv[6] = (cx + cw - 0.5f) / tw; uv[7] = (cy + ch - 0.5f) / th;
+    present_quality_constants(uv, tw, th, cw, ch, vp);
     if (atomic_load_explicit(&g_origin_ll, memory_order_relaxed)) { uv[1] += uv[3]; uv[3] = -uv[3]; }   // lower-left origin: the window image is stored bottom-up
     [g_present_args setAddress:uvb.gpuAddress atIndex:0];
-    [en setViewport:vp]; [en setRenderPipelineState:g_blit_pso];
+    [en setViewport:vp]; [en setRenderPipelineState:g_sharp_pso ?: g_blit_pso];
     [en drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
     m4_end(en);
     return up ? PRESENT_METALFX : PRESENT_STANDARD;
@@ -13133,7 +13185,7 @@ static int present_encode_m4(id<MTL4CommandBuffer> cb, id<MTLTexture> src, id<MT
 // returns whether it was submitted. Completion reports the encoding kind, or PRESENT_FAILED on a GPU error. Resources remain resident and retained until GPU completion.
 static int present_offscreen_m4(id<MTLTexture> src, const int crop[4], id<MTLTexture> out, void (^done)(int)) {
     id<MTL4CommandAllocator> al = [g_dev newCommandAllocator]; id<MTL4CommandBuffer> cb = [g_dev newCommandBuffer];
-    id<MTLBuffer> uvb = [g_dev newBufferWithLength:sizeof(float) * 8 options:MTLResourceStorageModeShared];
+    id<MTLBuffer> uvb = [g_dev newBufferWithLength:sizeof(float) * 12 options:MTLResourceStorageModeShared];
     if (!al || !cb || !uvb) { MLOG("[RED] offscreen present: no command allocator or buffer"); return 0; }
     id<MTLTexture> raw = present_raw_src(src);
     fx_state fx = {0};

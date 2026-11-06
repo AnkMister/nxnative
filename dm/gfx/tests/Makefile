@@ -413,6 +413,17 @@ check_t_image_alias: t_image_alias
 # A game's upscaler drawn by MetalFX (any profile; the profile's upscaler shaders, from its shader map, when it has some); with and without the switch, and on the encoding thread
 t_upscaler_mfx: t_upscaler_mfx.m $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -o $@ t_upscaler_mfx.m $(MTL_T_SRC) $(FW)
+t_quality: t_quality.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_quality.m $(MTL_T_SRC) $(FW)
+QUALITY_ENV = env -u DM_QUALITY -u DM_ANISO -u DM_TRILINEAR -u DM_SHARPEN -u DM_PRESENT_UPSCALE_OUT -u DM_PRESENT_UPSCALE
+.PHONY: check_t_quality
+check_t_quality: t_quality
+	$(QUALITY_ENV) MTL_DEBUG_LAYER=1 ./t_quality 0 0 1 0 0
+	$(QUALITY_ENV) MTL_DEBUG_LAYER=1 DM_QUALITY=off ./t_quality 0 0 1 0 0
+	$(QUALITY_ENV) DM_QUALITY=max ./t_quality 16 1 1.5 0.2 1
+	$(QUALITY_ENV) MTL_DEBUG_LAYER=1 DM_QUALITY=max DM_ANISO=0 DM_TRILINEAR=0 DM_SHARPEN=0 DM_PRESENT_UPSCALE=off DM_PRESENT_UPSCALE_OUT=1 ./t_quality 0 0 1 0 0
+	$(QUALITY_ENV) DM_ANISO=8 DM_TRILINEAR=1 DM_SHARPEN=0.4 DM_PRESENT_UPSCALE=metalfx DM_PRESENT_UPSCALE_OUT=2 ./t_quality 8 1 2 0.4 1
+	$(QUALITY_ENV) MTL_DEBUG_LAYER=1 DM_QUALITY=wrong DM_ANISO=nan DM_TRILINEAR=0.5 DM_SHARPEN=1junk DM_PRESENT_UPSCALE_OUT=inf ./t_quality 0 0 1 0 0
 .PHONY: check_t_upscaler_mfx
 # (MetalFX's Metal 4 scaler stops under Metal validation on a barrier-stage setting of its own that has no public API, "_outputTextureBarrierStages not set": its run is without it)
 check_t_upscaler_mfx: t_upscaler_mfx
