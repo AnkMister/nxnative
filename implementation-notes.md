@@ -472,3 +472,14 @@ Expected benefit is removing bright dots/blobs where that exact constant-output
 pattern overflows a Float16 target. No Ocarina occurrence or picture is claimed.
 The tests check rewrite scope, target formats, loading and Metal compilation.
 Risks include heuristic MSL matching and limited path coverage.
+
+## Upstream 95f9a6a9: adapted
+
+Source `95f9a6a929ede91ab35177987aa8fa15a7dfa031`. Imported the AVote
+uniform destination correction and Vote fixtures, retaining #1300's tests.
+`DMSH_OOT_VISUAL=1` selects the fix. The opcode 886 destination is UPd,
+not Pd; vote input and instruction guard remain lane predicates. Tests check
+UP use, preservation of the lane predicate and unchanged VOTE behavior.
+Baseline reproduced two failing Vote tests before the port. Expected effect
+is correct subgroup guards, potentially restoring effects selected by them;
+Ocarina-specific visible impact is unmeasured. No source bug found.

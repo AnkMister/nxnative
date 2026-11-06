@@ -206,7 +206,7 @@ namespace Ryujinx.Graphics.Shader.Instructions
         {
             Operand magnitude = context.BitwiseAnd(value, Const(0x7fffffff));
             Operand sign = context.BitwiseAnd(value, Const(unchecked((int)0x80000000)));
-            return context.ConditionalSelect(context.ICompareLessU32(magnitude, Const(0x00800000)), sign, value);
+            return context.ConditionalSelect(context.ICompareLessUnsigned(magnitude, Const(0x00800000)), sign, value);
         }
 
         private static Operand EmitAtomicAddF32(EmitterContext context, StorageKind storageKind, Operand e0, Operand e1, Operand value)
