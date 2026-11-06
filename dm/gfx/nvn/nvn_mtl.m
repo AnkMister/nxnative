@@ -31,6 +31,7 @@
 #include "nvn_border.h"
 #include "nvn_primitive.h"
 #include "nvn_timestamp.h"
+#include "nvn_pace.h"
 #include "dmsh_chain.h"   // DMSH_CHAIN: the translation chain version of the B shader library expected by this source tree, one for every game (beside this file, tools/dmsh_chain.py --header)
 #include "game_profile.h"   // game profile constants (profile id, the profile's switches)
 // Texture slot table per stage: 0-127 the combined handles (nvnCommandBufferBindTexture), 128-255 the separate texture binds (NVN_SEPTEX_SLOT0, nvn_obj.h)
@@ -13330,8 +13331,23 @@ static int present_now(const tex_t *t, double period, uint64_t frame, uint64_t t
         g_pres[pn % PRING] = (pres_ent){pn, tt > 0 ? tt : -1};
     }];
     // Each frame is displayed for at least one present period: when the GPU completion time jitters around a 120 Hz refresh boundary, the paired "25 ms + 8.33 ms" stutter no longer appears
-    if (target_ts > 0) [dr present];
-    else if (period > 0) [dr presentAfterMinimumDuration:period]; else [dr present];
+#if TARGET_OS_OSX
+    static int absolute = -1; static nvn_pacer direct_pacer;
+    if (absolute < 0) { const char *e = getenv("DM_PRESENT_ABSOLUTE"); absolute = e && atoi(e) != 0;
+        if (absolute) MLOG("DM_PRESENT_ABSOLUTE: experimental absolute direct-present cadence (gameplay latency unverified)"); }
+    if (absolute && target_ts <= 0 && period > 0) {
+        // Relative minimum holds can accumulate refresh-boundary misses against the host's absolute pacer. Keep its phase after a small miss; a full-period stall restarts it.
+        uint64_t now = (uint64_t)(CACurrentMediaTime() * 1e9);
+        uint64_t wait = nvn_pace(&direct_pacer, now, (uint64_t)(period * 1e9));
+        [dr presentAtTime:(now + wait) / 1e9];
+    } else {
+        direct_pacer.target = 0;
+#endif
+        if (target_ts > 0) [dr present];
+        else if (period > 0) [dr presentAfterMinimumDuration:period]; else [dr present];
+#if TARGET_OS_OSX
+    }
+#endif
 #endif
     (void)frame;
     return 1;

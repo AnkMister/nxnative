@@ -441,3 +441,10 @@ Frame pacing: the host's frame step, engine frame limiters, present intervals an
 - **Cause:** the thread that acquires the window (here the render thread) runs under a time-constraint policy whose computation the host re-declares every 120 frames; it was 1.25 × the 90th percentile of that thread's CPU time per frame. This render thread needs 1.9–2.0 ms a frame with one or two frames in 120 near 4.4 ms, against 2.5 ms declared, and each frame past the declaration stalled the thread. Probes on both threads' waits showed the main thread's waits; adding probes slowed the render thread and the stalls vanished, and `DM_RT=0` or a fixed `DM_RT_COMP=5` / `10` removed them too (99th percentile 18–21 ms) at the same CPU energy.
 - **Fix:** the declaration also covers 1.1 × the window's peak (`rt_comp_tick` in `hle_nvn.c`): 5.6 ms here, 60.0 fps, 99th percentile 21 ms.
 - **Found on:** [DARK SOULS: REMASTERED](../../dm/games/01004AB00A260000/README.md), in the Asylum cell.
+
+### Absolute cadence experiment for direct presentation
+
+- **Symptom:** upstream PR #1405 reports higher enqueue-to-display latency after faster compute shaders at the direct-present 30 fps cap.
+- **Cause:** open. The direct path uses `presentAfterMinimumDuration`, while the host's `nvn_pace` keeps an absolute phase. A missed refresh can lengthen a relative hold without letting the next frame recover that phase. This is a plausible source of queued delay, not a confirmed diagnosis of those runs.
+- **Fix (experimental):** `DM_PRESENT_ABSOLUTE=1` on the Mac schedules direct drawables with `presentAtTime` using the existing absolute pacer. A small miss keeps the phase, a miss of at least one period restarts it, and uncapped or display-link presentation resets the experiment's phase. The flag is off by default. The pure pacer test covers repeated small misses; gameplay latency and on-screen cadence still need A/B measurement.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md), from the [upstream experiment](https://github.com/seedds/nxnative/pull/1405). No gameplay or latency measurement was made for this local change.

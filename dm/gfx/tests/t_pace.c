@@ -23,6 +23,15 @@ int main(void) {
         printf("%-52s expected wait %8.3f ms → got %8.3f ms %s\n", c[i].why, c[i].want / 1e6, got / 1e6, ok ? "✓" : "✗");
         fail += !ok;
     }
+    // A refresh miss delays display, but must not move every later absolute deadline.
+    nvn_pacer direct = {0}; const uint64_t cap = 2 * P, origin = 1000 * MS;
+    for (uint64_t i = 0; i < 120; i++) {
+        uint64_t now = origin + i * cap + (i % 7 == 3 ? 8 * MS : 0);
+        uint64_t wait = nvn_pace(&direct, now, cap);
+        fail += direct.target != origin + i * cap;
+        fail += now + wait != (now > direct.target ? now : direct.target);
+        n += 2;
+    }
     printf("== %d checks, %d failed ==\n", n, fail);
     return fail != 0;
 }
