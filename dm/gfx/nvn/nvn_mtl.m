@@ -11409,7 +11409,7 @@ static id<MTLFunction> bf_fn(NvShader *fs, const int *fx, uint8_t fbmask, const 
     for (int i = 0; i < nfc; i++) { int v = fx[i]; [cv setConstantValue:&v type:MTLDataTypeInt atIndex:(NSUInteger)i]; [values addObject:@[@(i), @"int", @(v)]]; }
     for (int q = 0; q < 8; q++) { bool b = fbmask >> q & 1; [cv setConstantValue:&b type:MTLDataTypeBool atIndex:(NSUInteger)(32 + q)]; [values addObject:@[@(32 + q), @"bool", @(b)]]; }
     for (int j = 0; j < fs->rf.nfo; j++) for (int q = 0; q < 8; q++) { bool b = lmap[q] == fs->rf.fo_color[j]; [cv setConstantValue:&b type:MTLDataTypeBool atIndex:(NSUInteger)(64 + 8 * j + q)]; [values addObject:@[@(64 + 8 * j + q), @"bool", @(b)]]; }
-    NSError *e = nil; id<MTLFunction> f = dm_aot_on() ? fn_spec(lib, @"main0", cv, &e) : fn_lib_spec(lib, @"main0", cv, &e);
+    NSError *e = nil; id<MTLFunction> f = dm_aot_on() ? fn_spec(lib, @"main0_f", cv, &e) : fn_lib_spec(lib, @"main0_f", cv, &e);
     fn4_values(f, values);
     if (!f) MLOG("[RED] readable-tile version specialization failed %s (mask %02x): %s", fs->key, fbmask, e.localizedDescription.UTF8String);
     NvBfFn *s = [NvBfFn new]; s->k = k; s->fn = f;
