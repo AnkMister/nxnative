@@ -203,47 +203,51 @@ class Rewrite(unittest.TestCase):
 
 class Libraries(unittest.TestCase):
     """Exercise the real library orchestration without running a translator."""
-    def run_libraries(self, source, shared=True, fail=False):
+    def run_libraries(self, source, shared=True, fail=False, split=True):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             msl = root / 'k_b.metal'; msl.write_text(source)
-            stale = root / 'k_bb.metallib'; stale.write_bytes(b'stale')
-            compiler = Mock()
-            seen = {}
-            def compile_main(target, path, output): seen[Path(output).name] = Path(path).read_text()
-            compiler.compile.side_effect = [None, subprocess.CalledProcessError(1, 'metal')] if fail else compile_main
+            compiler = Mock(); seen = {}
+            def compile_main(target, path, output):
+                if fail and output.endswith('_bn.metallib'): raise subprocess.CalledProcessError(1, 'metal')
+                seen[Path(output).name] = Path(path).read_text()
+            compiler.compile.side_effect = compile_main
             side = Mock(); side.unit.return_value = ('shared unit', {'alpha': ['at'], 'logic': []}) if shared else (None, {})
             scope = dict(os=os, re=re, subprocess=subprocess, border_plain=border_plain,
                          out=directory, IOSOUT=None, TARGETS={'mac'}, w=directory,
                          MTL=compiler, dmsh_side=side, SIDE_STATS=collections.Counter(), BORDER_STATS=collections.Counter())
-            fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'ps_libraries')
-            exec(compile(ast.Module(body=[fn], type_ignores=[]), str(TOOLS / 'dmsh_build.py'), 'exec'), scope)
-            result = scope['ps_libraries']('k', str(msl), source)
-            return result, compiler, seen, stale.exists()
+            fns = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in ('ps_libraries', 'ps_correcting_libraries')]
+            exec(compile(ast.Module(body=fns, type_ignores=[]), str(TOOLS / 'dmsh_build.py'), 'exec'), scope)
+            from unittest.mock import patch
+            with patch.dict(os.environ, {'DM_NVN_BORDER_SPLIT': '1' if split else '0'}):
+                result = scope['ps_libraries']('k', str(msl), source)
+            return result, compiler, seen
 
-    def test_correcting_shared_unit_and_plain_main(self):
-        result, compiler, seen, _ = self.run_libraries(border_emu(GRASS))
+    def test_default_retains_original_compile_inputs(self):
+        for shared in (False, True):
+            result, compiler, seen = self.run_libraries(border_emu(GRASS), shared=shared, split=False)
+            self.assertNotIn('border', result)
+            if shared:
+                self.assertTrue(compiler.compile_split.call_args.args[2].endswith('k_b.metallib'))
+                self.assertEqual(seen, {})
+            else:
+                self.assertEqual(seen, {'k_b.metallib': border_emu(GRASS)})
+
+    def test_optional_plain_never_replaces_correcting_base(self):
+        result, compiler, seen = self.run_libraries(border_emu(GRASS))
         self.assertIn('border', result)
-        self.assertEqual(seen['k_b.metallib'], border_plain(border_emu(GRASS)))
-        args = compiler.compile_split.call_args.args
-        self.assertTrue(args[2].endswith('k_bb.metallib'))
-        self.assertTrue(args[3].endswith('k_bx.metallib'))
-
-    def test_no_corrections_removes_stale_border_on_shared_success(self):
-        result, compiler, _, stale = self.run_libraries(GRASS)
-        self.assertNotIn('border', result)
-        self.assertFalse(stale)
+        self.assertEqual(seen['k_bn.metallib'], border_plain(border_emu(GRASS)))
         self.assertTrue(compiler.compile_split.call_args.args[2].endswith('k_b.metallib'))
 
-    def test_missing_correcting_library_fails_build(self):
-        with self.assertRaises(subprocess.CalledProcessError):
-            self.run_libraries(border_emu(GRASS), shared=False, fail=True)
+    def test_missing_optional_asset_keeps_correction(self):
+        result, _, seen = self.run_libraries(border_emu(GRASS), shared=False, fail=True)
+        self.assertNotIn('border', result)
+        self.assertEqual(seen, {'k_b.metallib': border_emu(GRASS)})
 
-    def test_fallback_compiles_both_libraries(self):
-        result, _, seen, _ = self.run_libraries(border_emu(GRASS), shared=False)
-        self.assertIn('border', result)
-        self.assertEqual(seen['k_bb.metallib'], border_emu(GRASS))
-        self.assertEqual(seen['k_b.metallib'], border_plain(border_emu(GRASS)))
+    def test_no_corrections_has_no_plain_variant(self):
+        result, _, seen = self.run_libraries(GRASS, shared=False)
+        self.assertNotIn('border', result)
+        self.assertEqual(seen, {'k_b.metallib': GRASS})
 
 
 if __name__ == '__main__':

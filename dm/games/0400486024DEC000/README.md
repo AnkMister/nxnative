@@ -51,7 +51,9 @@ For a run past the opening, copy the committed save folder to the new run's `DM_
 
 The `oot-1203` port of PR #1203 adds `DM_NVN_BORDER_SPLIT=1`. It uses a plain
 pixel library on draws whose samplers need no border correction. Unset or `0`
-retains the correcting library on every ordinary draw. Alpha-test and logic
+retains the original correcting `_b` library on every ordinary draw. Builds
+with the flag enabled add optional plain `_bn` assets; missing optional assets
+keep `_b`. Split handles use both words, as argument encoding does. Alpha-test and logic
 entry points keep correcting in either mode.
 
 A read-only snapshot of the existing `b-d1f10abd26a7` cache found 16,947 pixel

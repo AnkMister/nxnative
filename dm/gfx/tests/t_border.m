@@ -80,13 +80,23 @@ int main(int argc, char **argv) { @autoreleasepool {
         NvShader *ps = [NvShader new]; ps->stage = 1; ps->has_border = 1; ps->rf.nb = 2;
         ps->rf.b[0] = (nvn_rbind){.kind = NVN_RB_TEX, .reg = 0, .aid = 0};
         ps->rf.b[1] = (nvn_rbind){.kind = NVN_RB_SAMP, .reg = 0, .aid = 1, .bw = 1};
-        const char *split = getenv("DM_NVN_BORDER_SPLIT"); uint32_t plain = split && !strcmp(split, "1") ? 0 : 2;
+        const char *split = getenv("DM_NVN_BORDER_SPLIT"); uint32_t plain = split && !strcmp(split, "1") ? 2 : 0;
         state_reset();
-        S.samp[1][0] = 21ull << 20; CHECK(border_key(ps) == 2, "a sampler with a twin takes the correcting library");
+        S.samp[1][0] = 21ull << 20; CHECK(border_key(ps) == 0, "a sampler with a twin takes the correcting library");
         S.samp[1][0] = 22ull << 20; CHECK(border_key(ps) == plain, "Metal's own colour keeps the plain library");
         S.samp[1][0] = 0;            CHECK(border_key(ps) == plain, "no sampler bound");
         S.samp[1][0] = 21ull << 20; ps->rf.b[1].bw = 0; CHECK(border_key(ps) == plain, "a member border_emu gave no bit");
-        ps->rf.b[1] = (nvn_rbind){.kind = NVN_RB_SAMPI, .reg = 21, .aid = 1, .bw = 1}; CHECK(border_key(ps) == 2, "a sampler the shader names as a constant");
+        ps->rf.b[1] = (nvn_rbind){.kind = NVN_RB_SAMPI, .reg = 21, .aid = 1, .bw = 1}; CHECK(border_key(ps) == 0, "a sampler the shader names as a constant");
+        uint32_t words[2] = {12, 21u << 20};
+        mtl_pool_add(words, sizeof words);
+        S.ubo[1][0] = (p_bind_buf){.addr = (uint64_t)words, .size = sizeof words};
+        ps->rf.b[1] = (nvn_rbind){.kind = NVN_RB_SAMPU, .reg = 0, .off = 0, .sreg = 0, .soff = 5, .bw = 1};
+        CHECK(border_key(ps) == 0, "split handle texture first selects correction");
+        words[0] = 21u << 20; words[1] = 12;
+        CHECK(border_key(ps) == 0, "split handle sampler first selects correction");
+        words[0] = 12; words[1] = 22u << 20;
+        CHECK(border_key(ps) == plain, "next draw changes split sampler");
+        mtl_pool_del(words);
         ps->has_border = 0; CHECK(border_key(ps) == 0, "a shader without a correcting library");
         state_reset();
     }

@@ -528,35 +528,18 @@ def vin_finish(key, full, refl):
     VIN_STATS['inputs'] += len(shadows); VIN_STATS['float only'] += sum(1 for s in shadows if 'sint' not in s and 'uint' not in s)
     return refl
 
-def ps_libraries(key, msl, full):
+def ps_correcting_libraries(key, msl, full):
     """A pixel shader's libraries: <key>_b, and <key>_bx with its alpha test and logic operation entry points, cut from one compile through the MSL-keyed Metal cache (dmsh_side.py). msl: the file of
-    its source, full: that source with its border corrections (border_emu). A shader none of them apply to, or whose compile unit does not build, gets <key>_b from the source and no <key>_bx (a stale
-    one removed): the host draws it without. A shader with border corrections gets <key>_b from the source without them (border_plain), and the compile unit of the correcting source cut into
-    <key>_bb (its own entry points, correcting) and <key>_bx; without a compile unit, <key>_bb is the correcting source whole. → what the reflection says of them. Raises CalledProcessError when
-    the main library's source does not compile"""
+    its plain source, full. A shader none of them apply to, or whose compile unit does not build, gets <key>_b from the plain source and no <key>_bx (a stale one removed): the host draws it
+    without. → what the reflection says of them. Raises CalledProcessError when the plain source does not compile"""
     targets = [(t, d) for t, d in (('mac', out), ('ios', IOSOUT)) if d and t in TARGETS]
-    plain = border_plain(full)
-    if plain != full:   # the main library without the corrections
-        pm = os.path.join(w, key + '_main.metal'); open(pm, 'w').write(plain)
-        try:
-            for t, d in targets: MTL.compile(t, pm, os.path.join(d, key + '_b.metallib'))
-        finally:
-            try: os.unlink(pm)
-            except FileNotFoundError: pass
-    base = '_bb' if plain != full else '_b'   # where the compile unit's own entry points go
-    border = {'border': {'entries': [m.group(1) for m in re.finditer(r'^\s*fragment\s+\S+\s+(\w+)\s*\(', full, re.M)]}} if plain != full else {}
-    if not border:
-        for t, d in targets:
-            try: os.unlink(os.path.join(d, key + '_bb.metallib'))
-            except FileNotFoundError: pass
     src, info = dmsh_side.unit(full)
     if src:
         u = os.path.join(w, key + '_bu.metal'); open(u, 'w').write(src)
         try:
-            for t, d in targets: MTL.compile_split(t, u, os.path.join(d, key + base + '.metallib'), os.path.join(d, key + '_bx.metallib'), lambda lib: dmsh_side.cut(lib, set(info['alpha'] + info['logic'])))
+            for t, d in targets: MTL.compile_split(t, u, os.path.join(d, key + '_b.metallib'), os.path.join(d, key + '_bx.metallib'), lambda lib: dmsh_side.cut(lib, set(info['alpha'] + info['logic'])))
             SIDE_STATS['generated'] += 1
-            if border: BORDER_STATS['generated'] += 1
-            return {**{f: {'entries': info[f]} for f in ('alpha', 'logic') if info[f]}, **border}
+            return {f: {'entries': info[f]} for f in ('alpha', 'logic') if info[f]}
         except (subprocess.CalledProcessError, ValueError) as e:
             SIDE_STATS['failed'] += 1; print(f'[RED] {key}: the alpha test and logic operation entry points do not build ({str(e)[:120]}): its draws go without them', flush=True)
         finally:
@@ -566,19 +549,33 @@ def ps_libraries(key, msl, full):
     for t, d in targets:
         try: os.unlink(os.path.join(d, key + '_bx.metallib'))
         except FileNotFoundError: pass
-    if not border:
-        for t, d in targets: MTL.compile(t, msl, os.path.join(d, key + '_b.metallib'))
-        return {}
-    try:
-        for t, d in targets: MTL.compile(t, msl, os.path.join(d, key + '_bb.metallib'))
-        BORDER_STATS['generated'] += 1
-        return border
-    except subprocess.CalledProcessError as e:
-        BORDER_STATS['failed'] += 1; print(f'[RED] {key}: the border correcting library does not build ({str(e)[:120]}): shader build failed', flush=True)
-        for t, d in targets:
-            try: os.unlink(os.path.join(d, key + '_bb.metallib'))
+        MTL.compile(t, msl, os.path.join(d, key + '_b.metallib'))
+    return {}
+
+def ps_libraries(key, msl, full):
+    """Keep the original correcting _b/_bx assets. Opt-in _bn is disposable."""
+    result = ps_correcting_libraries(key, msl, full)
+    targets = [(t, d) for t, d in (('mac', out), ('ios', IOSOUT)) if d and t in TARGETS]
+    plain = border_plain(full) if os.environ.get('DM_NVN_BORDER_SPLIT') == '1' else full
+    for _, d in targets:
+        for suffix in ('_bb', '_bn'):
+            try: os.unlink(os.path.join(d, key + suffix + '.metallib'))
             except FileNotFoundError: pass
-        raise   # never publish a plain library without its required correcting twin
+    if plain == full: return result
+    pm = os.path.join(w, key + '_plain.metal'); open(pm, 'w').write(plain)
+    try:
+        for t, d in targets: MTL.compile(t, pm, os.path.join(d, key + '_bn.metallib'))
+        result['border'] = {'entries': [m.group(1) for m in re.finditer(r'^\s*fragment\s+\S+\s+(\w+)\s*\(', full, re.M)]}
+        BORDER_STATS['generated'] += 1
+    except subprocess.CalledProcessError:
+        BORDER_STATS['failed'] += 1
+        for _, d in targets:
+            try: os.unlink(os.path.join(d, key + '_bn.metallib'))
+            except FileNotFoundError: pass
+        print(f'[RED] {key}: plain border variant unavailable; keeping correcting library', flush=True)
+    finally:
+        os.unlink(pm)
+    return result
 
 pc_of, loc = {}, {}
 MAP_ROWS, MAP_CONFLICT_ROWS = {}, {}
@@ -1608,7 +1605,7 @@ print(f'variant cache: generated {BF_STATS["generated"]}, hit {BF_STATS["hit"]},
 print(f'shadow-input libraries (<key>_bv, dmsh_vin.py): {VIN_STATS["generated"]} generated, {VIN_STATS["failed"]} failed to compile, {VIN_STATS["not generated"]} not generated; '
       f'{VIN_STATS["inputs"]} integer inputs shadowed, {VIN_STATS["float only"]} of them with no other-sign shadow (attribute indices ran out)')
 print(f'alpha test and logic operation libraries (<key>_bx, dmsh_side.py): {SIDE_STATS["generated"]} generated, {SIDE_STATS["failed"]} failed to compile, {SIDE_STATS["not generated"]} pixel shaders without either')
-print(f'border correcting libraries (<key>_bb, border_plain): {BORDER_STATS["generated"]} generated, {BORDER_STATS["failed"]} failed to compile', flush=True)
+print(f'optional plain libraries (<key>_bn, border_plain): {BORDER_STATS["generated"]} generated, {BORDER_STATS["failed"]} failed to compile', flush=True)
 print(f'pulling libraries (<key>_bp, dmsh_pull.py): {PULL_STATS["generated"]} generated, {PULL_STATS["failed"]} failed to compile, {PULL_STATS["not generated"]} not generated, '
       f'{PULL_STATS["no stage input"]} vertex shaders without stage inputs (none needed)')
 print('mesh libraries (<vertex>_<geometry>_m3, dmsh_mesh.py): ' + (', '.join(f'{k} {v}' for k, v in MESH_STATS.items()) or 'none'))
