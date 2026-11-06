@@ -387,6 +387,18 @@ static void res_commit(void) {
 // the game's pools (shared buffers over guest memory), textures, heaps and staging alike
 static int range_cmp(const void *x, const void *y) { uintptr_t a = *(const uintptr_t *)x, b = *(const uintptr_t *)y; return a < b ? -1 : a > b; }
 static uint64_t g_pool_heap_n, g_pool_heap_bytes, g_pool_heap_tex, g_pool_heap_unfit;   // GPU-only pools' placement heaps made, their size, render targets placed and kept apart (pool_heap_texture)
+// Retirement budget can be lowered for a smaller Mac or the safe GPU cap. The actual commit limits remain unchanged.
+static uint64_t alias_budget(uint64_t ws, uint64_t requested, uint64_t safe, uint64_t guard) {
+    if (requested) ws = MIN(ws, requested);
+    if (safe) ws = MIN(ws, safe);
+    return guard ? MIN(ws, guard) : ws;
+}
+static uint64_t ws_bytes(void) {
+    const char *e = getenv("DM_NVN_WS_MB"); uint64_t mb = e ? strtoull(e, NULL, 10) : 0;
+    return alias_budget(g_dev.recommendedMaxWorkingSetSize, mb <= (UINT64_MAX >> 20) ? mb << 20 : 0,
+                        safe_gpu_on() ? g_safe_limit : 0, g_guard.stop);
+}
+
 static void res_top(const char *why) { @autoreleasepool {
     enum { N = 24 }; id<MTLAllocation> top[N] = {nil}; uint64_t total = 0, n = 0, kind[4] = {0}, count[4] = {0};
     pthread_mutex_lock(&g_res_mu);
@@ -1196,12 +1208,14 @@ void mtl_prepare(void) {
 }
 static void sub_cut_begin(void); static void dd_tick(void); static void up_trim(void);
 static void gmem_commit_patch(void);   // the raw pool table words of the arguments encoded so far follow the pools (gmem_slot_note)
+static void alias_retire_idle(void);
 void mtl_sub_begin(void) {
     if (idle_retire_on()) { pthread_mutex_lock(&g_mu); g_pool_retire_fence = g_fence + 1; pthread_mutex_unlock(&g_mu); }
     if (nvn_eco_same_on()) atomic_fetch_add(&g_eco_work, 1);
     mtl_init(); g_sub_serial++; g_seg = 0; seg_clk_put(g_sclk); g_sclk = NULL; g_rc_npend = 0; g_rc_skip = 0;
     sub_cut_begin();
     defer_drain();
+    alias_retire_idle();
     defer_reset();
     dd_tick();
     up_trim();
@@ -2291,6 +2305,8 @@ static void ser_note(uint64_t serial) {
 typedef struct { uint64_t pool; int64_t off; nvn_texdesc d; } alias_key;
 static nvn_hmap g_alias = {.klen = sizeof(alias_key)};
 static nvn_hmap g_alias_seen = {.klen = sizeof(alias_key)};   // key → g_fence + 1 at its last lookup or creation (alias_take_over spares entries looked up lately)
+static nvn_hmap g_alias_lseen = {.klen = sizeof(alias_key)};   // key → g_fence + 1 at its creation or last lookup for a live texture object (alias_retire_idle)
+static nvn_hmap g_alias_gone = {.klen = sizeof(alias_key)};   // keys alias_retire_idle retired: a finalized descriptor over one resolves to nothing instead of a new texture
 // Live GPU-only image descriptions, including those not used yet. A dynamic-resolution family declares its largest image before any particular resolution is used.
 // Keeping only descriptions here lets its first allocation cover that family exactly, without allocating every resolution or rounding to a power of two.
 static nvn_hmap g_image_desc = {.klen = 8};   // serial → malloc'ed tex_t, under g_smu
@@ -2331,12 +2347,17 @@ void mtl_alias_drop_pool(const void *pool) {
     for (uint32_t j = 0; j < n; j++) {
         void *old = nvn_hm_del(&g_alias, &ks[j]);
         if (!old) continue;
-        nvn_hm_del(&g_alias_seen, &ks[j]);
+        nvn_hm_del(&g_alias_seen, &ks[j]); nvn_hm_del(&g_alias_lseen, &ks[j]);
         id o = CFBridgingRelease(old);
         if (g_alias_set) CFSetRemoveValue(g_alias_set, (__bridge const void *)o);
         defer_obj_release(o);
     }
     if (n) { g_ser_gen++; g_alias_evicted += n; }
+    for (uint32_t i = 0; i < g_alias_gone.cap;) {   // the retired keys of the pool: its storage goes with it (deletion shifts entries: examine this slot again)
+        alias_key k; if (!g_alias_gone.vals[i]) { i++; continue; }
+        memcpy(&k, g_alias_gone.keys + (size_t)i * g_alias_gone.klen, sizeof k);
+        if (k.pool == (uint64_t)(uintptr_t)pool) nvn_hm_del(&g_alias_gone, &k); else i++;
+    }
     pthread_mutex_unlock(&g_smu);
     free(ks);
     cpu_tex_drop_pool(pool);
@@ -2413,7 +2434,7 @@ static void alias_let_go(const alias_key *ks, uint32_t n) {
     for (uint32_t j = 0; j < n; j++) {
         void *old = nvn_hm_del(&g_alias, &ks[j]);
         if (!old) continue;
-        nvn_hm_del(&g_alias_seen, &ks[j]);
+        nvn_hm_del(&g_alias_seen, &ks[j]); nvn_hm_del(&g_alias_lseen, &ks[j]);
         id o = CFBridgingRelease(old);
         if (g_alias_set) CFSetRemoveValue(g_alias_set, (__bridge const void *)o);
         if (serial_holds(&g_ghost, o) || serial_holds(&g_ghost_active, o)) defer_obj_unref(o); else defer_obj_release(o);
@@ -2436,6 +2457,68 @@ static void alias_take_over(const alias_key *nk) {
     alias_let_go(ks, n);
     if (n) { g_ser_gen++; g_alias_taken += n; }
 }
+// Shared textures no live texture object has resolved to lately are retired when GPU memory runs short (DM_NVN_ALIAS_RETIRE=1 opts in). A game may leave the descriptors of
+// textures it finalized registered, and every texture pool walk resolves them: Ocarina of Time (Switch 2) keeps its pools for good, loads the next scene into other parts of them and
+// leaves about 12,000 such descriptors, so the scene it left kept its shared textures. After the talk with Saria 2,000 to 2,500 of them had no live object (textures 5 to 16 GB within
+// seconds), the residency set passed Metal's working set on a 24 GB Mac, and the GPU faulted, hung, or the submissions blocked in the kernel with the Mac frozen.
+// Only lookups for live objects count as use (g_alias_lseen): reclaiming by any lookup would keep every texture a stale descriptor names, and by no lookup would retire targets in use.
+// Above ALIAS_HI percent of the working set (ws_bytes) the ones no live object (or a view one holds) resolves to, idle for ALIAS_RETIRE submissions, are retired, the longest idle first,
+// until the set is down to ALIAS_LO. A finalized descriptor over a retired key then resolves to nothing (the pool table's dummy); making them again would bring the old scenes back by
+// the thousand, too new to retire. A live object over a retired key gets a new texture filled from its storage (tex_init_fill), as a texture made over storage the game wrote
+enum { ALIAS_RETIRE = 4 * ALIAS_IDLE, ALIAS_RETIRE_EVERY = ALIAS_IDLE, ALIAS_HI = 85, ALIAS_LO = 75 };
+static int rel_mode(void);
+static int alias_retire_on(void) { const char *e = getenv("DM_NVN_ALIAS_RETIRE"); return e && !strcmp(e, "1"); }
+static unsigned alias_retire(unsigned pressure) {
+    if (!alias_retire_on() || atomic_load(&g_safe_stopped)) return 0;
+    // Guest release can destroy the only bytes a later live object could restore.
+    if (rel_mode() > 0) { static int logged; if (!logged++) MLOG("shared texture retirement disabled while DM_TEX_RELEASE discards guest storage"); return 0; }
+    static uint64_t last; uint64_t f = g_fence;
+    if (!pressure && f - last < ALIAS_RETIRE_EVERY) return 0;
+    last = f;
+    pthread_mutex_lock(&g_res_mu); uint64_t held_bytes = MAX(g_res ? g_res.allocatedSize : 0, atomic_load(&g_res_bytes)); pthread_mutex_unlock(&g_res_mu);
+    uint64_t ws = ws_bytes(), lo_bytes = ws / 100 * ALIAS_LO;
+    if (!ws || held_bytes <= ws / 100 * ALIAS_HI) return 0;
+    pthread_mutex_lock(&g_smu);
+    if (!g_alias.n) { pthread_mutex_unlock(&g_smu); return 0; }
+    CFMutableSetRef held = CFSetCreateMutable(NULL, 0, NULL);   // what live objects resolve to, and the textures those are views of (an sRGB / linear twin's view holds its shared texture)
+    for (uint32_t i = 0; !serial_held_fast() && i < g_by_serial.cap; i++) { void *v = g_by_serial.vals[i]; if (!v) continue;
+        CFSetAddValue(held, v);
+        id o = (__bridge id)v;
+        if ([o conformsToProtocol:@protocol(MTLTexture)]) for (id<MTLTexture> p = ((id<MTLTexture>)o).parentTexture; p; p = p.parentTexture) CFSetAddValue(held, (__bridge const void *)p);
+    }
+    typedef struct { alias_key k; uint64_t seen, bytes; } cand;
+    uint32_t n = 0, cap = 0; cand *cs = NULL;
+    for (uint32_t i = 0; i < g_alias.cap; i++) {
+        if (!g_alias.vals[i]) continue;
+        if ((serial_held_fast() || serial_held_check()) ? serial_table_holds(g_alias.vals[i]) : CFSetContainsValue(held, g_alias.vals[i])) continue;
+        // Pool-owned placement heaps remain resident until the pool goes. Evicting a view cannot reclaim that allocation.
+        if (((id<MTLTexture>)(__bridge id)g_alias.vals[i]).heap) continue;
+        alias_key k; memcpy(&k, g_alias.keys + (size_t)i * g_alias.klen, sizeof k);
+        uint64_t seen = (uint64_t)(uintptr_t)nvn_hm_get(&g_alias_lseen, &k);
+        if (seen && f + 1 - seen < ALIAS_RETIRE) continue;
+        if (n == cap) { cand *nc = realloc(cs, (cap = cap ? cap * 2 : 64) * sizeof *cs); if (!nc) break; cs = nc; }
+        cs[n++] = (cand){k, seen, ((id<MTLTexture>)(__bridge id)g_alias.vals[i]).allocatedSize};
+    }
+    CFRelease(held);
+    if (n > 1) qsort_b(cs, n, sizeof *cs, ^int(const void *x, const void *y) { uint64_t a = ((const cand *)x)->seen, b = ((const cand *)y)->seen; return a < b ? -1 : a > b; });
+    uint32_t take = 0; uint64_t freed = 0;
+    for (uint32_t j = 0; j < n && freed < held_bytes && held_bytes - freed > lo_bytes; j++) {   // deletion shifts entries: the keys were collected first
+        void *old = nvn_hm_del(&g_alias, &cs[j].k);
+        if (!old) continue;
+        nvn_hm_del(&g_alias_seen, &cs[j].k); nvn_hm_del(&g_alias_lseen, &cs[j].k); nvn_hm_put(&g_alias_gone, &cs[j].k, (void *)1);
+        id o = CFBridgingRelease(old);
+        if (g_alias_set) CFSetRemoveValue(g_alias_set, (__bridge const void *)o);
+        if (serial_holds(&g_ghost, o) || serial_holds(&g_ghost_active, o)) defer_obj_unref(o); else defer_obj_release(o);
+        take++; freed += cs[j].bytes;
+    }
+    if (take) { g_ser_gen++; g_alias_idle += take; }
+    pthread_mutex_unlock(&g_smu);
+    free(cs);
+    if (take) { static int lines; if (lines++ < 8) MLOG("shared textures: %u retired (%llu MB queued for release), no live object resolved to them in %d submissions (residency set %llu MB of a %llu MB working set)", take,
+                 (unsigned long long)(freed >> 20), ALIAS_RETIRE, (unsigned long long)(held_bytes >> 20), (unsigned long long)(ws >> 20)); }
+    return take;
+}
+static void alias_retire_idle(void) { (void)alias_retire(0); }
 static __unsafe_unretained id serial_get(uint64_t k) { pthread_mutex_lock(&g_smu); __unsafe_unretained id o = hm_get_id(&g_by_serial, &k); pthread_mutex_unlock(&g_smu); return o; }
 static int serial_is_program(id o);
 static void serial_put(uint64_t k, id o) {
@@ -3805,7 +3888,7 @@ static int mem_any(const uint8_t *p, uint64_t n) {   // whether any byte is non-
     for (; i < n; i++) if (p[i]) return 1;
     return 0;
 }
-static int tex_init_fill(const tex_t *t, id<MTLTexture> mt) {
+static int tex_init_fill(const tex_t *t, id<MTLTexture> mt, int again) {   // again: made anew for a live object over storage whose texture alias_retire_idle retired
     if (!t->mem || !t->pool || (t->pool->flags & NVN_MEMORY_POOL_FLAGS_VIRTUAL) || t->has_layout) return 0;
     if (t->d.samples > 1 || ((int)mt.pixelFormat >= 250 && (int)mt.pixelFormat <= 262)) return 0;   // 250..262: Depth16Unorm … X24_Stencil8 (some names are macOS-only)
     int no_cpu = (t->pool->flags & NVN_MEMORY_POOL_FLAGS_CPU_NO_ACCESS) != 0, uncached = (t->pool->flags & NVN_MEMORY_POOL_FLAGS_CPU_UNCACHED) != 0;
@@ -3814,7 +3897,7 @@ static int tex_init_fill(const tex_t *t, id<MTLTexture> mt) {
     // and skipping the fill left all 74 of them with content 0, the screen black but for text
     if (no_cpu && (t->d.flags & NVN_TEXTURE_FLAGS_COMPRESSIBLE)) return 0;
     static int flush_fill = -1; if (flush_fill < 0) { const char *e = getenv("DM_NVN_FLUSH_FILL"); flush_fill = !e || atoi(e) != 0; }
-    if (!no_cpu && !uncached && (!flush_fill || !nvn_flushed(t->mem, t->L.size))) return 0;
+    if (!no_cpu && !uncached && !again && (!flush_fill || !nvn_flushed(t->mem, t->L.size))) return 0;   // a retired texture made again holds what its storage holds
     if (!atomic_load(&g_sub_thread_set) || !on_sub_thread() || !mem_any(t->mem, t->L.size)) return 0;   // the upload batch belongs to the submit thread
     if (pkg_upload(t, NULL, mt, 0) != mt) return 0;
     int why = no_cpu ? 0 : uncached ? 1 : 2;
@@ -4140,7 +4223,7 @@ static id<MTLTexture> pool_heap_texture(const tex_t *t, MTLTextureDescriptor *d)
     res_add(mt); g_pool_heap_tex++;
     size_t g0 = at / POOL_HEAP_GRAIN, g1 = MIN((at + need.size - 1) / POOL_HEAP_GRAIN, h->ngrain - 1); int all_new = 1;
     for (size_t g = g0; g <= g1; g++) { if (h->used[g]) all_new = 0; h->used[g] = 1; }
-    if (all_new && !tex_init_fill(t, mt)) tex_zero_fill(mt);
+    if (all_new && !tex_init_fill(t, mt, 0)) tex_zero_fill(mt);
     return mt;
 }
 static id<MTLTexture> tex_mtl_(const tex_t *ct) {
@@ -4266,10 +4349,12 @@ static id<MTLTexture> tex_mtl_(const tex_t *ct) {
     // made the stencil read zero and rejected every deferred-lighting pass. Actual image writes add Metal usage before opening their encoder (image_prepare).
     ak.d.flags &= ~NVN_TEXTURE_FLAGS_IMAGE;
     pthread_mutex_lock(&g_smu); __unsafe_unretained id shared = hm_get_id(&g_alias, &ak); if (shared) nvn_hm_put(&g_alias_seen, &ak, (void *)(uintptr_t)(g_fence + 1));
-    int live = t->serial >= (1ull << 62) || nvn_hm_get(&g_tex_live, &t->serial); pthread_mutex_unlock(&g_smu);
-    // A finalized object whose descriptor is still registered, over storage a shared texture holds: the sharing table keeps that texture, so the ghost ring (tex_put) would only churn.
-    // Ocarina of Time keeps about 12,000 such descriptors, each at the storage of a live texture object; every pool walk put them through the 512-entry ring, about 10,000 puts and
-    // 20,000 storage notes a frame, and their views were made again in each submission
+    int live = t->serial >= (1ull << 62) || nvn_hm_get(&g_tex_live, &t->serial);
+    if (alias_retire_on() && shared && live) nvn_hm_put(&g_alias_lseen, &ak, (void *)(uintptr_t)(g_fence + 1));
+    int gone = alias_retire_on() && !shared && nvn_hm_get(&g_alias_gone, &ak), again = 0;
+    if (gone && live) { gone = 0; again = 1; }   // a live object over the storage again: made anew below, from its storage
+    pthread_mutex_unlock(&g_smu);
+    if (gone) return nil;   // a finalized descriptor over a texture alias_retire_idle retired
     if (shared) { if (live) tex_put(t->serial, shared); g_stat_ghost_skip += !live; return shared; }
     {   // NVN textures over the same storage share its bytes. One that differs from a shared texture only by the other format of an sRGB / linear pair is a view of it: as its own Metal
         // texture, Mario Kart World's Grand Prix movie (an RGBA8 render target the YUV pass writes, sampled by the composite through an RGBA8_SRGB texture) showed a frozen frame
@@ -4296,7 +4381,7 @@ static id<MTLTexture> tex_mtl_(const tex_t *ct) {
         if (!mt) mt = pool_heap_texture(t, d);
         int filled = 0;
         if (!mt) { mt = [g_dev newTextureWithDescriptor:d];
-            if (mt) { res_add(mt); if (!(filled = tex_init_fill(t, mt))) tex_zero_fill(mt); } }
+            if (mt) { res_add(mt); if (!(filled = tex_init_fill(t, mt, again))) tex_zero_fill(mt); } }
         if (mt && !filled && t->pool && (t->pool->flags & NVN_MEMORY_POOL_FLAGS_CPU_NO_ACCESS) && t->d.target != NVN_TEXTURE_TARGET_BUFFER) rel_push(t, 0);   // the GPU-only texture of a pool nobody reads: its guest pages mean nothing, the host never reads them
         if (!mt) { RED_ONCE(2, "failed to create MTLTexture %ux%u format %#x target %d", t->d.width, t->d.height, t->d.format, t->d.target); return nil; }
     }
@@ -4309,7 +4394,8 @@ static id<MTLTexture> tex_mtl_(const tex_t *ct) {
     pthread_mutex_lock(&g_smu);
     if (!g_alias_set) g_alias_set = CFSetCreateMutable(NULL, 0, NULL);
     alias_take_over(&ak);
-    hm_put_id(&g_alias, &ak, mt); CFSetAddValue(g_alias_set, (__bridge const void *)mt); nvn_hm_put(&g_alias_seen, &ak, (void *)(uintptr_t)(g_fence + 1));
+    if (alias_retire_on()) nvn_hm_del(&g_alias_gone, &ak);
+    hm_put_id(&g_alias, &ak, mt); CFSetAddValue(g_alias_set, (__bridge const void *)mt); nvn_hm_put(&g_alias_seen, &ak, (void *)(uintptr_t)(g_fence + 1)); if (alias_retire_on()) nvn_hm_put(&g_alias_lseen, &ak, (void *)(uintptr_t)(g_fence + 1));
     pthread_mutex_unlock(&g_smu);
     tex_put(t->serial, mt);
     return mt;
@@ -5922,7 +6008,7 @@ static void treg_retire_serial(uint64_t ser) {
 // those views go, so they pin no texture past it. Under g_rmu
 static uint64_t g_alias_swept;
 static void alias_sweep(void) {
-    pthread_mutex_lock(&g_smu); uint64_t now = g_alias_taken + g_alias_evicted; pthread_mutex_unlock(&g_smu);
+    pthread_mutex_lock(&g_smu); uint64_t now = g_alias_taken + g_alias_evicted + g_alias_idle; pthread_mutex_unlock(&g_smu);
     if (now == g_alias_swept) return;
     g_alias_swept = now;
     for (int i = 1; i < g_ntreg; i++) { treg_t *r = &g_treg[i]; if (!r->ok || !r->retired || !r->view) continue;
@@ -5944,6 +6030,7 @@ static void treg_finish_submission(void) {
 // Sharing entries nothing else holds and no lookup found for ALIAS_IDLE submissions leave the table. The GPU memory guard's: at this point, a texture that comes back empty is better than a stop.
 // What a live or finalized object resolves to stays, its sRGB / linear view's parent too. A retired ID's view of one keeps the texture alive until that ID is registered again; the IDs that read it read 0 at the next walk. Runs on the submit thread
 static unsigned alias_evict_idle(void) {
+    if (alias_retire_on()) return alias_retire(1);
     os_unfair_lock_lock(&g_rmu);
     pthread_mutex_lock(&g_smu);
     CFMutableSetRef held = CFSetCreateMutable(NULL, 0, NULL); nvn_hmap *hs[3] = {&g_by_serial, &g_ghost, &g_ghost_active};

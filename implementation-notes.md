@@ -463,3 +463,12 @@ No game, full shader build, settings write, push or remote branch change ran.
 - Ported merged upstream 69cb9b6e. ev_t retains the event builder's pool and offset, and the two NVN event getters return them. Added upstream getter assertions to t_nvn.
 - This is a general merged correctness fix, enabled without a new flag. The capture walk snapshots an event's address rather than ev_t, so its disk layout does not change. Host-only, no shader-chain change.
 - Static only. dmhost PID 92070 remains active, so no builds or tests ran.
+
+## Harvest 3 follow-up: PR 1455
+
+- Ported bc604379's live-lookup ages, idle ordering and retired-key suppression behind DM_NVN_ALIAS_RETIRE=1. Upstream enables it by default. A recreated live texture keeps its tombstone until allocation succeeds.
+- Retirement uses the minimum of Metal's working set, a smaller DM_NVN_WS_MB, the existing guard stop and the safe GPU cap. The 85/75 percent thresholds therefore precede our 70 percent safe stop. No safe-GPU preflight, wall, timer, commit wrapper or limit was removed or raised.
+- #1391 guard eviction calls the same retirement helper while opted in, retaining the legacy eviction path when off. #1439's held map and ancestor checks protect live views; the fallback is one linear held-object census. Both ghost tables keep their residency references through normal deferred release. Raw-pool #1404/#1394 behavior is unchanged.
+- Skip heap-backed textures because a pool-owned heap stays resident. Disable this retirement with destructive DM_TEX_RELEASE modes so recreated objects cannot depend on discarded guest bytes. Probe remains compatible. Shared-view sweeps now observe idle retirements too.
+- Skipped #1454 as instructed. No test-stub port was added.
+- User then authorized builds while the game runs. Built only source fixtures under taskpolicy -b nice -n 19, make -j4. t_nvn passed 243 checks; t_capture passed 83; t_alias_retire passed 11 each in direct/deferred modes and 8 each in off/default/release modes. Total 372 checks, zero failures. Gameplay and full shader/host acceptance are still with the lead.

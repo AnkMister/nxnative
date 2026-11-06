@@ -645,3 +645,14 @@ t_gpu_lost: t_gpu_lost.m t_gpu_lost_front.c $(MTL_T_DEP)
 check_t_gpu_lost: t_gpu_lost
 	MTL_DEBUG_LAYER=1 ./t_gpu_lost default
 	MTL_DEBUG_LAYER=1 ./t_gpu_lost
+
+
+t_alias_retire: t_alias_retire.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_alias_retire.m $(MTL_T_SRC) $(FW)
+.PHONY: check_t_alias_retire
+check_t_alias_retire: t_alias_retire
+	DM_NVN_SERIAL_HELD=0 DM_NVN_SERIAL_HELD_CHECK=1 DM_NVN_ENC_THREAD=0 MTL_DEBUG_LAYER=1 ./t_alias_retire
+	DM_NVN_SERIAL_HELD=1 DM_NVN_SERIAL_HELD_CHECK=1 DM_NVN_ENC_THREAD=1 MTL_DEBUG_LAYER=1 ./t_alias_retire
+	MTL_DEBUG_LAYER=1 ./t_alias_retire off
+	MTL_DEBUG_LAYER=1 ./t_alias_retire default
+	MTL_DEBUG_LAYER=1 ./t_alias_retire release
