@@ -26,7 +26,7 @@ int main(void) { @autoreleasepool {
     CHECK(tex_mtl(&a) == old && tex_mtl(&b) == old && tex_mtl(&ghost) == old, "IMAGE usage does not split storage across existing descriptors");
     // Exercise replacement at the hash table's growth threshold: reinserting while iterating would resize and reshuffle it.
     uint64_t extra = 99400;
-    while ((g_by_serial.n + 1) * 4 <= g_by_serial.cap * 3) { hm_put_id(&g_by_serial, &extra, old); extra++; }
+    while ((g_by_serial.n + 1) * 4 <= g_by_serial.cap * 3) { serial_put(extra, old); extra++; }
     uint32_t capacity = g_by_serial.cap, count = g_by_serial.n;
     id<MTLTexture> upgraded = tex_upgrade_pfv(&a, old, MTLPixelFormatR32Uint);
     CHECK(upgraded && upgraded != old, "usage upgrade creates a replacement");
@@ -36,6 +36,7 @@ int main(void) { @autoreleasepool {
     CHECK(tex_get(b.serial) == upgraded, "other live serial sees the replacement");
     // A finalized serial over a shared texture takes no ghost entry (tex_mtl_): it resolves through the sharing table, which the upgrade has updated
     CHECK(tex_get(ghost.serial) == nil && tex_mtl(&ghost) == upgraded, "finalized serial sees the replacement");
+    CHECK(!serial_table_holds((__bridge void *)old) && serial_table_holds((__bridge void *)upgraded), "held counts follow every in-place replacement");
     CHECK(!alias_has(old) && alias_has(upgraded), "sharing membership follows the replacement");
     uint32_t pixels[16]; for (int i = 0; i < 16; i++) pixels[i] = 0x44332211u;
     id<MTLBuffer> src = [g_dev newBufferWithBytes:pixels length:sizeof pixels options:MTLResourceStorageModeShared]; res_add(src);

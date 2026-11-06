@@ -731,6 +731,7 @@ One line per symptom in the [subsystem references](../reference/): what you see 
 - ground textures blur at oblique angles, mip boundaries remain visible, or reconstructing a larger presentation image loses its benefit when sharpening is enabled. → [Opt-in filtering and supersampled presentation](../reference/rendering.md#opt-in-filtering-and-supersampled-presentation)
 - with *Picture shape* at 1.43:1 (`DM_SCREEN_ASPECT`) the game renders 1920x1344, but on an iPhone Duo in Fit (the default) the picture comes out smaller than the 16:9 one, with black bars on all four sides; it fills the screen only in Fill. On the Mac a click lands off the point under the pointer (it was mapped on a 16:9 rectangle of the window). → [The picture laid out in the shape the game presents](../reference/rendering.md#the-picture-laid-out-in-the-shape-the-game-presents)
 - the same SDR picture can have different saturation on a wide-gamut Mac display. Source audit; console/display visual parity remains unverified. → [Mac SDR output without a source colour space](../reference/rendering.md#mac-sdr-output-without-a-source-colour-space)
+- Ocarina cutscenes spend most texture-creation CPU work checking which shared textures live objects still hold. → [Storage takeover serial lookup cost](../reference/rendering.md#storage-takeover-serial-lookup-cost)
 
 ## Shaders
 

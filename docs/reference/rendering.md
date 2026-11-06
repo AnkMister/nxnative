@@ -1519,3 +1519,11 @@ depth-only program. A declared pixel shader that failed to load still skips its
 draw. Ported from oot-combined's #1368 resolution 9a7a5ff0.
 Found on: [Ocarina](../../dm/games/0400486024DEC000/README.md).
 
+
+### Storage takeover serial lookup cost
+
+- **Symptom:** Ocarina cutscenes spend most texture-creation CPU work checking which shared textures live objects still hold.
+- **Cause:** `alias_take_over` walks the whole serial table for each overlapping sharing entry. Upstream PR #1439 identified the repeated walks.
+- **Fix:** `DM_NVN_SERIAL_HELD=1` uses `g_by_serial_held`, an object-address count maintained under `g_smu` by `serial_put`, `serial_del`, live `tex_put` and the usage upgrade's in-place replacement. Each serial also counts its texture-view ancestors, preserving this branch's parent-storage protection. Ghost-only references do not count. The switch defaults off for A/B testing. Without `NDEBUG`, `DM_NVN_SERIAL_HELD_CHECK=1` compares each queried count against a full serial walk and aborts on disagreement. The check defaults off and adds substantial CPU work.
+- **Check:** `t_alias_takeover` covers held and unheld storage, duplicate serials, replacement, ghost exclusion, view parents and diagnostic failure. `t_upgrade_alias` covers every in-place replacement at the serial table's growth threshold. Gameplay and visual acceptance remain open; these tests do not establish cutscene performance.
+- **Found on:** [Ocarina of Time](../../dm/games/0400486024DEC000/README.md#found-on-this-game). Upstream report: [PR #1439](https://github.com/seedds/nxnative/pull/1439). No game was run for this port.
