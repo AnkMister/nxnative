@@ -8,7 +8,7 @@
 # cannot tell the games that need them (Tears of the Kingdom) from those that only use what they answer (Wonder's conditional clears, Breath of the Wild's flushed textures).
 # Usage: profile_guess.py <ExeFS dir> <romfs_manifest.tsv | RomFS dir>   the facts and the guessed keys
 #        profile_guess.py --check [<NSP root>]                        every profile in dm/games against its extraction under <NSP root> (default /Volumes/T7/nsp): where the guess differs
-import collections, re, struct, sys
+import collections, os, re, struct, sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -497,7 +497,10 @@ def heap_signals(log, g):
         heap = -(-max(req) // 0x8000000) * 0x8000000
         alias = reserve - 0x10000000 - stack - heap
         if alias >= 0x40000000: out['mem_alias'] = (f'{alias:#x}', f'the game asked for a {max(req) / 2**30:.2f} GB heap: a {heap / 2**30:.3f} GB heap region')
-        else: out['mem_reserve'] = (f'{0x10000000 + 0x40000000 + stack + heap:#x}', f'the game asked for a {max(req) / 2**30:.2f} GB heap')
+        else:   # not even 1 GB left for the alias region: the block grows around the alias region the profile has (at least 1 GB), which mem_reserve alone leaves as it is, so the heap
+            # region gets the whole request. Sized for a 1 GB alias region, the Switch 2 guess of 4.375 GB left Ocarina of Time 0xb8000000 of the 0x18ce00000 it asked for (issue #1361)
+            keep = max(int(g.get('mem_alias'), 0), 0x40000000) if os.environ.get('DM_OOT_BRENT') == '1' else 0x40000000
+            out['mem_reserve'] = (f'{0x10000000 + keep + stack + heap:#x}', f'the game asked for a {max(req) / 2**30:.2f} GB heap')
     top = [float(x) for x in re.findall(r'\[mem\] alias region mapped up to \+([0-9.]+) GB', log)]
     alias = int(g.get('mem_alias'), 0) / 2**30
     if not req and '[mem] heap ' not in log and int(g.get('sys_resource', '0'), 0) and top and max(top) > alias - 0.25 and int(g.get('app_pool'), 0) > 0x40000000:

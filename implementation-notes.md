@@ -652,3 +652,7 @@ game run, shader corpus build, push or PR is authorized here.
 - #1345 / d7a43c2a reads SDK 20+ UpdateImpl's lock offset rather than using
   SDK 20's fixed +0x2d0 on SDK 22 (+0x2d8). DM_OOT_BRENT=1 enables it.
   NDSR tests pass with the required explicit DM_GAME (9 tests).
+
+- #1373 / b44bcafd preserves a provisional profile's alias budget when growing
+  its heap reservation. DM_OOT_BRENT=1 enables the new arithmetic. Static
+  Ocarina profiles do not need regeneration for this tool fix.
