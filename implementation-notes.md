@@ -99,3 +99,16 @@ draining, so a stuck residency lock cannot block the watchdog timer. Review
 also found old large-pool chunks needed the same fence; that path and a test
 fixture are included. Claude review could not run because its provider is
 not authenticated. Metal tests remain unrun on Linux.
+
+Final Linux verification: 62 focused Python/doc tests passed. Broad tool tests
+ran 110 files: 77 passed and 33 failed on the recorded environment/toolchain
+issues; test_xlate_anycpu was excluded. test_spirv_cross_pin should also have
+been excluded: its attempted bundled executable was rejected by Linux before
+execution. No packages were installed or translator binaries touched. C syntax
+checks passed for hle_hid.c, hle_vi.c and t_hid.c with existing portability
+warnings. Env-switch check has only the existing six stale doc mentions.
+
+The report and per-file outcomes are in docs/oot-notes/oot-brent2-misc2.md and
+oot-brent2-misc2-tests.json, with the requested report mirrored under
+~/code/nxnative-research/reports/. Mac verification remains open for all
+runtime source changes. Push target is ankmister/oot-brent2-misc2.

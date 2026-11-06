@@ -1,0 +1,556 @@
+[
+  {
+    "file": "test_acquire_lock.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_architecture.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_astral_fps.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_bea_members.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_bench.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_bug_report.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_cheat_anchor.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_ci_toolchain.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_clean_metal_cache.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_coverage_report.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_dmsh_abi.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_dmsh_code_fp.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_dmsh_pool_arrays.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_dmsh_stagecache.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_docs.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_env_switches.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_fast_clock.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_fps_target.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_fuzz_corpus.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_game_profile.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_gfx_tests_makefile.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_gpuprof.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_host_msl.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_il2cpp_sym.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_image_atomic_bounds.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_issue_areas.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_jit_capture.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_jump_copies.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_launcher_settings.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_lint_c.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_lint_python.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_nro_collect.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_nro_graphics.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_nro_header.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_nro_pack.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_nso.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_nso_match.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_nsp_aarch64.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_nsp_alias.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_nsp_chain.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_nsp_dotnet.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_nsp_dump.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_nsp_env_checks.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_nsp_external_drive.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_nsp_incremental.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_nsp_mac.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_nsp_mac_app.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_nsp_nsz.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_nsp_nup.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_nsp_progress.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_nsp_romfs.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_nsp_scan.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_nsp_space.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_nsp_work_dir.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_oot_ab.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_oot_resolution.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_oot_shader_waste.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_oot_vqa.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_own_compilers.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_patches.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_pfs0_storage.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_player_env.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_pr_areas.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_profile_guess.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_pso_offline.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_regress.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_rewrite_parallel.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_romfs_identity.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_romfs_image.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_romfs_read.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_safe_gpu_snapshot.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_settings.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_shader_cache.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_shader_lib.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_shader_pch.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_shader_regressions.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_shader_rewrites.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_shader_toolchain_cache.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_size_prefixed_frames.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_snowdrop_pools.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_spin_waits.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_spirv_cross_pin.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_split_appledouble.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_split_bnd2.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_split_gust_gz.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_split_gzip.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_split_heaps.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_split_linkdata.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_split_narc.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_split_ndsr_entries.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_split_ndsr_pairs.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_split_nesting.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_split_unreadable.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_split_viper.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_tail_call.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_tbdr_shader_audit.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_tree_tar.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_triage_report.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_trinity_completer.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_txq_type.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_ue_cvar.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_ue_malloc.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_ue_region.py",
+    "status": "fail",
+    "code": 1
+  },
+  {
+    "file": "test_ue_ring.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_uepak_iostore.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_uepak_key.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_uepak_v8.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_unity_legacy_layout.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_unity_text_glslc.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_usage.py",
+    "status": "pass",
+    "code": 0
+  },
+  {
+    "file": "test_xlate_anycpu.py",
+    "status": "excluded: reads forbidden translator binaries"
+  }
+]
