@@ -133,4 +133,11 @@ class Planning(unittest.TestCase):
             self.assertTrue((root / 'out' / f'{arch}.mtl4a').is_file(), 'valid archive pieces must survive a rejected constant')
 
 
+class ComputeInventory(unittest.TestCase):
+    def test_plain_compute_and_render_bases_share_the_inventory(self):
+        rows = pso_aot.base_rows([('c_b', 'main0'), ('v_bp', 'main0', 'f_b', 'main0')], 'chain')
+        self.assertEqual(rows[0], dict(version=1, chain='chain', **{'class': 'compute'}, compute=['c_b', 'main0']))
+        self.assertEqual(rows[1]['class'], 'render')
+
+
 if __name__ == '__main__': unittest.main()

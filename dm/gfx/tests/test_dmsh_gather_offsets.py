@@ -11,10 +11,10 @@ import unittest
 TOOLS = Path(__file__).resolve().parents[1] / 'tools'
 tree = ast.parse((TOOLS / 'dmsh_build.py').read_text())
 selected = [n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name == 'gather_offsets')
-            or (isinstance(n, ast.Assign) and any(getattr(t, 'id', None) in ('GATHER4', 'MAC_METAL') for t in n.targets))]
+            or (isinstance(n, ast.Assign) and any(getattr(t, 'id', None) in ('GATHER4', '_XCRUN_METAL') for t in n.targets))]
 scope = {'re': re}
 exec(compile(ast.Module(body=selected, type_ignores=[]), str(TOOLS / 'dmsh_build.py'), 'exec'), scope)
-gather_offsets, MAC_METAL = scope['gather_offsets'], scope['MAC_METAL']
+gather_offsets, MAC_METAL = scope['gather_offsets'], scope['_XCRUN_METAL']
 
 HEAD = '''#include <metal_stdlib>
 using namespace metal;

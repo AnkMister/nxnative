@@ -92,6 +92,8 @@ static void *realloc_or_die(void *p, size_t bytes, const char *what) {   // for 
 static void aot_prewarm(void);
 static id<MTLFunction> aot_function(id<MTLLibrary>, NSString *);
 static id<MTLComputePipelineState> aot_compute(id<MTLFunction>, NSError **);
+static NSDictionary *aot_compute_row(id<MTLFunction>);
+static void aot_record(NSDictionary *);
 static id<MTLRenderPipelineState> aot_render(MTLRenderPipelineDescriptor *, NSError **);
 static id<MTLRenderPipelineState> aot_mesh(MTLMeshRenderPipelineDescriptor *, NSError **);
 static int aot_learning(void) { const char *e = getenv("DM_PSO_LEARN"); return dm_aot_on() || (e && !strcmp(e, "1")); }
@@ -7835,13 +7837,14 @@ static id<MTLRenderPipelineState> arch_capture(MTL4RenderPipelineDescriptor *d, 
 // shader's first dispatch, with the Metal shader cache the only thing between it and a cold compile: 20-40 ms warm, 100-1,200 ms cold (Ocarina of Time's effects: 20 at a time
 // on a new area, frames of 2-4 s; its title movie's network 72 s on a first start)
 static id<MTLComputePipelineState> cps_make(NvShader *cs, NSError **e) {
-    if (dm_aot_on()) return aot_compute(cs->fn, e);
+    if (cs && dm_aot_on()) return aot_compute(cs->fn, e);
+    if (cs && aot_learning()) aot_record(aot_compute_row(cs->fn));
     MTL4FunctionDescriptor *fd = cs && cs->fn && pso4_on() && g_comp4 ? fn4_of(cs->fn) : nil;
     if (!fd) return cs && cs->fn ? [g_dev newComputePipelineStateWithFunction:cs->fn error:e] : nil;
     MTL4ComputePipelineDescriptor *d = [MTL4ComputePipelineDescriptor new]; d.computeFunctionDescriptor = fd;
     uint64_t t0 = bp_now(); id<MTLComputePipelineState> ps = nil; int from_run = 0;
-    for (id<MTL4Archive> a in g_arch4p) if ((ps = [a newComputePipelineStateWithDescriptor:d error:nil])) { from_run = a != g_arch_bundle; break; }
-    if (!ps) for (id<MTL4Archive> a in g_arch4) if ((ps = [a newComputePipelineStateWithDescriptor:d error:nil])) { from_run = a != g_arch_bundle; break; }
+    for (id<MTL4Archive> a in g_arch4p) if ((ps = [a newComputePipelineStateWithDescriptor:d error:nil])) { from_run = ![g_arch_bundles containsObject:a]; break; }
+    if (!ps) for (id<MTL4Archive> a in g_arch4) if ((ps = [a newComputePipelineStateWithDescriptor:d error:nil])) { from_run = ![g_arch_bundles containsObject:a]; break; }
     if (ps) { g_cps_archived++; g_cps_arch_ns += bp_now() - t0;
         if (from_run && g_compact_enabled && atomic_load(&g_warm_running)) {   // as a render base taken from this Mac's files during a compaction: captured again for the new file
             if (!g_arch_cap) return ps;

@@ -324,8 +324,9 @@ class Shared(Translated):
                 # STS.U8/U16 [RZ + offset], R3. Each helper replaces just its part of the shared word.
                 store = inst(hi, offset << 40 | 0x03ff007388)
                 msl = self.translate(mov(3, 37) + store + inst(*EXIT), shared=64, debug=False)
-                self.assertRegex(msl, rf'insert_bits\([^;]*\b{width}u\)')
-                self.assertIn('atomic_compare_exchange', msl)
+                self.assertIn('atomic_fetch_and', msl)
+                self.assertIn('atomic_fetch_or', msl)
+                self.assertNotIn('atomic_compare_exchange', msl)
                 self.assertRegex(msl.split('kernel void')[1], rf'int (\w+) = {offset};\s+int (\w+) = 37;\s+\w+\(\1, \2, \w+\);')
 
     def test_optimized_atomics_keep_the_write_when_their_result_is_rz(self):

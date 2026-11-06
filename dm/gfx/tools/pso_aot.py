@@ -303,7 +303,8 @@ def prepare_helpers(work, platform):
 def base_rows(bases, chain):
     """The existing render bases are also loaded before gameplay, never specialized
     by this inventory. Exact final states are separate learned descriptors."""
-    return [dict(version=1, chain=chain, **{'class': 'render'}, base=True,
+    return [dict(version=1, chain=chain, **{'class': 'compute'}, compute=[b[0], b[1]]) if len(b) == 2 else
+            dict(version=1, chain=chain, **{'class': 'render'}, base=True,
                  vertex=[b[0], b[1]], fragment=[b[2], b[3]], samples=1, a2c=False, raster=True,
                  colors=[[-1] * 9 for _ in range(8)], topology=3 if len(b) == 5 else 0, amp=1, attrs=[], layouts=[])
             for b in bases if isinstance(b, tuple)]

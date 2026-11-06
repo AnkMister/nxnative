@@ -938,7 +938,9 @@ class SeenShaders(unittest.TestCase):   # --seen-shaders: the keys, the partial 
         self.assertFalse(any('--seen-shaders' in m for m in self.said))
 
     def test_shader_watch_counts_the_list(self):
-        self.assertEqual(nsp.ShaderWatch(self.g, self.tmp, self.tmp).n, 4)
+        progress = self.tmp / 'progress.json'
+        progress.write_text(json.dumps(dict(step='cache check', done=2, total=4, cached=1)))
+        self.assertEqual(nsp.ShaderWatch(progress)(), dict(step='cache check', done=2, total=4, unit='shaders', note='1 cached'))
         self.assertEqual(nsp.ShaderWatch(self.g, self.tmp, self.tmp, seen=self.keys('a', 'b')).n, 2)
 
     def run_cmd(self, **kw):

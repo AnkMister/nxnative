@@ -74,7 +74,7 @@ class Pairing(unittest.TestCase):
         self.extra = self.package.parent / 'pso_pairs.tsv'
         self.extra.write_text('# BAHS\nv\tf1\nv\tf6\nv\tf1\n\n')
         self.ns = builder()
-        self.ns.update(out=str(self.root), PAIRS=self.ns['load_pairs'](self.g, self.package))
+        self.ns.update(output=lambda target, name: (self.root / name).read_bytes(), out=str(self.root), PAIRS=self.ns['load_pairs'](self.g, self.package))
         for key, loc in [('f0', 0), ('f1', 1), ('f6', 6)]:
             src = pixel(loc)
             if not loc: src = src.replace('    float4 missing [[user(locn0)]];\n', '').replace('in.v0 + in.missing', 'in.v0')

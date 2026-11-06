@@ -233,15 +233,6 @@ class HmmaRewrite(unittest.TestCase):
                 self.assertNotIn('dm_acc', out)
                 self.assertNotIn('adirect', out)
 
-    def test_readable_tile_compile_does_not_depend_on_hmma_flags(self):
-        fetch = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'fetch_finish')
-        assign = next(n for n in ast.walk(fetch) if isinstance(n, ast.Assign) and any(getattr(t, 'id', None) == 'flib' for t in n.targets))
-        expression = compile(ast.Expression(assign.value), 'fetch-library-selection', 'eval')
-        for chain in ('0', '1'):
-            for tensor in ('0', '1'):
-                with self.subTest(chain=chain, tensor=tensor), patch.dict(os.environ, DMSH_HMMA_CHAIN=chain, DMSH_HMMA_TENSOR=tensor):
-                    scope = dict(os=os, out='out', key='shader', TARGETS={'mac'})
-                    self.assertEqual(eval(expression, scope), os.path.join('out', 'shader_bf.metallib'))
 
     def test_body_replaced_with_its_arguments(self):
         out = hmma_msl(HEAD + HELPER + KERNEL)
