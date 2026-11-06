@@ -457,3 +457,12 @@ t_logic: t_logic.m $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -o $@ t_logic.m $(MTL_T_SRC) $(FW)
 check_t_logic: t_logic
 	@set -e; work=$$(mktemp -d); trap 'rm -rf "$$work"' EXIT; python3 test_dmsh_logic.py --fixture "$$work"; MTL_DEBUG_LAYER=1 ./t_logic "$$work"
+t_nanscan: t_nanscan.m ../nvn/host_msl.m $(MSL_H)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_nanscan.m ../nvn/host_msl.m -framework Metal -framework Foundation
+t_present_color: t_present_color.m ../nvn/host_msl.m $(MSL_H)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_present_color.m ../nvn/host_msl.m -framework Metal -framework Foundation -framework CoreGraphics
+t_nanscan_pass: t_nanscan_pass.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_nanscan_pass.m $(MTL_T_SRC) $(FW)
+.PHONY: check_t_nanscan_pass
+check_t_nanscan_pass: t_nanscan_pass
+	python3 test_nanscan_pass.py ./t_nanscan_pass
