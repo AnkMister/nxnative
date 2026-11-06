@@ -440,5 +440,8 @@
     "dm/third_party/ryujinx/src/Spv.Generator/spirv.cs": "edbe69718c6fd6fa9754fead258bef34d9ea6e93d8a3c2d8db8fdd4436bd831d"
   },
   "upstream_base": "eab0aaac96540500237248fa4e6410375596bb66",
-  "reused_source_identical_bundle": true
+  "reused_source_identical_bundle": true,
+  "default_chain": "edc19761647e",
+  "visual_play_chain": "992d6981956f",
+  "option_combinations": 64
 }

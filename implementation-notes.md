@@ -47,3 +47,10 @@ The full main graphics suite exposed the miner's folder-reader dependency on the
 older cache API. Its explicit read-only folder adapter now supplies STORE.names
 without opening or migrating a cache database. The existing incomplete/current
 publication regression covers the repair. Python graphics is rerun after it.
+
+Final verification is green for both branches. oot-hyper-main is the recommended
+basis for the next complete play build, with DM_AOT=1 in both packer and runtime.
+All experiments remain default-off except inherited/profile defaults; the play
+recipe explicitly enables reviewed correctness/stability and srgb. Complete
+pipeline coverage and image/gameplay acceptance remain parent gates. No game,
+full shader build, push or PR ran. Final results and cleanup are in docs/oot-notes.
