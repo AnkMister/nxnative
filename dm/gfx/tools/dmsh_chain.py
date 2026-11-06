@@ -10,7 +10,7 @@
 #       dmsh_chain.py --header        rewrite dm/gfx/nvn/dmsh_chain.h (run after changing any file listed above, and commit it with the change)
 #       dmsh_chain.py --inputs        print the digest of the current game profile's inputs (DM_GAME), as b-<V>/inputs.tsv records it
 #       (checking the tools against dmsh_chain.lock, and rewriting it, is tool_lock.py's: the checks decide no output, so they are outside V and the shaders' cache keys)
-# Environment: XLATE_DEBUG / XLATE_REDUCED (default 1 / 1) and DMSH_RAW_LOAD_QUADS (default off). Non-default options yield a different V and require a matching host.
+# Environment: XLATE_DEBUG / XLATE_REDUCED (default 1 / 1) and DMSH_RAW_LOAD_QUADS / DMSH_WIDE_GROUP (default off). Non-default options yield a different V and require a matching host.
 import os, sys, ast, hashlib
 DM_ROOT = os.environ.get('DM_ROOT') or os.path.expanduser('~/dm-work')   # Workspace root (game files, build outputs and run artifacts are all under it)
 HERE = os.path.dirname(os.path.abspath(__file__)); GFX = os.path.dirname(HERE); HOME = os.path.expanduser('~')
@@ -32,12 +32,16 @@ XLATE_DIR = os.path.dirname(os.environ.get('XLATE', os.path.join(HERE, 'dmsh_xla
 SPIRV_CROSS = os.environ.get('SPIRV_CROSS', os.path.join(HERE, 'spirv_cross_bin/spirv-cross'))
 
 def options():
-    return 'debug=%s reduced=%s raw_load_quads=%s oot_visual=%s' % (
-        os.environ.get('XLATE_DEBUG', '1') != '0', os.environ.get('XLATE_REDUCED', '1') == '1', raw_load_quads(), os.environ.get('DMSH_OOT_VISUAL') == '1')
+    return 'debug=%s reduced=%s raw_load_quads=%s oot_visual=%s wide_group=%s' % (
+        os.environ.get('XLATE_DEBUG', '1') != '0', os.environ.get('XLATE_REDUCED', '1') == '1', raw_load_quads(), os.environ.get('DMSH_OOT_VISUAL') == '1', wide_group())
 
 
 def raw_load_quads():
     return os.environ.get('DMSH_RAW_LOAD_QUADS') == '1'
+
+
+def wide_group():
+    return os.environ.get('DMSH_WIDE_GROUP') == '1'
 
 def version():
     h = hashlib.sha256()

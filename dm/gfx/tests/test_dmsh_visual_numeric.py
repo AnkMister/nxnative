@@ -51,6 +51,32 @@ class Numeric(Translated):
         source = source[:end]+f'for (uint i=0;i<{len(expected)};i++) result[i]={shared}[i];\n'+source[end:]
         self.assertEqual(self.execute(source,[0]*len(expected)),expected)
 
+    def test_global_cas_exact_bits_and_old_value(self):
+        # ATOMG.E.CAS: B is expected, C is replacement; D receives the old bits.
+        # IMAD.MOV reads the mapped storage address out of compute c0[0x40:48].
+        cases = [(0, 0, 0xffffffff), (0xffffffff, 0xffffffff, 0),
+                 (0x80000000, 0x80000000, 0x7fc01234),
+                 (0x7fc01234, 0x7fc01234, 0x80000000),
+                 (0x7fc01234, 0x7fc05678, 1), (42, 41, 99)]
+        for old, expected, replacement in cases:
+            for dest in (4, 6):  # including destination aliasing the address
+                with self.subTest(old=hex(old), expected=hex(expected), dest=dest):
+                    code = inst(0x000fe200078e00ff, 0x00001000ff047624)
+                    code += inst(0x000fe200078e00ff, 0x00001100ff057624)
+                    code += mov(8, expected) + mov(9, replacement)
+                    code += inst(fixtures.ctrl() | 0x1ee109, 0x00000008040073a9 | dest << 16)
+                    code += sts(0, dest) + inst(*EXIT)
+                    source = self.translate(code, nvn2_cs=[3, 1, 0, 0x50, 0], shared=4)
+                    shared_match = re.search(r'threadgroup spvUnsafeArray<uint, \d+> (\w+);', source)
+                    assert shared_match is not None
+                    shared = shared_match[1]
+                    source = re.sub(r'kernel void main0\((.*?)\)\n\{',
+                                    lambda m: 'kernel void main0(' + m[1] + ', device uint* result [[buffer(30)]])\n{', source, flags=re.S)
+                    end = source.rfind('}')
+                    source = source[:end] + f'result[1]={shared}[0];\n' + source[end:]
+                    self.assertEqual(self.execute(source, [old, 0]),
+                                     [replacement if old == expected else old, old])
+
     def test_float16_limit_preserves_nan_and_finite_values(self):
         import dmsh_limit16
         values = [math.inf, -math.inf, math.nan, 70000.0, -70000.0, 1.5, -0.0]

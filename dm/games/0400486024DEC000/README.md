@@ -61,3 +61,18 @@ and [depth-only mesh pipelines](../../../docs/reference/rendering.md#a-depth-onl
 The source comparison, activation flags and remaining integration checks are in
 [brent-compare.md](../../../brent-compare.md). Existing open gameplay findings
 remain open until a matching shader build and host are tested.
+
+## Foliage shader recheck (current, experimental)
+
+The selected 28 baseline failures plus five heavy mesh programs now produce 32
+compiled Mac libraries with `DMSH_OOT_VISUAL=1`. The remaining candidate,
+`68bbe98b3bfd9876`, starts at an extraction false entry and still fails at 0x481.
+All 18 F2IP failures, six global CAS failures, the task payload mode and both
+auto-exposure bracket-depth failures build. Every F2IP instruction in those
+programs satisfies the implemented U8/F32/NTZ guard: nearest-even two-source
+packing or truncation with source A at RZ. These are build results; foliage and
+brightness in gameplay remain unverified.
+
+Found on this game: the [raw lookup grouping extension](../../../docs/reference/shaders.md#adjacent-raw-global-memory-reads)
+accepts the heavy mesh programs' read-only pool table under `DMSH_WIDE_GROUP=1`.
+Keep this off until matching host/shader builds pass image comparison.

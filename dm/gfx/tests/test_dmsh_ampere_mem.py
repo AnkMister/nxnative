@@ -395,6 +395,17 @@ class GlobalCas(Translated):
         code = inst(0x000ea400001ee127, 0x00000026242473a9) + inst(*SUATOM) + inst(*EXIT)
         self.assertIn('atomic_compare_exchange_weak_explicit', self.translate(code))
 
+    def test_unimplemented_cas_modes_fail_closed(self):
+        lo = 0x00000026242473a9
+        hi = 0x000ea400001ee127
+        # Wide integer, uniform address, and a real predicate result each need
+        # separate lowering; the current 32-bit PT-result handler refuses them.
+        for bad in (hi | 2 << 9, hi | 1 << 27, hi & ~(7 << 17)):
+            with self.subTest(hi=hex(bad)), self.assertRaises(AssertionError):
+                self.translate(inst(bad, lo) + inst(*EXIT))
+        with patch.dict(os.environ, DMSH_OOT_VISUAL='0'), self.assertRaises(AssertionError):
+            self.translate(inst(hi, lo) + inst(*EXIT))
+
 
 @patch.dict(os.environ, DMSH_OOT_VISUAL="1")
 class RedF32(Translated):

@@ -720,3 +720,37 @@ publish output. Retained audit and verification evidence. The harness keeps
 its cwd in this checkout, so task policy prevents deleting checkout-generated
 roots while it is open. Exact roots are recorded in the evidence folder.
 Parent integrator owns independent review and game/shader acceptance.
+
+## Foliage translation and raw grouping
+
+`oot-foliage` starts at oot-brent `209835ae`. Rechecked exactly the 28 baseline
+failures and five ranked foliage mesh programs with `DMSH_OOT_VISUAL=1`.
+All 32 valid targets translate and compile; the false BAHS entry
+68bbe98b3bfd9876 still fails at 0x481. All 42 F2IP instructions satisfy the
+implemented operand guard. The base already implements 0x3a9 global CAS;
+added 12 exact-bit GPU cases and explicit unsupported-mode/disabled refusals
+rather than duplicating it.
+
+#1405 leaves all five mesh shaders scalar. `DMSH_WIDE_GROUP=1` extends its
+verified matcher to read-only pool tables and mesh/task compute lowering.
+It preserves the interval, next-start, alignment, carry, wrap and scalar fallback
+proof. Predicated words or intervening memory effects stay scalar. Fast-path
+static lookup counts are 293/287/283/312/215 from 971/971/940/930/506;
+no measured GPU or visual improvement is claimed. The experiment defaults off.
+
+The cooled-NuGet audit passed all 57 exact packages; all four restored manifests
+matched the isolated feed. One source publish was followed by a portability
+correction using `-p:PathMap="$PWD=/_/nxnative"`. This is a deviation from the
+single-publish request. The optional PDB was omitted because its SourceLink
+mapping retained a workspace path. Every installed assembly was built locally;
+no third-party translator ran. The final translator reproduces all 32 SPIR-V
+and reflection files byte for byte. The lock and default header are updated.
+No game, full shader build, regression route, push, PR or nested agent ran.
+
+Final counts and acceptance limits are recorded in
+[the foliage report](docs/analysis/oot-foliage.md). Parent owns independent
+review, full matching libraries/host, image parity and actual GPU measurements.
+Private NuGet cache, feed and publish outputs were removed. Audit evidence and
+the selected fixtures remain outside Git. Checkout intermediates remain because
+the harness keeps its working directory here; the audit contains their exact
+root inventory. No unknown or maintained artifact was deleted.
