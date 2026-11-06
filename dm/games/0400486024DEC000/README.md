@@ -87,11 +87,21 @@ From an empty save: at about 45 s `A` (title), `A` (New Game), then the movie. F
 - The "Navi" name label in the Great Deku Tree scene was missing on an earlier chain and has not been checked since. Not played yet: the Deku Tree dungeon, combat, later areas. Sound opens with no red line; movies and speech were not listened to. Physics issues reported in PR 1299 were not seen on this route (walking, the ladder, the camera).
 - No iOS shader build or iPhone run has been done. Its memory use makes an iPhone unlikely as it stands.
 
-## Community source harvest
+## Community source harvest on oot-next2 (historical)
 
 The `oot-next2` branch adds general texture storage ranges, packaged-holder validation, null-safe getters, obsolete chunk retirement, indirect mesh recording, mesh output padding and point topology, plus the missing Ampere global compare-and-swap opcode. `DM_NVN_DISPATCH_OVERLAP=1` is optional and off by default. Pool heaps, guest texture release and alias retirement keep their existing opt-in controls. The existing `DM_UPSCALER=metalfx` path remains the sole optional NDSR replacement.
 
 The source-built translator and chain header must accompany this host. Full shader libraries and gameplay acceptance remain open because an isolated rebuild lacks disk headroom. The community's title-movie 60 fps result and upstream's Kokiri Forest 60 fps result were measured on other Macs and are not measurements of this branch on an M4 Max.
+
+## oot-latest Mac build preparation
+
+This branch targets Switch 2 update v131072 on an M4 Max Mac. Its translator is rebuilt from the combined source, with HMMA chain reuse off. The full shader-library rebuild and game app build are deferred to `scripts/build-oot-latest.sh`. No gameplay or stutter result is claimed for this integrated branch.
+
+The merged seed list has 9,846 distinct rows, including 58 task/mesh states and 145 compute states. The offline archive also plans every eligible compute shader. It preserves size-bounded split archives and the stale-part cleanup from `0907c1e2`. The runtime keeps `DM_AOT=0`, safety and held-serial accounting on, and BCRT, pass splitting, dispatch overlap and MetalFX replacement off. The render-scale ceiling stays at 1.0.
+
+The new closed input-stream responses from upstream PR #1527 prevent the SDK from following a null microphone-stream implementation when the ocarina plays. Synthetic checks cover the closed-state calls; playing a song on this branch is still unverified.
+
+The per-PR decisions, conflicts and build evidence are in [the integration report](../../../docs/oot-notes/oot-latest.md).
 
 ## Found on this game
 
