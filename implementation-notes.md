@@ -483,3 +483,16 @@ UP use, preservation of the lane predicate and unchanged VOTE behavior.
 Baseline reproduced two failing Vote tests before the port. Expected effect
 is correct subgroup guards, potentially restoring effects selected by them;
 Ocarina-specific visible impact is unmeasured. No source bug found.
+
+## Upstream 4a0551e4: adapted
+
+Source `4a0551e4b9abc75ea736006e4dbd30fcac0d03a4`. Imported guarded
+bindless handle resolution and phi-lookup changes with six guarded-read fixtures.
+`DMSH_OOT_VISUAL=1` enables the changed candidate/undefined-phi rules.
+The full texture|sampler candidate supersedes an intermediate texture-only
+word, handles can come from the game's own constant bank, and a nested phi's
+one-defined-input shortcut must not resolve an outer handle prematurely.
+Expected improvement is missing guarded texture effects; Yoshi water is the
+upstream motivating case, not an Ocarina picture demonstrated here.
+Risks include handle provenance assumptions at unmatched guards and shader
+shape coverage. No additional source defect found during this port.
