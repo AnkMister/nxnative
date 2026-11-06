@@ -96,6 +96,10 @@ static int test_output_lifetime(void) {
     return 0;
 }
 int main(void) {
+    if (h_is_State(NULL) != 0 || h_is_Free(NULL) != 0 || h_is_Capacity(NULL) != 0 || h_is_GetGain(NULL) != 1.0f) return 1;
+    h_is_Purge(NULL); h_is_SetGain(NULL, 0.5f, 100);
+    os_stats stats = h_is_Stats(NULL, false), reset = h_is_Stats(NULL, true);
+    if (stats.a || stats.b || stats.c || reset.a || reset.b || reset.c) return 1;
     if (test_surround_output() || test_output_lifetime()) return 1;
     char out[64], ev[64]; uint8_t prm[16]; gbuf b[3]; static int16_t pcm[3][4800 * 2];
     h_au_InitParam(prm);
