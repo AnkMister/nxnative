@@ -365,3 +365,6 @@ follow-up; no second translator publish was needed or run. Required suites are
 rerun against the final combined source. Four native make jobs are allowed for
 the final rebuild, with nice 19; restore/publish used two. No full game shader
 build, launch, user settings write, push or PR was performed by this task.
+Real AOT retry isolated twelve incompatible inferred mesh descriptors and merged
+all accepted pieces. Keep archive.tsv's accepted-base count consistent with the
+filtered inventory, including cached archive reuse. No shader chain change.
