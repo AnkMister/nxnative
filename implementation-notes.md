@@ -391,3 +391,15 @@ lifetime. The image test checks a clear survives and atomic OR reaches the color
 view. Expected improvements are missing mesh/texture effects; no picture tested.
 Risks include unverified NVN2 layout and resource/view lifetime across full
 gameplay. Converter synchronization is retained from the PR for correctness.
+
+## #1343: adapted
+
+Head `6941aa847dee2eeec66da4734f192067158a2269`. Imported the optimizer
+change and SurfaceLoadLiveness fixtures, behind `DMSH_OOT_VISUAL=1`.
+A multi-result load with one live result must retain all its input uses.
+Checking only side effects recursed into the producer after detaching a dead
+component and deleted coordinates still needed by another component.
+The PR's IsUnused check preserves those inputs and still removes wholly dead
+loads. Tests cover both component orders and side-effecting atomic addresses.
+Expected improvement is foliage simulation jitter. No semantic issue found;
+full-game optimizer coverage and visual acceptance remain unverified.
