@@ -429,3 +429,9 @@ No game, full shader build, settings write, push or remote branch change ran.
 - DM_NVN_COPY_STATE=1 stores strides on cmd_t and snapshots them beside buffer/texture copy commands. Default-off preserves OP_COPY_STRIDE recording. Older captures still decode and replay.
 - Kept #1390's destination-range write marker instead of upstream's whole-pool API. No p1444 lane changes this command layout.
 - Added upstream capture-compatibility and 256-byte command-memory fixtures. They are not run while the game is active.
+
+## Harvest 3: merged PR 1345 and PR 1354 reconciliation
+
+- Replaced the older gated audio-lock port with 52190603's merged scanner. It reads Update, then UpdateImpl for every SDK and reports a miss. The lock is a merged correctness fix, so DM_OOT_BRENT no longer gates it. Replaced the earlier synthetic fixture with upstream's broader lock and PLT cases.
+- Adopted a2d39a26's merged RomFS identity. Device numbers are always excluded. Removed the old stamp-compatibility branch; the packer's source hash already invalidates old stamps. Kept upstream's device-number fixture.
+- Source comparison completed. Tests are pending the game-stop gate.
