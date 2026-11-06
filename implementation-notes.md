@@ -81,3 +81,8 @@ pass. Run at J=16, 16 archive workers, 16 merge threads, make -j16.
 Real AOT retry isolated twelve incompatible inferred mesh descriptors and merged
 all accepted pieces. Keep archive.tsv's accepted-base count consistent with the
 filtered inventory, including cached archive reuse. No shader chain change.
+
+Final pack inspection found the Mac packer's file allow-list omitted the AOT
+inventory and preflight/refusal JSON. DM_AOT=1 now includes those files in both
+copy selection and the pack reuse fingerprint. A real-packer fixture verifies
+packing, default-off selection, and repacking after each JSON changes.

@@ -193,6 +193,22 @@ class PackReuse(unittest.TestCase):
         self.assert_reused()
         self.assertEqual((partial / 'leave').read_text(), 'untouched')
 
+    def test_aot_inventory_and_refusals_are_packed_and_invalidate_reuse(self):
+        names = ('aot.json', 'aot-preflight.json', 'aot-refused.gpu.json')
+        for name in names: (self.tmp / 'pso' / name).write_text('{}')
+        with mock.patch.dict(os.environ, DM_AOT='0'):
+            self.pack()
+            self.assertFalse((Path(self.args.out) / 'Contents/Resources/pso/aot.json').exists())
+        with mock.patch.dict(os.environ, DM_AOT='1'):
+            self.assert_repacked()
+            dst = Path(self.args.out) / 'Contents/Resources/pso'
+            for name in names: self.assertEqual((dst / name).read_text(), '{}')
+            self.assert_reused()
+            for name in names:
+                (self.tmp / 'pso' / name).write_text('{"updated":true}')
+                self.assert_repacked()
+                self.assertEqual((dst / name).read_text(), '{"updated":true}')
+
     def test_each_selected_file_content_invalidates_even_with_same_stat(self):
         self.pack()
         names = ['dmhost', 'patched/main.patched.bin', 'patched/main.fixups.tsv', 'patched/main.gates.tsv', 'patched/main.cuts.tsv',
