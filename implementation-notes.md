@@ -324,3 +324,30 @@ c1/extent table warning. Compare matched scene/dispatch windows, whole-frame
 GPU work, frame intervals, drops, enqueue-to-display latency and energy per
 frame at the 30 fps cap. A lower GPU duration alone is not acceptance if latency
 or game speed regresses. No M4 Max gameplay, latency or energy claim is made here.
+
+# Ocarina GPU safety branch
+
+Base: `oot-stack` at `8284776d`. Work is source only. No game, shader build,
+regress.py, protected game workspace writes, package installation, push or PR.
+The user explicitly requests local commits and default-on safety for this build;
+that overrides the shared context's default-off rule for the safety net.
+
+Read issue #1326 body and all 21 comments from the saved GitHub JSON. The raw
+pool table and the 262,144-entry dirty tracker are different tables. Comments
+6 and 8 identify task-shader underflow into 2^27-1 loop iterations after missing
+raw loads. #1360 on the base addresses capacity. Comments 15, 17 and 21 identify
+whole CPU-only pools being wired and retired descriptors creating new textures;
+#1404 and #1394 overlap on address exposure. Memory wiring failure can outlive
+process exit. #1391 is prevention, not a recovery guarantee. Comment 16 reports
+another hang with the growing table already present. #1382 names the failed
+work. #1409 releases a fence wait after failed feedback. #1332 (not requested as
+a port) waits for revoked access; our safety net will stop at the first fault.
+#1275 is a separate stalled-completion watchdog. #1420 is a CPU object-type
+crash, not a GPU hang. Alias VA exhaustion and the terrain upload defect remain
+separate from this task.
+
+## Port review
+
+| PR | Upstream head | Verdict | Critical review / adaptation |
+|---|---|---|---|
+| [#1391](https://github.com/seedds/nxnative/pull/1391) | `5122c24de6ecb24291a5fb0812e6b48ca6cb92fb` | adapted | Retain `g_ghost_active` in alias release and eviction holder sets from #1299. Upstream only refuses additions at 100% and can still submit after refusal; the safety-net commit must close that gap and reserve desktop headroom. |
