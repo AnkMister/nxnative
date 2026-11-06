@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # scripts/bench.py: the measured window of the host's per-frame rows (DM_NVN_TSV) and the percentiles taken from it, and the profiles' bench.tsv routes
+import os
 import argparse, contextlib, importlib.util, io, json, os, sys, tempfile, unittest
 from pathlib import Path
 from unittest import mock
@@ -24,6 +25,17 @@ class Bench(unittest.TestCase):
             s = bench.summary(ft, shown, gpu, dropped, n, 1.0, 1000 / 120)
             self.assertEqual(s['fps'], 100.0); self.assertEqual(s['frame_p50'], 10.0); self.assertEqual(s['frame_p99'], 10.0); self.assertEqual(s['frame_max'], 50.0)
             self.assertEqual(s['over_budget'], 1)   # only the 50 ms frame is longer than 1.5 × 8.33 ms
+
+    def test_shader_folder(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {}, clear=True):
+            build = Path(d)
+            self.assertEqual(bench.shader_folder(build), build / 'shader')
+            (build / 'shader.noindex').mkdir()
+            self.assertEqual(bench.shader_folder(build), build / 'shader.noindex')
+            (build / 'shader').mkdir()
+            self.assertEqual(bench.shader_folder(build), build / 'shader')
+            os.environ['DM_BUILD_NOINDEX'] = '1'
+            self.assertEqual(bench.shader_folder(build), build / 'shader.noindex')
 
     def test_percentile(self):
         xs = list(range(1, 101))

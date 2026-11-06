@@ -73,3 +73,15 @@ Our existing PR #1391 guard and DM_SAFE_GPU remain in place.
 Ported temporary-folder exclusion from PR #1355, source 2e1f4953, behind
 DM_BUILD_NOINDEX=1 (default off). All capture/heap-check scratch paths follow
 TMP too; the source commit left these under tmp/. Old tmp/ is preserved.
+
+Ported PR #1438 from ea680b3e behind the same DM_BUILD_NOINDEX=1 switch.
+Shader data is renamed only on opt in; an existing destination and symlinks are
+preserved. Reader tools accept both names. Resolved mac_pso against our AOT
+seen-descriptor support, keeping both changes. New tests cover folder migration
+and compatibility. Keep the flag consistent to avoid separate shader caches.
+
+Spotlight checks passed on installed Python 3.14 without installs: 51 tests
+cover chain/migration, work-dir, benchmark and bug-report paths. mac-app tests
+need BSD cp -cRX; regress tests import libproc.dylib at module load on Linux.
+Review fixed the formatted shader-capture scratch path and made benchmark /
+regress prefer the selected folder when both shader layouts exist.
