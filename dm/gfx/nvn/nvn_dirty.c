@@ -38,7 +38,7 @@ enum { BLK_SHIFT = 10, BLK = 1 << BLK_SHIFT, NBLK = 256, MAX_RANGE = BLK * NBLK 
 // So: "is this texture tracked" looks for a range that holds its whole span; a fault / host pre-write unprotects and stamps every range covering that page; pool destruction identifies its range by the pool's exact start mem.
 // (Previously the first range containing the address was always taken: two SMBW ASTC 6x5 textures whose pool's first page is shared with a small preceding pool were judged untracked and re-uploaded on every use, about 6 MB per frame)
 typedef struct { uintptr_t base, end, mem; _Atomic uint8_t *state; _Atomic uint64_t *gen; _Atomic(_Atomic uint8_t *) sparse; size_t cap; _Atomic int live;
-                 _Atomic(_Atomic uint32_t *) slot; uintptr_t alias; } range_t;   // sparse: per page, protected for a placement sparse tile (nvn_dirty_protect_sparse)
+                 _Atomic(_Atomic uint32_t *) slot; uintptr_t alias; int kernel; } range_t;   // sparse: per page, protected for a placement sparse tile (nvn_dirty_protect_sparse)
 // slot: per-page file offset + 1, allocated on first release. alias: the same
 // backing VM object mapped at a host-only address until the pool retires.
 static _Atomic(range_t *) g_blk[NBLK];
@@ -103,6 +103,7 @@ static void unprotect_page(range_t *r, uintptr_t p) {   // The caller has alread
 static int g_dd_fd = -1;
 static pthread_mutex_t g_dd_mu = PTHREAD_MUTEX_INITIALIZER;   // the file's slot allocator (never taken in the page-fault path)
 static uint32_t *g_dd_free, g_dd_nfree, g_dd_freecap, g_dd_next = 1;
+static _Atomic int g_dd_disabled;
 static _Atomic int64_t g_dd_gone;                              // pages released now
 static _Atomic uint64_t g_dd_released, g_dd_back, g_dd_reread, g_dd_raced, g_dd_failed, g_dd_slots_hi;
 int g_dd_test_lose;   // test switch (t_dirty_dedupe): every page counts as taken by the kernel, so its bytes come back from the file
@@ -219,9 +220,10 @@ static void prep_write(void *addr, size_t len) {
     }
 }
 
+static void kernel_read(const void *addr, size_t len);
 void nvn_dirty_add_range(const void *mem, size_t size) {
     static int inited;
-    if (!inited) { inited = 1; g_pg = (uintptr_t)getpagesize(); g_shift = __builtin_ctzl(g_pg); mach_timebase_info(&g_tb); dm_fault_hook_register(on_fault); dm_guest_write_prep_register(prep_write); }
+    if (!inited) { inited = 1; g_pg = (uintptr_t)getpagesize(); g_shift = __builtin_ctzl(g_pg); mach_timebase_info(&g_tb); dm_fault_hook_register(on_fault); dm_guest_write_prep_register(prep_write); dm_guest_read_prep_register(kernel_read); }
     atomic_fetch_add(&g_adds_total, 1);
     pthread_mutex_lock(&g_slot_mu);
     int n = atomic_load(&g_nr);
@@ -256,7 +258,7 @@ void nvn_dirty_add_range(const void *mem, size_t size) {
         memset((void *)state, 0, np); memset((void *)gen, 0, np * sizeof *gen);
         _Atomic uint8_t *sp = atomic_load(&r->sparse); if (sp) memset((void *)sp, 0, np);
     }
-    r->base = base; r->end = end; r->mem = (uintptr_t)mem; r->state = state; r->gen = gen;
+    r->kernel = 0; r->base = base; r->end = end; r->mem = (uintptr_t)mem; r->state = state; r->gen = gen;
     if (slot == n) atomic_store(&g_nr, n + 1);
     atomic_store_explicit(&r->live, 1, memory_order_release);
     pthread_mutex_unlock(&g_slot_mu);
@@ -351,7 +353,7 @@ size_t nvn_dirty_release(const void *addr, size_t len, uint64_t stamp, int (*ok)
         pthread_mutex_lock(&g_slot_mu);
         range_t *r = find_span(a, len); int n = atomic_load(&g_nr), shared = 0;
         if (r) for (int i = 0; i < n && !shared; i++) { range_t *o = rg(i); shared = live_at(i) && o != r && lo < o->end && hi > o->base; }
-        if (!r || shared) { pthread_mutex_unlock(&g_slot_mu); *skip = !done; return done; }
+        if (!r || shared || r->kernel || atomic_load(&g_dd_disabled)) { pthread_mutex_unlock(&g_slot_mu); *skip = !done; return done; }
         if (!atomic_load(&r->slot)) {   // first release in this range
             _Atomic uint32_t *sl = calloc(r->cap, sizeof *sl);
             if (!sl) die("dedupe page tables (%zu pages)", r->cap);
@@ -403,8 +405,8 @@ size_t nvn_dirty_release(const void *addr, size_t len, uint64_t stamp, int (*ok)
     return done;
 }
 // Put back every released page in [addr, addr + len) before the GPU may read it (a no-copy buffer over it going into the residency set, an upload reading it); waits out a release in progress
-void nvn_dirty_restore(const void *addr, size_t len) {
-    if (!len || g_dd_fd < 0) return;
+int nvn_dirty_restore(const void *addr, size_t len) {
+    if (!len || g_dd_fd < 0) return 1;
     uintptr_t a = (uintptr_t)addr, e = a + len; int n = atomic_load(&g_nr);
     for (int i = 0; i < n; i++) {
         range_t *r = rg(i);
@@ -412,9 +414,28 @@ void nvn_dirty_restore(const void *addr, size_t len) {
         uintptr_t lo = a > r->base ? a : r->base, hi = e < r->end ? e : r->end;
         for (uintptr_t p = (lo - r->base) >> g_shift, q = (hi - 1 - r->base) >> g_shift; p <= q; p++) {
             uint8_t st = atomic_load(&r->state[p]);
-            if (st == PG_GONE || st == PG_BUSY) dd_take(r, p, 0);
+            if ((st == PG_GONE || st == PG_BUSY) && !dd_take(r, p, 0)) { atomic_store(&g_dd_disabled, 1); return 0; }
         }
     }
+    return 1;
+}
+// A timeout disables future release. Give an in-flight restore one more bounded
+// wait to finish; if it cannot, stop before any kernel/GPU consumer sees bytes.
+void nvn_dirty_require(const void *addr, size_t len) {
+    if (nvn_dirty_restore(addr, len)) return;
+    LOG("[RED] texture restore delayed: dedupe disabled; retaining guest copies");
+    if (!nvn_dirty_restore(addr, len)) die("texture restore did not finish; refusing kernel/GPU access");
+}
+static void kernel_read(const void *addr, size_t len) {
+    if (!len || g_dd_fd < 0) return;
+    uintptr_t a = (uintptr_t)addr, e = a + len;
+    pthread_mutex_lock(&g_slot_mu);
+    for (int i = 0, n = atomic_load(&g_nr); i < n; i++) {
+        range_t *r = rg(i);
+        if (live_at(i) && a < r->end && e > r->base) r->kernel = 1;
+    }
+    pthread_mutex_unlock(&g_slot_mu);
+    nvn_dirty_require(addr, len);
 }
 // Released pages now (bytes), pages released / put back / read back from the file / kept with a write that raced the release / failed, in total, and the file's high-water mark (bytes)
 void nvn_dirty_dedupe_stats(uint64_t *gone, uint64_t *released, uint64_t *back, uint64_t *reread, uint64_t *raced, uint64_t *failed, uint64_t *file) {

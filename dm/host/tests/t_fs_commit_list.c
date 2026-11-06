@@ -289,3 +289,5 @@ int main(void) {
     printf("list Commit: %d checks, %d failed\n", checks, fails);
     return fails != 0;
 }
+
+void dm_guest_read_prepare(const void *a, size_t n) { (void)a; (void)n; }

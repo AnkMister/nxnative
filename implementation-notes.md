@@ -183,3 +183,46 @@ Final deliverables are two local behaviour commits on `oot-mem`. Both flags
 are off by default, and either commit can be reverted separately after the
 parent resolves any nearby integration edits. No push or PR was made.
 Scratch probes and compiled test executables were removed after verification.
+
+## Independent review fixes (supersedes the open kernel-read risk above)
+
+Branch: oot-mem-fix. Findings 2 and 3 are fixed together because they share
+restoration and the kernel-read boundary.
+
+nvn_dirty_restore returns success. BUSY timeout disables further dedupe.
+Every GPU/no-copy consumer uses nvn_dirty_require, including pool_res, pool
+creation, large chunks, transient uploads and the raw pool-map loop. This helper
+gives an in-flight restore a second bounded wait; if still incomplete it stops
+the host before residency/submission. This is a failure policy, not a claim that
+stalled disk I/O can safely produce pixels. Release failures retain guest bytes.
+
+Kernel sources use dm_guest_read_prepare. Under the slot mutex it excludes
+all overlapping tracked ranges until retirement, then waits out releases already
+admitted. File writes and their overloads converge on h_fs_WriteFile. Socket
+Send/SendTo/Recv/Read/Write paths in hle_net.c are offline stubs or in-process
+eventfd counters; no guest socket buffer reaches a host syscall. Existing file
+read destinations use dm_guest_write_prepare. Oodle pipe writes, JIT/probe dumps,
+NVN shader/uniform/vertex/index dumps and Vulkan shader captures are covered too.
+Frame capture copies an uncompressed source to host storage before fwrite.
+Other read/write paths use host-owned buffers (loader, SDK16, save sync, Oodle
+input). GL shader capture stores a host-owned source copy. No network capability
+was added. Future kernel consumers must use the preparation hook or a bounce.
+
+Regression evidence: the pre-fix dirty implementation (only signature-adapted
+for the new test API) fails seven assertions: real file writes return EFAULT,
+re-release remains possible, and BUSY incorrectly authorizes access. The fixed
+test passes every assertion, including an actual pread held beyond BUSY_WAIT_MS.
+The fs test separately enforces preparation before pwrite.
+
+Upload trim already occupied commit 8830915b but its diff needed dedupe context.
+Tag oot-upload-trim-only names a separate standalone commit directly on oot-base,
+with just trim, its tests and docs. This can ship without dedupe. The original
+branches and their history remain intact.
+
+Validation: host build passed; dirty dedupe/race/retirement/slot tests passed;
+Metal tex dedupe 7 checks, trim off/on 11/13, upload slots 305 in each mode,
+NVN 234 in each mode; fs 138 checks. Full tools discovery 1217 tests passed,
+23 skipped. Gfx/iOS discovery and final counts are in review-fixes.md.
+No game, regress.py or full shader build was run. Timeout failure can terminate
+the host; kernel-visible pools retain their guest copies, reducing savings.
+Front-ends: no new flag. Dedupe and upload trim remain default off.

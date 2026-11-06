@@ -221,3 +221,5 @@ int main(void) {
     if (!fails) { char c[1200]; snprintf(c, sizeof c, "rm -rf '%s'", root); system(c); }
     return fails != 0;
 }
+
+void dm_guest_read_prepare(const void *a, size_t n) { (void)a; (void)n; }

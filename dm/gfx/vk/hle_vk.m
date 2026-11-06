@@ -886,6 +886,7 @@ static void sh_capture(const char *key, const void *code, size_t n) {
     if (access(p, F_OK) == 0) return;
     char t[1100]; snprintf(t, sizeof t, "%s.%d.tmp", p, getpid());
     FILE *f = fopen(t, "wb"); if (!f) { RED1("shader capture cannot write to %s", dir); return; }
+    dm_guest_read_prepare(code, n);
     int ok = fwrite(code, 1, n, f) == n; ok &= fclose(f) == 0;
     if (ok) rename(t, p); else unlink(t);   // whole files only: a capture run may be killed at any time
 }

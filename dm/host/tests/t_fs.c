@@ -32,8 +32,10 @@ static int fake_clonefile(const char *src, const char *dst, uint32_t flags) {
 struct dm_flags g_flag; uint64_t g_t0_ns; uint64_t now_ns(void) { return 0; }   // stubs for log timestamps and the read path (not used by the write path)
 void dm_guest_write_prepare(void *a, size_t n) { (void)a; (void)n; }
 extern int g_nfail, g_lasterr;                                        // front-end notification count (the strong implementation in t_fs_stub.c replaces the weak one in hle_fs.c)
+static int read_prepared;
 static int g_mode, g_calls;                   // 0 write normally; 1 always return 0; 2 write only 3 bytes the first time
 static ssize_t fake_pwrite(int fd, const void *buf, size_t n, off_t off) {
+    if (!read_prepared) { fprintf(stderr, "file source not prepared for kernel read\n"); exit(2); }
     g_calls++;
     if (g_mode == 1) { if (g_calls > 1000) { printf("  ✗ pwrite retried over 1000 times after returning 0 (endless loop)\n"); exit(1); } return 0; }
     if (g_mode == 2 && g_calls == 1 && n > 3) n = 3;
@@ -332,3 +334,5 @@ int main(void) {
     printf("== %d checks, %d failed ==\n", checks, fails);
     return fails != 0;
 }
+
+void dm_guest_read_prepare(const void *a, size_t n) { (void)a; (void)n; read_prepared = 1; }

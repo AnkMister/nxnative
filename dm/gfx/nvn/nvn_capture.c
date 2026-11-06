@@ -156,6 +156,11 @@ void cap_put(cap_writer *w, uint32_t tag, uint32_t submit, const void *data, uin
             if (zn && zn < n) { c.codec = CAP_LZFSE; c.stored = zn; } else { free(z); z = NULL; }
         }
     }
+    if (!z && c.stored) {
+        z = malloc((size_t)c.stored);
+        if (!z) { w->err = 1; return; }
+        memcpy(z, data, (size_t)c.stored);
+    }
     if (fwrite(&c, sizeof c, 1, w->f) != 1 || (c.stored && fwrite(z ? z : data, 1, (size_t)c.stored, w->f) != c.stored)) w->err = 1;
     w->raw += n; w->stored += c.stored + sizeof c;
     free(z);

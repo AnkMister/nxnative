@@ -557,7 +557,7 @@ static void reg_bump(int id_, int samp) { uint64_t g = atomic_fetch_add(&g_reg_g
 // and committing on the spot is earlier than any command buffer commit that uses it. CPU-side reads of pool contents through mtl_addr trigger it too (conservative, never misses). Caller holds g_mu
 static void pool_res(int i) {
     if (g_pools[i].res) return;
-    nvn_dirty_restore((const void *)g_pools[i].base, g_pools[i].end - g_pools[i].base);
+    nvn_dirty_require((const void *)g_pools[i].base, g_pools[i].end - g_pools[i].base);
     res_add(g_pools[i].buf); res_commit(); g_pools[i].res = 1; g_pool_res_n++;
 }
 // A large pool in chunks. Metal wires a zero-copy buffer whole while it is in the residency set, so one buffer over a large pool pins all of it, whatever the GPU reads. Mario Kart World's 2,427 MB
@@ -582,7 +582,7 @@ void mtl_pool_add(const void *mem, uint64_t size) {
         pthread_mutex_unlock(&g_mu);
         if (k >= 0) { static int nl; if (nl++ < 8) MLOG("memory pool %p+%llu MB: in chunks, wired as far as lookups reach", mem, (unsigned long long)(size >> 20)); return; }
     }
-    nvn_dirty_restore((const void *)a, b - a);
+    nvn_dirty_require((const void *)a, b - a);
     id<MTLBuffer> buf = [g_dev newBufferWithBytesNoCopy:(void *)a length:b - a options:MTLResourceStorageModeShared deallocator:nil];
     // Pokémon Legends: Z-A: twice on the Mac a small pool's buffer was refused although its pages were one read-write VM region, both times while another heavy job (a shader compile,
     // a second game instance) took the machine's memory; every run on an idle machine created all of them. Wiring the pages may fail under memory pressure: retry for up to about 2 s
@@ -650,7 +650,7 @@ static void pidx_sort(void) {
     qsort(g_pidx, (size_t)g_npool, sizeof *g_pidx, pidx_cmp); g_pidx_ok = 1;
 }
 static int big_new(big_pool *b, uintptr_t lo, uintptr_t hi, uintptr_t end, uint64_t unk) {   // caller holds g_mu: a new entry for [lo, end) of the pool, looked up for addresses in [lo, hi)
-    nvn_dirty_restore((const void *)lo, end - lo);
+    nvn_dirty_require((const void *)lo, end - lo);
     id<MTLBuffer> buf = [g_dev newBufferWithBytesNoCopy:(void *)lo length:end - lo options:MTLResourceStorageModeShared deallocator:nil];
     if (!buf) { MLOG("[RED] memory pool %p: the zero-copy buffer over %#lx..%#lx was refused", b->mem, (unsigned long)lo, (unsigned long)end); return -1; }
     if (g_npool == g_cap) { g_cap = g_cap ? g_cap * 2 : 64; g_pools = realloc_or_die(g_pools, g_cap * sizeof *g_pools, "the memory pool table"); }
@@ -2661,7 +2661,7 @@ static id<MTLBuffer> up_big_src(uint64_t addr, uint64_t len, uint64_t *off, int 
     int in = texture_only; if (!in) { pthread_mutex_lock(&g_mu); in = big_of(addr) >= 0; pthread_mutex_unlock(&g_mu); }
     if (!in || !len) return nil;
     uintptr_t pg = (uintptr_t)getpagesize(), a = (uintptr_t)addr & ~(pg - 1), b = ((uintptr_t)addr + len + pg - 1) & ~(pg - 1);
-    nvn_dirty_restore((const void *)a, b - a);
+    nvn_dirty_require((const void *)a, b - a);
     id<MTLBuffer> buf = [g_dev newBufferWithBytesNoCopy:(void *)a length:b - a options:MTLResourceStorageModeShared deallocator:nil];
     if (!buf) return nil;
     res_add(buf); [g_up_keep addObject:buf]; *off = (uint64_t)addr - a;
@@ -5002,9 +5002,9 @@ static __unsafe_unretained NvProg *prog_get(const prog_t *cp) {   // Called only
             // DM_NVN_SHDUMP=directory: shaders missing from the map are saved as <key>.ctl (the control section's key bytes) and <key>.code (code area, nvn_ctl_lens), to trace their source / add them to the map offline
             static const char *shd; static int shd_init; if (!shd_init) { shd = getenv("DM_NVN_SHDUMP"); shd_init = 1; if (shd && *shd) mkdir(shd, 0777); }   // create the dump folder: a missing one made every fopen fail silently
             if (shd) { char path[1024]; FILE *f; uint32_t ncode, nctl; nvn_ctl_lens(p->sd[i].control, &nctl, &ncode);   // with SHDUMP set the control section is the host's copy
-                snprintf(path, sizeof path, "%s/%s.ctl", shd, k.UTF8String); if ((f = fopen(path, "wb"))) { fwrite(p->sd[i].control, 1, nctl, f); fclose(f); }
+                snprintf(path, sizeof path, "%s/%s.ctl", shd, k.UTF8String); if ((f = fopen(path, "wb"))) { (dm_guest_read_prepare(p->sd[i].control, nctl), fwrite(p->sd[i].control, 1, nctl, f)); fclose(f); }
                 snprintf(path, sizeof path, "%s/%s.code", shd, k.UTF8String);
-                if (p->sd[i].data && ncode && ncode < (1u << 24) && (f = fopen(path, "wb"))) { fwrite((const void *)(uintptr_t)p->sd[i].data, 1, ncode, f); fclose(f); } }
+                if (p->sd[i].data && ncode && ncode < (1u << 24) && (f = fopen(path, "wb"))) { (dm_guest_read_prepare((const void *)(uintptr_t)p->sd[i].data, ncode), fwrite((const void *)(uintptr_t)p->sd[i].data, 1, ncode, f)); fclose(f); } }
             continue;
         }
         int st = stage_of(stage);
@@ -8179,7 +8179,7 @@ static id<MTLBuffer> gmem_map(void) {
     gen = atomic_load(&g_pool_gen); pidx_sort();
     for (int k = 0; k < g_npool; k++) {
         pool_ent *p = &g_pools[g_pidx[k]];
-        if (!p->res) { nvn_dirty_restore((const void *)p->base, p->end - p->base); res_add(p->buf); p->res = 1; g_pool_res_n++; }
+        if (!p->res) { nvn_dirty_require((const void *)p->base, p->end - p->base); res_add(p->buf); p->res = 1; g_pool_res_n++; }
         uint64_t lo = MAX((uint64_t)p->lo, end), hi = p->hi;
         if (lo >= hi) continue;
         if (n == DMSH_GMEM_MAP_ENTRIES) { over++; continue; }
@@ -8372,7 +8372,7 @@ static int encode_args_(id<MTLCommandEncoder> en, NvShader *sh, int nvn_stage, i
                 static const char *cbd, *cbk; static int cbd_init; if (!cbd_init) { cbd = getenv("DM_NVN_CBDUMP"); cbk = getenv("DM_NVN_CBDUMP_KEY"); cbd_init = 1; }
                 if (cbd && (!cbk || !strcmp(sh->key, cbk))) {
                     char p[1024]; snprintf(p, sizeof p, "%s/F%llu_p%llu_st%d_cb%d_%llx.bin", cbd, (unsigned long long)atomic_load(&g_cur_frame), g_stat_pass, nvn_stage, reg, (unsigned long long)u->addr);
-                    FILE *f = fopen(p, "wb"); if (f) { fwrite((const void *)u->addr, 1, u->size, f); fclose(f); } else RED_ONCE(41, "CBDUMP cannot write %s", p);
+                    FILE *f = fopen(p, "wb"); if (f) { dm_guest_read_prepare((const void *)u->addr, u->size); fwrite((const void *)u->addr, 1, u->size, f); fclose(f); } else RED_ONCE(41, "CBDUMP cannot write %s", p);
                 }
             }
             slots[aid] = gpu;
@@ -11307,10 +11307,10 @@ static void draw_(const p_draw *dw, const p_draw_idx *di) {
                 char fp[1024];
                 for (int st = 0; st < 16; st++) if (S.vbuf[st].address && S.vbuf[st].size) {
                     snprintf(fp, sizeof fp, "%s/F%llu_p%llu_vb%d_%llx.bin", cbd, (unsigned long long)atomic_load(&g_cur_frame), g_stat_pass, st, (unsigned long long)S.vbuf[st].address);
-                    FILE *f = fopen(fp, "wb"); if (f) { fwrite((const void *)S.vbuf[st].address, 1, S.vbuf[st].size, f); fclose(f); } }
+                    FILE *f = fopen(fp, "wb"); if (f) { dm_guest_read_prepare((const void *)S.vbuf[st].address, S.vbuf[st].size); fwrite((const void *)S.vbuf[st].address, 1, S.vbuf[st].size, f); fclose(f); } }
                 if (di && di->ibuf) {
                     snprintf(fp, sizeof fp, "%s/F%llu_p%llu_ib%d_%llx.bin", cbd, (unsigned long long)atomic_load(&g_cur_frame), g_stat_pass, di->itype, (unsigned long long)di->ibuf);
-                    FILE *f = fopen(fp, "wb"); if (f) { fwrite((const void *)di->ibuf, 1, (size_t)di->count << (di->itype == 2 ? 2 : di->itype), f); fclose(f); } }
+                    FILE *f = fopen(fp, "wb"); if (f) { dm_guest_read_prepare((const void *)di->ibuf, (size_t)di->count << (di->itype == 2 ? 2 : di->itype)); fwrite((const void *)di->ibuf, 1, (size_t)di->count << (di->itype == 2 ? 2 : di->itype), f); fclose(f); } }
             } }
         if (last_pass != g_stat_pass) {
             last_pass = g_stat_pass;

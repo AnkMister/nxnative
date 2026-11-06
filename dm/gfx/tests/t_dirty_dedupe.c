@@ -59,12 +59,14 @@ static int test_madvise(void *addr, size_t len, int advice) {
     }
     return madvise(addr, len, advice);
 }
+static _Atomic int read_hold, read_entered;
 static ssize_t test_pread(int fd, void *dst, size_t len, off_t off) {
     range_t *r = find_span((uintptr_t)g_m, 1);
     if (r && (uintptr_t)dst >= r->alias && (uintptr_t)dst < r->alias + r->end - r->base) {
         if (prot_of((void *)((r->base + (uintptr_t)dst - r->alias) & ~(g_pg - 1))) != VM_PROT_NONE) EXPECT("restore leaves the guest inaccessible", VM_PROT_NONE, prot_of((void *)((r->base + (uintptr_t)dst - r->alias) & ~(g_pg - 1))));
         restore_checks++;
     }
+    if (atomic_load(&read_hold)) { atomic_store(&read_entered, 1); while (atomic_load(&read_hold)) sched_yield(); }
     return pread(fd, dst, len, off);
 }
 static uint64_t footprint(void) {
@@ -77,6 +79,8 @@ static int allow(void *ctx, uintptr_t lo, uintptr_t hi) { (void)lo; (void)hi; ++
 
 static uint8_t *g_rd; static _Atomic int g_rd_bad;
 static void *reader(void *arg) { (void)arg; for (int k = 0; k < NP; k++) if (bad_bytes(g_rd + (size_t)k * g_pg, g_pg, 1)) atomic_fetch_add(&g_rd_bad, 1); return NULL; }
+
+static void *restore_thread(void *p) { nvn_dirty_require(p, g_pg); return NULL; }
 
 int main(void) {
     crash_install(); setvbuf(stdout, NULL, _IONBF, 0);
@@ -179,6 +183,38 @@ int main(void) {
     if (!child) { close(g_dd_fd); volatile uint8_t v = m[0]; (void)v; _exit(1); }
     int status = 0; waitpid(child, &status, 0);
     EXPECT("unreadable backup stops instead of returning corrupt bytes", 88, WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+    nvn_dirty_remove_range(m); munmap(m, n);
+
+    m = mmap(NULL, n, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    g_m = m; fill(m, n, 1); nvn_dirty_add_range(m, n);
+    uint64_t st7 = nvn_dirty_now(); nvn_dirty_protect(m, n);
+    EXPECT("kernel source released", n, nvn_dirty_release(m, n, st7, NULL, NULL, &skip));
+    char file[1200]; snprintf(file, sizeof file, "%s/kernel-source.XXXXXX", tmp);
+    int fd = mkstemp(file); unlink(file);
+    EXPECT("unprepared kernel copy-in reproduces EFAULT", -1, pwrite(fd, m, g_pg, 0));
+    EXPECT("copy-in errno", EFAULT, errno);
+    dm_guest_read_prepare(m, g_pg);
+    EXPECT("prepared file write from released texture page", g_pg, pwrite(fd, m, g_pg, 0));
+    uint8_t *check = malloc(g_pg);
+    EXPECT("read file bytes", g_pg, pread(fd, check, g_pg, 0));
+    EXPECT("file matches released texture bytes", 0, memcmp(check, m, g_pg));
+    EXPECT("kernel-visible range cannot be re-released", 0, nvn_dirty_release(m, n, st7, NULL, NULL, &skip));
+    EXPECT("second file write remains accessible", g_pg, pwrite(fd, m, g_pg, 0));
+    free(check); close(fd); nvn_dirty_remove_range(m); munmap(m, n);
+
+    m = mmap(NULL, n, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    g_m = m; fill(m, n, 1); nvn_dirty_add_range(m, n);
+    uint64_t st8 = nvn_dirty_now(); nvn_dirty_protect(m, n);
+    EXPECT("delayed restore source released", n, nvn_dirty_release(m, n, st8, NULL, NULL, &skip));
+    g_dd_test_lose = 1; atomic_store(&read_hold, 1); atomic_store(&read_entered, 0);
+    pthread_t restorer; pthread_create(&restorer, NULL, restore_thread, m);
+    while (!atomic_load(&read_entered)) sched_yield();
+    EXPECT("timeout cannot authorize a GPU consumer", 0, nvn_dirty_restore(m, g_pg));
+    EXPECT("unfinished bytes remain inaccessible", VM_PROT_NONE, prot_of(m));
+    atomic_store(&read_hold, 0); pthread_join(restorer, NULL);
+    EXPECT("completed restoration authorizes access", 1, nvn_dirty_restore(m, g_pg));
+    EXPECT("completed bytes match texture", 0, bad_bytes(m, g_pg, 1));
+    EXPECT("restore timeout disables future release (keep guest copy)", 0, nvn_dirty_release(m, n, st8, NULL, NULL, &skip));
     nvn_dirty_remove_range(m); munmap(m, n);
 
     printf("%s\n", g_fail ? "FAILED" : "all passed");

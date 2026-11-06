@@ -22,5 +22,6 @@ void nvn_dirty_slot_stats(int *live, int *used_slots, uint64_t *adds_total); // 
 int nvn_dirty_dedupe_open(const char *dir);                        // the dedupe file in dir (unlinked at once); 0 = ok
 int nvn_dirty_dedupe_on(void);                                     // the file is open
 size_t nvn_dirty_release(const void *addr, size_t len, uint64_t stamp, int (*ok)(void *ctx, uintptr_t lo, uintptr_t hi), void *ctx, int *skip);   // release the protected pages unwritten since stamp; bytes released
-void nvn_dirty_restore(const void *addr, size_t len);              // put back every released page of the range (before the GPU may read it)
+int nvn_dirty_restore(const void *addr, size_t len);              // 1: every page accessible; 0: incomplete restore, dedupe disabled
+void nvn_dirty_require(const void *addr, size_t len);             // restore or stop before exposing bytes to kernel/GPU
 void nvn_dirty_dedupe_stats(uint64_t *gone, uint64_t *released, uint64_t *back, uint64_t *reread, uint64_t *raced, uint64_t *failed, uint64_t *file);
