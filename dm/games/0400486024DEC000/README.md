@@ -39,6 +39,8 @@ For a run past the opening, copy the committed save folder to the new run's `DM_
 
 - Open Mac memory experiment: [cold uploaded guest texture copies](../../../docs/reference/memory.md#cold-uploaded-guest-texture-copies-mac-experiment). Default off; this branch has unit-test evidence only, with no game A/B.
 
+- Open Mac memory experiment: [release idle upload staging](../../../docs/reference/memory.md#upload-staging-retained-after-loading-mac-experiment). Default off; synthetic Metal checks pass, game savings remain unmeasured.
+
 ## Open
 
 - Of the task and mesh shaders, nine do not translate: eight foliage shaders stop at Ampere opcode `0x243` (packed conversion, source A `RZ`, mode `0x0000c4ff`; three of them, `604134a5262ff670`, `ecead5cd0569091f` and `fed302d791a4ba43`, are drawn in Kokiri Forest), and one at ISBERD mode `0xb8` in a task or mesh shader. The scene also asks for `d17eefaff4f0bc23`, whose code is in none of the shader archives.

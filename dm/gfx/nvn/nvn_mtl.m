@@ -905,13 +905,14 @@ static uint64_t g_sub_serial;   // Submission index (used by the parallel precom
 void mtl_prepare(void) {
     if (!g_warm_started && prepare_on()) { mtl_init(); shmap_load(); }
 }
-static void sub_cut_begin(void); static void dd_tick(void);
+static void sub_cut_begin(void); static void dd_tick(void); static void up_trim(void);
 void mtl_sub_begin(void) {
     mtl_init(); g_sub_serial++; g_seg = 0; seg_clk_put(g_sclk); g_sclk = NULL; g_rc_npend = 0; g_rc_skip = 0;
     sub_cut_begin();
     defer_drain();
     defer_reset();
     dd_tick();
+    up_trim();
     mtl_prepare();   // done by then in the submit entry; the replay tool (nvn_replay) reaches it here
     warm_claim();
     if (g_cb) MDIE("submit re-entered");
@@ -2313,6 +2314,33 @@ static __strong id<MTLBuffer> g_up_slot_blk[3], g_up_slot_over[3]; static unsign
 static size_t g_up_slot_want[3], g_up_batch_bytes; static int g_up_over_used;
 static int up_reuse(void) { static int on = -1; if (on < 0) { const char *e = getenv("DM_NVN_UPLOAD_REUSE"); on = !e || atoi(e); } return on; }
 static int up_retained(id<MTLBuffer> b, unsigned slot) { return b && (b == g_up_slot_blk[slot] || b == g_up_slot_over[slot]); }
+// Loading can leave 192 MiB of staging resident through otherwise idle play.
+// Trim only on the submit thread, after the slot's GPU work has completed.
+#define UP_TRIM_AGE 120u
+static uint64_t g_up_slot_last[3], g_up_trimmed;
+static int up_trim_on(void) {
+    static int on = -1;
+    if (on < 0) { const char *e = getenv("DM_NVN_UPLOAD_TRIM"); on = e && atoi(e) > 0;
+#if TARGET_OS_IPHONE
+        on = 0;
+#endif
+    }
+    return on;
+}
+static void up_trim(void) {
+    if (!up_trim_on()) return;
+    int changed = 0;
+    @autoreleasepool {
+        for (unsigned i = 0; i < 3; i++) {
+            if (!g_up_slot_last[i] || g_sub_serial - g_up_slot_last[i] < UP_TRIM_AGE || atomic_load(&g_up_alloc_busy[i])) continue;
+            g_up_trimmed += g_up_slot_blk[i].length + g_up_slot_over[i].length;
+            res_remove(g_up_slot_blk[i]); res_remove(g_up_slot_over[i]);
+            g_up_slot_blk[i] = nil; g_up_slot_over[i] = nil;
+            g_up_slot_want[i] = 0; g_up_slot_last[i] = 0; changed = 1;
+        }
+        if (changed) res_commit();
+    }
+}
 typedef struct {
     __unsafe_unretained id<MTLBuffer> src;
     size_t off, row, image;
@@ -2410,6 +2438,7 @@ static void up_begin(void) {
     if (atomic_load(&g_up_alloc_busy[slot])) rec_publish();
     up_wait_zero(&g_up_alloc_busy[slot], WS_UPALLOC);
     atomic_store(&g_up_alloc_busy[slot], 1); g_up_cur_slot = slot;
+    g_up_slot_last[slot] = MAX(1ull, g_sub_serial);
     g_up_batch_bytes = 0; g_up_over_used = 0;
     [g_up_alloc4[slot] reset];
     g_up_cb = [g_dev newCommandBuffer];
@@ -3578,6 +3607,7 @@ void mtl_mem_stat(unsigned long long frame, unsigned long long rss_mb) {
 #if TARGET_OS_IPHONE
     snprintf(avail, sizeof avail, "%llu MB", (unsigned long long)(os_proc_available_memory() >> 20));
 #endif
+    if (up_trim_on()) MLOG("upload staging: trimmed %llu MB in total", (unsigned long long)(g_up_trimmed >> 20));
     if (g_dd_on > 0) { uint64_t gone, released, back, reread, raced, failed, file;
         nvn_dirty_dedupe_stats(&gone, &released, &back, &reread, &raced, &failed, &file);
         MLOG("texture dedupe: released now %llu MB, file high-water %llu MB, restored %llu pages (%llu from disk), failed %llu",

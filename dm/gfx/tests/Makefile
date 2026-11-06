@@ -463,3 +463,9 @@ check_t_logic: t_logic
 t_tex_dedupe: t_tex_dedupe.m $(MTL_T_DEP)
 	clang $(CFLAGS) -fobjc-arc -o $@ t_tex_dedupe.m $(MTL_T_SRC) $(FW)
 check_t_tex_dedupe: RUN_ENV = MTL_DEBUG_LAYER=1
+t_upload_trim: t_upload_trim.m $(MTL_T_DEP)
+	clang $(CFLAGS) -fobjc-arc -o $@ t_upload_trim.m $(MTL_T_SRC) $(FW)
+.PHONY: check_t_upload_trim
+check_t_upload_trim: t_upload_trim
+	MTL_DEBUG_LAYER=1 DM_NVN_UPLOAD_TRIM=0 ./t_upload_trim
+	MTL_DEBUG_LAYER=1 DM_NVN_UPLOAD_TRIM=1 ./t_upload_trim

@@ -127,3 +127,59 @@ Dedupe verification before its commit:
   pools reject release.
 - Full Python discovery is running. No host source was changed.
 - Independent review is left to the parent. This subtask starts no delegates.
+
+## Change 2: release idle upload staging
+
+Flag: `DM_NVN_UPLOAD_TRIM=1`, default off and Mac-only.
+A slot used within the last 120 rendering submissions keeps its reusable
+buffers. An older slot drops both only after its GPU completion flag clears.
+The residency set is committed and its allocation demand history is reset.
+No extra thread, timer or wakeup is added.
+
+Estimate: zero to 192 MiB of steady memory, from two buffers of at most 32 MiB
+in each of three slots. Loading peaks may be unchanged because the buffers are
+still needed then. The Metal test measured destruction of 64 MiB in one slot.
+That is a synthetic resource-lifetime result, not an Ocarina measurement.
+
+Risk: a later upload must allocate again. Intermittent texture streaming can
+trade steady memory for allocation work or a loading hitch. Slots used every
+few submissions never trim, so movie playback keeps its existing reuse.
+
+Tests: `t_upload_trim` passes with trim off (11 checks) and on (13 checks),
+with Metal validation. It holds GPU work behind a gate beyond the idle age,
+checks the age boundary, copied bytes, actual buffer destruction and another
+upload after trim. The initial lifetime assertion failed until the trim path
+committed its residency removals; that correction is included.
+
+Parent measurement: compare off versus on with dedupe held off, then with
+dedupe on. Capture the same steady forest scene after 120 idle submissions,
+then load another scene and return. The `upload staging: trimmed` line reports
+cumulative bytes, not live savings. Compare Metal allocation, footprint,
+loading peaks and hitches. Do not subtract cumulative trimmed bytes from RSS.
+
+## Integrated verification
+
+- `make -C dm/gfx/tests GAME=0400486024DEC000 check_t_upload_trim` passes
+  11 checks with trim off and 13 with trim on, under Metal validation.
+- `check_t_tex_dedupe` passes 7 checks under Metal validation, including forcing
+  file restoration before the existing no-copy buffer is read by the GPU.
+- `check_t_upload_slots` passes 305 checks with trim off. The same binary passes
+  305 checks with `DM_NVN_UPLOAD_TRIM=1`; recurring batches still reuse staging.
+- Rebuilt `t_nvn` passes 234 checks with both flags off and 234 with both on.
+- The first full Python discovery ran 1,217 tests with 23 skipped and one
+  failure. The new compatibility read of DM_GUEST_FILE needed a documentation
+  row. That row is now in the dedupe commit, and the table was regenerated.
+- No host source changed, so the host Makefile suite was not required.
+- No chain tool changed, so no chain version or shader rebuild was needed.
+- Game regress, peak MB, screenshot comparison and independent review are
+  deliberately unverified. The baseline remains untouched.
+
+Final Python discovery passes: **1,217 tests, 23 skipped, zero failures**.
+The env-table checker also passes. It still prints the pre-existing notice
+about DM_NVN_CUT_FIRST being mentioned in docs but not read by code; the notice
+is not a failing check. The first Python failure is resolved.
+
+Final deliverables are two local behaviour commits on `oot-mem`. Both flags
+are off by default, and either commit can be reverted separately after the
+parent resolves any nearby integration edits. No push or PR was made.
+Scratch probes and compiled test executables were removed after verification.
