@@ -1,5 +1,17 @@
 # Rewriter
 
+## System counters
+
+### Counter reads save a full SIMD context
+
+- **Symptom:** every rewritten system-counter read saves and restores 1,024 bytes of SIMD state even when it only needs an integer timestamp.
+- **Cause:** CNTPCT and CNTVCT share the SVC entry and metadata lookup, which preserve a complete guest context around arbitrary C handlers.
+- **Fix:** opt in with `DM_FAST_CLOCK=1` when running `patch_nso.py`. The dedicated entry borrows only x0 to x5 and x7 on the thread's existing gate stack, preserves flags without modifying them, and never touches SIMD or Apple's x18. It uses Darwin's commpage counter type and offset, including the offset recheck across sleep/wake, following [Mach absolute time](https://github.com/apple-oss-distributions/xnu/blob/main/libsyscall/wrappers/mach_absolute_time.s) and the [arm64 commpage definitions](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/arm/cpu_capabilities.h). Unknown counter types take the full gate. Conversion uses the same integer multiply/divide order as `now_ns()` and `guest_ticks()`, including truncation and overflow. The SDK's Ounce spec selects 31.25 MHz; other SDKs use 19.2 MHz.
+- **Clock modes:** a generation check rejects a read that overlaps a freeze/lag change. Frozen clocks, background waits, deterministic-clock mode, statistics and the first read use the original gate and clock functions. CNTFRQ reads use a full gate returning that same selected frequency. x18 destinations also retain the full gate. Guest x29/x30 destinations are written into the block's saved stack pair on fallback. Older hosts reject the new `clock_*` metadata kinds at load time.
+- **Use:** the default rewriter output retains the original gate. The NSP script's rewrite cache includes the option, so changing it re-rewrites the modules. Existing shaders remain usable. `DM_CLOCK_STATS=1` is a separate runtime diagnostic that counts reads per thread and kind, logging the first read, each 65,536 reads and totals at thread exit. It forces fallback, so leave it off for performance measurements. Threads still alive when the process terminates may have only their last logged partial totals.
+- **Validation:** `make -C dm/host/tests GAME=<id> clock` exercises the actual entry and full gate at both frequencies, register/flags preservation, freeze reasons, background wait and deterministic stepping. `test_fast_clock.py` checks emitted code for every destination and runs the full rewriter on synthetic physical, virtual and frequency reads. Gameplay and actual machine sleep/wake remain separate checks.
+- **Found on:** [Ocarina of Time v131072](../../dm/games/0400486024DEC000/README.md#counter-read-census-v131072), static census and Mac host tests. Gameplay A/B validation is open.
+
 The NSO rewriter (`dm/tools/patch_nso.py`) and its per-build tables (`dm/tools/sdk_patches.py`, a profile's `patches.py`). Each entry: symptom, cause, fix, the games it was found on. The [symptom index](../agents/symptoms.md) lists every symptom.
 
 ## Disassembler dependencies

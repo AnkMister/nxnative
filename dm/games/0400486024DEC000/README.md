@@ -37,6 +37,18 @@ For a run past the opening, copy the committed save folder to the new run's `DM_
 - Kokiri Forest ran at about 20 fps with the GPU two-thirds idle: the [bindless pool table was rebuilt for every registration](../../../docs/reference/frame-rate.md#a-bindless-pool-table-rebuilt-for-every-registration), and about 12,000 descriptors of finalized texture objects churned the ghost ring (resolved). The frame is now 16–21 ms at the median on an Apple M5, submit 5–8 ms, and the GPU (14–21 ms) is the limit.
 - The first 3D scene exhausted Metal memory when [bindless pool walks churned finalized textures](../../../docs/reference/nvn-objects.md#a-bindless-pool-churns-finalized-textures-within-a-submission). On the Apple M5, the failing run reached 18,930 MiB of residency. With submission-local backing, residency was 7,946 MiB about ten seconds after the movie and 7,871 MiB at 35 seconds. The opening 3D scene and its subtitles presented, and the test host exited normally.
 
+## Counter read census, v131072
+
+Current static measurement on the supplied update, independent of the v0 profile addresses. The original ExeFS text words were checked against `patched_v131072/*.sites.tsv`, `*.gates.tsv` and the rewrite logs. No game files or rewritten outputs were modified.
+
+| Module | NSO build ID, first 16 bytes | CNTPCT sites | CNTVCT sites | CNTFRQ sites |
+|---|---|---:|---:|---:|
+| main | `e0f3ccfaf50065ae4ea01eb5aeb13b1a` | 0 | 0 | 0 |
+| subsdk0 | `b0110087a7b339ef74588d3bd0b4dd5d` | 0 | 0 | 0 |
+| sdk | `1643a838814f9c10c696f930ed681e7f` | 45 | 0 | 0 |
+
+The SDK destinations are x0 (14), x8 (11), x11 (1), x20 (7), x21 (9) and x22 (3). Every measured site can use the optional [integer-only counter entry](../../../docs/reference/rewriter.md#counter-reads-save-a-full-simd-context). The update's SDK uses the Switch 2 frequency of 31.25 MHz. Static sites do not establish dynamic read frequency or total CPU saving. Runtime counts, gameplay A/B, audio/pacing checks and machine sleep/wake validation remain open. TLS specialization was deferred to keep executable offset fixups outside the clock change.
+
 ## Open
 
 - Of the task and mesh shaders, nine do not translate: eight foliage shaders stop at Ampere opcode `0x243` (packed conversion, source A `RZ`, mode `0x0000c4ff`; three of them, `604134a5262ff670`, `ecead5cd0569091f` and `fed302d791a4ba43`, are drawn in Kokiri Forest), and one at ISBERD mode `0xb8` in a task or mesh shader. The scene also asks for `d17eefaff4f0bc23`, whose code is in none of the shader archives.
