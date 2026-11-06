@@ -249,3 +249,27 @@ After measuring, inspect matching pictures outside the energy window.
 A successful full-frame follow-up must additionally show nonzero guest rendering
 work avoided in title/pause cases that continue submitting. The current log
 explicitly reports guest submissions avoided 0, so it cannot satisfy that gate.
+
+## Review finding 4: preserve audio during hidden clock pause
+
+`oot-idle-fix` adds dm_audio_pause, distinct from background mute. Pause sets a
+callback guard, halts the AudioUnit and joins the silent sink without releasing
+pending buffers. Starts, watchdog retries, mute transitions and media resets
+cannot start a consumer while paused. Queue order and the partly played buffer
+position remain intact. Resume starts only outputs still in STATE_STARTED,
+respecting background mute. The Mac pauses audio before freezing the clock and
+unfreezes the clock before restarting consumption. Off and slow retain their
+existing policy.
+
+Regression t_audio queues partially played dialogue, starts while hidden,
+waits through silent-sink periods and injects a late device callback. It checks
+silence, unchanged PCM position, queue/release cursors and notification count,
+then verifies queued dialogue releases on resume. Mute transitions while paused
+are covered. Mapping this call to the old dm_audio_suspend reproduces failure;
+the new policy passes. Existing audio lifecycle, SPSC, stream, stats, mocked
+device and eco-clock tests pass. Host build and focused idle/presentation tests
+pass. Logs and exact counts are in review-fixes.md.
+
+No game, physical AppKit hide/resume, full shader build or regress run. Speaker
+latency and full audio-renderer/game acceptance remain unverified.
+Front-ends: Mac DM_ECO_HIDDEN=pause now preserves audio; no new flag.

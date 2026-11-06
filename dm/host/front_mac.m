@@ -79,11 +79,11 @@ static void eco_window_update(void) {
     was = hidden;
     nvn_eco_set_hidden(hidden);
     if (paused) {
-        dm_focus_set(2); guest_clock_freeze_for(3, 1);
-        dm_audio_suspend(1); mtl_present_discard(1); dm_gfx_suspend(1); mtl_link_pause(1);
+        dm_audio_pause(1); dm_focus_set(2); guest_clock_freeze_for(3, 1);
+        mtl_present_discard(1); dm_gfx_suspend(1); mtl_link_pause(1);
     } else {
         mtl_link_pause(0); dm_gfx_suspend(0); mtl_present_discard(0); guest_clock_freeze_for(3, 0);
-        dm_audio_suspend(0); dm_focus_set(1);
+        dm_audio_pause(0); dm_focus_set(1);
     }
     LOG("[eco] window %s: %s", hidden ? "unwatched" : "watched", paused ? "clock frozen, graphics and audio suspended" : hidden ? "8 Hz acquire/vsync limit, focus kept" : "normal clock and presentation");
 }
