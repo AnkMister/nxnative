@@ -33,3 +33,11 @@ Validation logs: setup/scratch/review-fixes under the shared nxnative work root.
 Front-ends: build and runtime DM_NVN_BORDER_SPLIT=1 are opt-in; _b now always
 contains correction, _bn is optional plain. Rebuild matching chain assets before
 running; do not mix old split _b assets with this host.
+
+Final border regression extension: native checks are now 55 off and on. A
+missing optional library is exercised through pso_desc twice, including the
+cached failure, and retains the correcting base. Synthetic GPU border samples
+now derive correction from border_key's real split-handle decision; a wrong key
+therefore changes sampled pixels and fails the test. The native-enabled Python
+border suite still passes all 17 tests. The unchanged-default library tests run
+against the pre-fix builder fail; retained log border-before-libraries.log.

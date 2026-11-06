@@ -4494,7 +4494,7 @@ static void shmap_read(void) {
     NSString *ventry; id<MTLFunction> vfn; int vfn_state;
     id<MTLFunction> pfn; int pfn_state, has_pull;
     id<MTLFunction> afn[4]; int afn_state, has_alpha;
-    id<MTLFunction> bbfn[4]; int bbfn_state, has_border;   // bbfn: fn, fn_u, fn_m, fn_d of the optional plain library <key>_bb (bb_fn; bbfn_state as afn_state; has_border: the reflection names one, dmsh_build.py border_plain)
+    id<MTLFunction> bbfn[4]; int bbfn_state, has_border;   // bbfn: fn, fn_u, fn_m, fn_d of the optional plain library <key>_bn (bb_fn; bbfn_state as afn_state; has_border: the reflection names one, dmsh_build.py border_plain)
     id<MTLLibrary> llib; NSMutableDictionary<NSNumber *, id<MTLFunction>> *lfn; int lfn_state, has_logic; } @end   // llib: the side library <key>_bx for logic operations, lfn: its fn_u / fn_m specialized per set of targets (lo_fn; lfn_state as afn_state; has_logic: the reflection names its entry points, dmsh_logic.py)   // afn: the alpha test entry points of fn, fn_u, fn_m, fn_d in the side library <key>_bx (at_fn; afn_state 0 untried, 1 loaded, 2 failed; has_alpha: the reflection names them, dmsh_alpha.py)   // pfn: the same entry of the pulling library <key>_bp (pull_fn; has_pull: the reflection names one, dmsh_pull.py)   // vertex: the entry point loaded (by the depth mode); vfn: the same entry of the shadow-input library <key>_bv (vin_fn; state 0 untried, 1 loaded, 2 failed)
 @implementation NvShader
 - (void)dealloc { free(rf.c1); free(geo_slot); }
@@ -6530,7 +6530,7 @@ static MTLRenderPipelineDescriptor *pso_desc(const pso_key *k, NvShader *vs, NvS
     else if (dual) { want_note(&g_dual_want, fs->key);
         RED_ONCE(121, "shader %s writes output 1 and a pipeline blends with it as the second source, but it has no dual-source entry point: the second source counts as zero "
                  "(add its key to the profile's dual_want.tsv; DM_NVN_DUAL_WANT=<file> lists every such shader)", fs->key); }
-    if ((k->logic & 2) && fs && !k->atest && !(k->logic & 1)) {   // a border colour Metal lacks (border_key): the same entry point of the optional plain library; the side library's alpha test and logic operation entry points correct it themselves (built from that source)
+    if ((k->logic & 2) && fs && !k->atest && !(k->logic & 1)) {   // no bound sampler needs correction (border_key): the optional plain entry point; the side library's alpha test and logic operation entry points correct it themselves (built from that source)
         id<MTLFunction> bf = fsfn ? nil : bb_fn(fs, d.fragmentFunction);
         if (bf) d.fragmentFunction = bf;
     }

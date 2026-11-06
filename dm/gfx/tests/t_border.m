@@ -48,7 +48,14 @@ static void gpu_case(id<MTLComputePipelineState> p, int sid, const float B[4], i
     int bn, bw; float kk[4]; const uint8_t w[3] = { 5, 5, 5 }; int want = nvn_border(B, w, 0, &bn, &bw, kk);
     CHECK(twin == want, "sampler %d: twin %d, nvn_border says %d", sid, twin, want);
     id<MTLBuffer> block = [g_dev newBufferWithLength:DMSH_BORDER_K + 16 options:MTLResourceStorageModeShared];
-    uint32_t mask = twin && mask_on; memcpy(block.contents, &mask, 4); memcpy((uint8_t *)block.contents + DMSH_BORDER_K, k, 16);
+    uint32_t words[2] = {12, (uint32_t)sid << 20};
+    mtl_pool_add(words, sizeof words);
+    NvShader *ps = [NvShader new]; ps->stage = 1; ps->has_border = 1; ps->rf.nb = 1;
+    ps->rf.b[0] = (nvn_rbind){.kind = NVN_RB_SAMPU, .reg = 0, .sreg = 0, .soff = 5, .bw = 1};
+    state_reset(); S.ubo[1][0] = (p_bind_buf){.addr = (uint64_t)words, .size = sizeof words};
+    uint32_t selected = border_key(ps);
+    mtl_pool_del(words); state_reset();
+    uint32_t mask = twin && mask_on && selected == 0; memcpy(block.contents, &mask, 4); memcpy((uint8_t *)block.contents + DMSH_BORDER_K, k, 16);
     id<MTLBuffer> args = [g_dev newBufferWithLength:32 options:MTLResourceStorageModeShared];   // the members as border_emu lays them out: texture, sampler, its twin, the block
     uint64_t a[4] = { g_tex.gpuResourceID._impl, rid, rid_w, block.gpuAddress }; memcpy(args.contents, a, 32);
     id<MTLBuffer> uv = [g_dev newBufferWithBytes:UV length:sizeof UV options:MTLResourceStorageModeShared];
@@ -58,7 +65,7 @@ static void gpu_case(id<MTLComputePipelineState> p, int sid, const float B[4], i
     [e useResource:g_tex usage:MTLResourceUsageRead]; [e useResource:block usage:MTLResourceUsageRead];
     [e dispatchThreads:MTLSizeMake(NUV, 1, 1) threadsPerThreadgroup:MTLSizeMake(NUV, 1, 1)]; [e endEncoding]; [cb commit]; [cb waitUntilCompleted];
     CHECK(cb.status == MTLCommandBufferStatusCompleted, "sampler %d: GPU work completed", sid);
-    const float *got = out.contents; const float *Bref = mask ? B : nvn_mtl_border[bn];   // the mask clear: Metal's nearest colour
+    const float *got = out.contents; const float *Bref = twin && mask_on ? B : nvn_mtl_border[bn];   // the mask clear: Metal's nearest colour
     for (int i = 0; i < NUV; i++) { float ref[4]; reference(Bref, UV[i][0], UV[i][1], ref);
         for (int c = 0; c < 4; c++) CHECK(fabsf(got[4 * i + c] - ref[c]) < 6e-3f, "border %g,%g,%g,%g mask %u at (%g, %g) channel %d: %g, expected %g", B[0], B[1], B[2], B[3], mask, UV[i][0], UV[i][1], c, got[4 * i + c], ref[c]); }
 }
@@ -99,6 +106,18 @@ int main(int argc, char **argv) { @autoreleasepool {
         mtl_pool_del(words);
         ps->has_border = 0; CHECK(border_key(ps) == 0, "a shader without a correcting library");
         state_reset();
+    }
+    {   // Missing disposable assets must retain the original correcting function.
+        NSError *error = nil;
+        id<MTLLibrary> lib = [g_dev newLibraryWithSource:@"#include <metal_stdlib>\nusing namespace metal;\nvertex float4 v(uint i [[vertex_id]]) {return float4(0); }\nfragment float4 f() {return float4(1); }" options:nil error:&error];
+        NvShader *vs = [NvShader new], *fs = [NvShader new];
+        vs->fn = [lib newFunctionWithName:@"v"]; fs->fn = [lib newFunctionWithName:@"f"];
+        fs->has_border = 1; strcpy(fs->key, "eeeeeeeeeeeeeeee_b");
+        pso_key k = {0}; k.logic = 2;
+        CHECK(lib && pso_desc(&k, vs, fs, nil, 0).fragmentFunction == fs->fn,
+            "missing optional plain asset keeps correcting base");
+        CHECK(pso_desc(&k, vs, fs, nil, 0).fragmentFunction == fs->fn,
+            "cached asset failure also keeps correcting base");
     }
     if (argc > 1) {   // the rewritten shader
         NSError *error = nil; NSString *src = [NSString stringWithContentsOfFile:@(argv[1]) encoding:NSUTF8StringEncoding error:&error];
