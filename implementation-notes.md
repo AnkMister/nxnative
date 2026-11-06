@@ -217,3 +217,10 @@ were preserved. No active play build or baseline file was changed.
 Merged upstream c83c48f2 and oot-play-fixes. Generated translator DLLs, lock
 and header conflict in the Brent merge and are deferred to the final source
 publish after all source integrations. Neither binary side is selected.
+# Ocarina host/runtime harvest
+
+Scope: glass-oot-brent2-movie.md. Baseline a14fb78c. Source brent-oot-combined-new 89a0ff52.
+
+NDVE #1331 (b6367705, 76c20edb, 943b0bea) skipped: bilinear replacement discards the game reconstruction, conflicting with visual-quality priority. No shader chain or stable GPU changes touched.
+
+AV1 d234d4f6 port: DM_AV1_PARALLEL=1 enables delayed decoding; default retains synchronous behavior. Serialize submission/reset using decode lock before buffer lock, avoiding the source patch's unlock-before-decode-lock window. Mac runtime verification remains open.
